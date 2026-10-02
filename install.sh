@@ -3,10 +3,10 @@ set -euo pipefail
 
 REPO="Thomson67/thomsonito-batocera-wine-toolbox"
 BRANCH="test"
-PACKAGE="thomsonito-batocera-wine-toolbox-v0.1.0-dev5.zip"
+PACKAGE="thomsonito-batocera-wine-toolbox-v0.1.0-dev6.zip"
 RAW="https://raw.githubusercontent.com/$REPO/$BRANCH/packages/$PACKAGE"
-EXPECTED_SIZE="21230"
-EXPECTED_SHA256="5d2c75677118caa1a7b1debb04964e17f28487ebb116c3c932266c39a6ab6213"
+EXPECTED_SIZE="22645"
+EXPECTED_SHA256="219a8e55b9ee65907b7975fb74af2ea561e9edc2f43ff9ebd61085426f5181af"
 
 TMP="$(mktemp -d /tmp/thomsonito-wine-toolbox.XXXXXX)"
 trap 'rm -rf "$TMP"' EXIT
@@ -60,7 +60,7 @@ fi
 
 unzip -q "$TMP/$PACKAGE" -d "$TMP"
 
-ROOT="$TMP/thomsonito-batocera-wine-toolbox-v0.1.0-dev5"
+ROOT="$TMP/thomsonito-batocera-wine-toolbox-v0.1.0-dev6"
 [ -x "$ROOT/install.sh" ] || chmod +x "$ROOT/install.sh"
 
 say "Installation de la version test..." "Installing test version..."
