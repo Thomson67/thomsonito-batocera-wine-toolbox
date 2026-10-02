@@ -1,12 +1,14 @@
 #!/bin/bash
 set -euo pipefail
 
+cd /tmp 2>/dev/null || true
+
 REPO="Thomson67/thomsonito-batocera-wine-toolbox"
 BRANCH="test"
-PACKAGE="thomsonito-batocera-wine-toolbox-v0.1.0-dev6.zip"
-RAW="https://raw.githubusercontent.com/$REPO/$BRANCH/packages/$PACKAGE"
-EXPECTED_SIZE="22645"
-EXPECTED_SHA256="219a8e55b9ee65907b7975fb74af2ea561e9edc2f43ff9ebd61085426f5181af"
+BASE_PACKAGE="thomsonito-batocera-wine-toolbox-v0.1.0-dev5.zip"
+BASE_URL="https://raw.githubusercontent.com/$REPO/$BRANCH/packages/$BASE_PACKAGE"
+BASE_SIZE="21230"
+BASE_SHA256="5d2c75677118caa1a7b1debb04964e17f28487ebb116c3c932266c39a6ab6213"
 
 TMP="$(mktemp -d /tmp/thomsonito-wine-toolbox.XXXXXX)"
 trap 'rm -rf "$TMP"' EXIT
@@ -17,11 +19,7 @@ case "${LC_ALL:-${LANG:-}}" in
 esac
 
 say() {
-  if [ "$LANG_UI" = "fr" ]; then
-    printf '%s\n' "$1"
-  else
-    printf '%s\n' "$2"
-  fi
+  if [ "$LANG_UI" = "fr" ]; then printf '%s\n' "$1"; else printf '%s\n' "$2"; fi
 }
 
 [ "$(id -u)" -eq 0 ] || {
@@ -36,32 +34,51 @@ for cmd in curl unzip sha256sum stat; do
   }
 done
 
-say "Téléchargement de la branche test..." "Downloading test branch package..."
-curl -fL "$RAW" -o "$TMP/$PACKAGE"
+say "Téléchargement de la base validée..." "Downloading validated base..."
+curl -fL "$BASE_URL" -o "$TMP/$BASE_PACKAGE"
 
-size="$(stat -c '%s' "$TMP/$PACKAGE")"
-if [ "$size" != "$EXPECTED_SIZE" ]; then
-  say "ERREUR : package incomplet ($size octets reçus, $EXPECTED_SIZE attendus)."       "ERROR: incomplete package ($size bytes received, $EXPECTED_SIZE expected)."
+size="$(stat -c '%s' "$TMP/$BASE_PACKAGE")"
+[ "$size" = "$BASE_SIZE" ] || {
+  say "ERREUR : package de base incomplet ($size octets reçus, $BASE_SIZE attendus)."       "ERROR: incomplete base package ($size bytes received, $BASE_SIZE expected)."
   exit 1
-fi
+}
 
-actual_sha="$(sha256sum "$TMP/$PACKAGE" | awk '{print $1}')"
-if [ "$actual_sha" != "$EXPECTED_SHA256" ]; then
-  say "ERREUR : SHA-256 invalide pour le package de test."       "ERROR: invalid SHA-256 for the test package."
-  echo "expected=$EXPECTED_SHA256"
-  echo "actual=$actual_sha"
+actual_sha="$(sha256sum "$TMP/$BASE_PACKAGE" | awk '{print $1}')"
+[ "$actual_sha" = "$BASE_SHA256" ] || {
+  say "ERREUR : SHA-256 invalide pour le package de base."       "ERROR: invalid SHA-256 for the base package."
   exit 1
-fi
+}
 
-if ! unzip -tq "$TMP/$PACKAGE" >/dev/null; then
-  say "ERREUR : l'archive téléchargée n'est pas un ZIP valide."       "ERROR: downloaded archive is not a valid ZIP."
+unzip -tq "$TMP/$BASE_PACKAGE" >/dev/null || {
+  say "ERREUR : le package de base n'est pas un ZIP valide."       "ERROR: base package is not a valid ZIP."
   exit 1
-fi
+}
 
-unzip -q "$TMP/$PACKAGE" -d "$TMP"
+unzip -q "$TMP/$BASE_PACKAGE" -d "$TMP"
+ROOT="$TMP/thomsonito-batocera-wine-toolbox-v0.1.0-dev5"
 
-ROOT="$TMP/thomsonito-batocera-wine-toolbox-v0.1.0-dev6"
-[ -x "$ROOT/install.sh" ] || chmod +x "$ROOT/install.sh"
+say "Application des correctifs de la branche test..." "Applying test branch patches..."
 
+fetch_patch() {
+  local rel="$1"
+  mkdir -p "$(dirname "$ROOT/$rel")"
+  curl -fsSL "https://raw.githubusercontent.com/$REPO/$BRANCH/overlays/$rel" -o "$ROOT/$rel"
+}
+
+fetch_patch "VERSION"
+fetch_patch "toolbox/lib/common.sh"
+fetch_patch "toolbox/lang/fr.sh"
+fetch_patch "toolbox/lang/en.sh"
+fetch_patch "toolbox/modules/starter-pack.sh"
+
+for f in   "$ROOT/toolbox/lib/common.sh"   "$ROOT/toolbox/lang/fr.sh"   "$ROOT/toolbox/lang/en.sh"   "$ROOT/toolbox/modules/starter-pack.sh"
+do
+  /bin/bash -n "$f" || {
+    say "ERREUR : un correctif test contient une erreur de syntaxe : $f"         "ERROR: a test patch contains a syntax error: $f"
+    exit 1
+  }
+done
+
+chmod +x "$ROOT/install.sh"
 say "Installation de la version test..." "Installing test version..."
 exec "$ROOT/install.sh"
