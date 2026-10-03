@@ -92,7 +92,7 @@ menu_select() {
     if have_dialog; then
         wt_clear_tty
         local result rc
-        result="$(dialog --stdout --clear --no-shadow --ok-label "$(i18n ok)" --cancel-label "$(i18n cancel)" \
+        result="$(dialog --stdout --clear --no-shadow --cr-wrap --ok-label "$(i18n ok)" --cancel-label "$(i18n cancel)" \
             --title "$title" --menu "$prompt" 24 100 16 "$@")"
         rc=$?
         wt_clear_tty
