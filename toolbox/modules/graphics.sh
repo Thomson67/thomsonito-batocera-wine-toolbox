@@ -102,6 +102,91 @@ mangohud_game_menu() {
     done
 }
 
+mangohud_disable_individual_menu() {
+    local -a items=()
+    local path selected="" pretty="" count=0 failures=0
+
+    if [ ! -s "$MANGOHUD_OVERRIDE_FILE" ]; then
+        msgbox "$(i18n mangohud_disable_individual)" "$(i18n mangohud_no_individual_enabled)"
+        return
+    fi
+
+    while IFS=    while true; do
+        local choice
+        choice="$(menu_select "$(i18n graphics_title)" \
+            "$(i18n mangohud_intro)\n\n$(i18n mangohud_global_status "$(mangohud_global_state)")" \
+            "1" "$(i18n mangohud_enable_global)" \
+            "2" "$(i18n mangohud_disable_global)" \
+            "3" "$(i18n mangohud_per_game)" \
+            "4" "$(i18n mangohud_disable_individual)" \
+            "0" "$(i18n back)")" || return
+
+        case "$choice" in
+            1) mangohud_set_global 1 ;;
+            2) mangohud_set_global 0 ;;
+            3) mangohud_game_menu ;;
+            4) mangohud_disable_individual_menu ;;
+            0|"") return ;;
+        esac
+    done
+}
+\t' read -r state path; do
+        [ "$state" = "on" ] || continue
+        [ -n "$path" ] || continue
+        items+=("$path" "$(basename "$path")" "off")
+        count=$((count+1))
+    done < "$MANGOHUD_OVERRIDE_FILE"
+
+    if [ "$count" -eq 0 ]; then
+        msgbox "$(i18n mangohud_disable_individual)" "$(i18n mangohud_no_individual_enabled)"
+        return
+    fi
+
+    selected="$(checklist_select "$(i18n mangohud_disable_individual)" \
+        "$(i18n mangohud_disable_individual_prompt)" "${items[@]}")" || return
+
+    if [ -z "$selected" ]; then
+        msgbox "$(i18n mangohud_disable_individual)" "$(i18n mangohud_select_none)"
+        return
+    fi
+
+    while IFS= read -r path; do
+        [ -n "$path" ] || continue
+        pretty+="- $(basename "$path")"    while true; do
+        local choice
+        choice="$(menu_select "$(i18n graphics_title)" \
+            "$(i18n mangohud_intro)\n\n$(i18n mangohud_global_status "$(mangohud_global_state)")" \
+            "1" "$(i18n mangohud_enable_global)" \
+            "2" "$(i18n mangohud_disable_global)" \
+            "3" "$(i18n mangohud_per_game)" \
+            "0" "$(i18n back)")" || return
+
+        case "$choice" in
+            1) mangohud_set_global 1 ;;
+            2) mangohud_set_global 0 ;;
+            3) mangohud_game_menu ;;
+            0|"") return ;;
+        esac
+    done
+}
+\n'
+    done <<< "$selected"
+
+    yesno "$(i18n mangohud_disable_individual)" \
+        "$(i18n mangohud_disable_individual_confirm "$pretty")" || return
+
+    while IFS= read -r path; do
+        [ -n "$path" ] || continue
+        mangohud_set_game_override "$path" inherit || failures=$((failures+1))
+    done <<< "$selected"
+
+    if [ "$failures" -eq 0 ]; then
+        msgbox "$(i18n mangohud_disable_individual)" "$(i18n mangohud_disable_individual_done)"
+    else
+        msgbox "$(i18n mangohud_disable_individual)" "$(i18n mangohud_disable_individual_partial)"
+    fi
+}
+
 graphics_menu() {
     while true; do
         local choice
