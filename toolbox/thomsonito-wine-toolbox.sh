@@ -16,6 +16,7 @@ source "$WT_ROOT/modules/runners.sh"
 source "$WT_ROOT/modules/ge-proton-legacy.sh"
 source "$WT_ROOT/modules/maintenance.sh"
 source "$WT_ROOT/modules/graphics.sh"
+source "$WT_ROOT/modules/dxvk-manager.sh"
 source "$WT_ROOT/modules/settings.sh"
 
 ensure_batocera_paths
