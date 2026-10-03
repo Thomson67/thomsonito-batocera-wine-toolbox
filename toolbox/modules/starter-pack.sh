@@ -273,7 +273,6 @@ starter_pack_menu() {
         summary="$(i18n starter_summary \
             "$version" "$classic" "$ci" "$cm" \
             "$umu" "$ui" "$um" \
-            "$(human_bytes "$download")" \
             "$(human_bytes "$estimate")" \
             "$(human_bytes "${free:-0}")")"
 
