@@ -56,7 +56,7 @@ umu_menu() {
     while true; do
         local choice
         choice="$(menu_select "$(i18n menu_umu)" \
-            "$(i18n status): $(umu_toolbox_status)" \
+            "$(i18n umu_intro)\n\n$(i18n status): $(umu_toolbox_status)" \
             "1" "$(i18n umu_launch)" \
             "2" "$(i18n umu_install_update)" \
             "0" "$(i18n back)")" || return
