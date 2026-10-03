@@ -33,7 +33,6 @@ dxvk_init_global_state() {
         printf '%s\n' "batocera" > "$DXVK_GLOBAL_FILE"
     fi
 }
-
 dxvk_status() {
     local active
     active="$(dxvk_active_bundle)"
@@ -337,7 +336,103 @@ dxvk_choose_bundle_value() {
     while IFS= read -r name; do
         [ -n "$name" ] || continue
         items+=("$idx" "$name")
-        rows+="$name"    local active rows="" name idx=1 selected="" id path failures=0
+        rows+="$name"$'\n'
+        idx=$((idx+1))
+    done < <(dxvk_list_bundles)
+
+    [ "${#items[@]}" -gt 0 ] || return 1
+
+    choice="$(menu_select "$(i18n dxvk_per_game)" "$(i18n dxvk_choose_bundle_for_games)" "${items[@]}" "0" "$(i18n back)")" || return 1
+    [ "$choice" != "0" ] && [ -n "$choice" ] || return 1
+    sed -n "${choice}p" <<< "$rows"
+}
+
+dxvk_assign_games_menu() {
+    local bundle rows="" path current selected="" id idx=1 count=0 failures=0
+    local -a items=()
+
+    bundle="$(dxvk_choose_bundle_value)" || {
+        [ -n "$(dxvk_list_bundles)" ] || msgbox "$(i18n dxvk_per_game)" "$(i18n dxvk_no_bundles)"
+        return
+    }
+
+    while IFS= read -r path; do
+        [ -n "$path" ] || continue
+        current="$(dxvk_game_bundle "$path")"
+        if [ "$current" = "$bundle" ]; then
+            items+=("$idx" "$(basename "$path") | $(i18n dxvk_assigned)" "on")
+        elif [ -n "$current" ]; then
+            items+=("$idx" "$(basename "$path") | $current" "off")
+        else
+            items+=("$idx" "$(basename "$path")" "off")
+        fi
+        rows+="$path"$'\n'
+        idx=$((idx+1))
+        count=$((count+1))
+    done < <(dxvk_list_games)
+
+    if [ "$count" -eq 0 ]; then
+        msgbox "$(i18n dxvk_per_game)" "$(i18n mangohud_no_games)"
+        return
+    fi
+
+    selected="$(checklist_select "$(i18n dxvk_per_game)" "$(i18n dxvk_assign_prompt "$bundle")" "${items[@]}")" || return
+    [ -n "$selected" ] || return
+
+    while IFS= read -r id; do
+        [ -n "$id" ] || continue
+        path="$(sed -n "${id}p" <<< "$rows")"
+        [ -n "$path" ] || { failures=$((failures+1)); continue; }
+        dxvk_set_game_bundle "$path" "$bundle" || failures=$((failures+1))
+    done <<< "$selected"
+
+    if [ "$failures" -eq 0 ]; then
+        msgbox "$(i18n dxvk_per_game)" "$(i18n dxvk_assign_done "$bundle")"
+    else
+        msgbox "$(i18n dxvk_per_game)" "$(i18n dxvk_assign_partial)"
+    fi
+}
+
+dxvk_clear_games_menu() {
+    local rows="" bundle path selected="" id idx=1 count=0 failures=0
+    local -a items=()
+
+    [ -s "$DXVK_GAME_FILE" ] || {
+        msgbox "$(i18n dxvk_clear_per_game)" "$(i18n dxvk_no_game_overrides)"
+        return
+    }
+
+    while IFS=$'\t' read -r bundle path; do
+        [ -n "$bundle" ] && [ -n "$path" ] || continue
+        items+=("$idx" "$(basename "$path") | $bundle" "off")
+        rows+="$path"$'\n'
+        idx=$((idx+1))
+        count=$((count+1))
+    done < "$DXVK_GAME_FILE"
+
+    [ "$count" -gt 0 ] || {
+        msgbox "$(i18n dxvk_clear_per_game)" "$(i18n dxvk_no_game_overrides)"
+        return
+    }
+
+    selected="$(checklist_select "$(i18n dxvk_clear_per_game)" "$(i18n dxvk_clear_prompt)" "${items[@]}")" || return
+    [ -n "$selected" ] || return
+
+    while IFS= read -r id; do
+        [ -n "$id" ] || continue
+        path="$(sed -n "${id}p" <<< "$rows")"
+        [ -n "$path" ] || { failures=$((failures+1)); continue; }
+        dxvk_set_game_bundle "$path" "" || failures=$((failures+1))
+    done <<< "$selected"
+
+    if [ "$failures" -eq 0 ]; then
+        msgbox "$(i18n dxvk_clear_per_game)" "$(i18n dxvk_clear_done)"
+    else
+        msgbox "$(i18n dxvk_clear_per_game)" "$(i18n dxvk_assign_partial)"
+    fi
+}
+dxvk_remove_bundles_menu() {
+    local active rows="" name idx=1 selected="" id path failures=0
     local -a items=()
 
     active="$(dxvk_active_bundle)"
@@ -405,357 +500,6 @@ dxvk_manager_menu() {
             4) dxvk_clear_games_menu ;;
             5) dxvk_remove_bundles_menu ;;
             6) dxvk_use_batocera_default ;;
-            0|"") return ;;
-        esac
-    done
-}
-\n'
-        idx=$((idx+1))
-    done < <(dxvk_list_bundles)
-
-    [ "${#items[@]}" -gt 0 ] || return 1
-
-    choice="$(menu_select "$(i18n dxvk_per_game)" "$(i18n dxvk_choose_bundle_for_games)" "${items[@]}" "0" "$(i18n back)")" || return 1
-    [ "$choice" != "0" ] && [ -n "$choice" ] || return 1
-    sed -n "${choice}p" <<< "$rows"
-}
-
-dxvk_assign_games_menu() {
-    local bundle rows="" path current selected="" id idx=1 count=0 failures=0
-    local -a items=()
-
-    bundle="$(dxvk_choose_bundle_value)" || {
-        [ -n "$(dxvk_list_bundles)" ] || msgbox "$(i18n dxvk_per_game)" "$(i18n dxvk_no_bundles)"
-        return
-    }
-
-    while IFS= read -r path; do
-        [ -n "$path" ] || continue
-        current="$(dxvk_game_bundle "$path")"
-        if [ "$current" = "$bundle" ]; then
-            items+=("$idx" "$(basename "$path") | $(i18n dxvk_assigned)" "on")
-        elif [ -n "$current" ]; then
-            items+=("$idx" "$(basename "$path") | $current" "off")
-        else
-            items+=("$idx" "$(basename "$path")" "off")
-        fi
-        rows+="$path"    local active rows="" name idx=1 selected="" id path failures=0
-    local -a items=()
-
-    active="$(dxvk_active_bundle)"
-
-    while IFS= read -r name; do
-        [ -n "$name" ] || continue
-        if [ "$name" = "$active" ]; then
-            items+=("$idx" "$name | $(i18n dxvk_active)" "off")
-        else
-            items+=("$idx" "$name" "off")
-        fi
-        rows+="$name"$'\n'
-        idx=$((idx+1))
-    done < <(dxvk_list_bundles)
-
-    [ "${#items[@]}" -gt 0 ] || {
-        msgbox "$(i18n dxvk_manage)" "$(i18n dxvk_no_bundles)"
-        return
-    }
-
-    selected="$(checklist_select "$(i18n dxvk_manage)" "$(i18n dxvk_remove_prompt)" "${items[@]}")" || return
-    [ -n "$selected" ] || return
-
-    while IFS= read -r id; do
-        [ -n "$id" ] || continue
-        name="$(sed -n "${id}p" <<< "$rows")"
-        [ -n "$name" ] || continue
-        if [ "$name" = "$active" ]; then
-            failures=$((failures+1))
-            continue
-        fi
-        path="$DXVK_BUNDLE_DIR/$name"
-        case "$path" in "$DXVK_BUNDLE_DIR"/*) rm -rf -- "$path" || failures=$((failures+1)) ;; esac
-    done <<< "$selected"
-
-    if [ "$failures" -eq 0 ]; then
-        msgbox "$(i18n dxvk_manage)" "$(i18n dxvk_remove_done)"
-    else
-        msgbox "$(i18n dxvk_manage)" "$(i18n dxvk_remove_partial)"
-    fi
-}
-
-dxvk_manager_menu() {
-    while true; do
-        local choice
-        choice="$(menu_select "$(i18n dxvk_title)" \
-            "$(i18n dxvk_intro)\n\n$(i18n dxvk_global_status "$(dxvk_status)")" \
-            "1" "$(i18n dxvk_install_bundle)" \
-            "2" "$(i18n dxvk_choose_global)" \
-            "3" "$(i18n dxvk_manage)" \
-            "4" "$(i18n dxvk_use_batocera)" \
-            "0" "$(i18n back)")" || return
-
-        case "$choice" in
-            1) dxvk_install_bundle_menu ;;
-            2) dxvk_choose_global_menu ;;
-            3) dxvk_remove_bundles_menu ;;
-            4) dxvk_use_batocera_default ;;
-            0|"") return ;;
-        esac
-    done
-}
-\n'
-        idx=$((idx+1))
-        count=$((count+1))
-    done < <(dxvk_list_games)
-
-    if [ "$count" -eq 0 ]; then
-        msgbox "$(i18n dxvk_per_game)" "$(i18n mangohud_no_games)"
-        return
-    fi
-
-    selected="$(checklist_select "$(i18n dxvk_per_game)" \
-        "$(i18n dxvk_assign_prompt "$bundle")" \
-        "${items[@]}")" || return
-    [ -n "$selected" ] || return
-
-    while IFS= read -r id; do
-        [ -n "$id" ] || continue
-        path="$(sed -n "${id}p" <<< "$rows")"
-        [ -n "$path" ] || { failures=$((failures+1)); continue; }
-        dxvk_set_game_bundle "$path" "$bundle" || failures=$((failures+1))
-    done <<< "$selected"
-
-    if [ "$failures" -eq 0 ]; then
-        msgbox "$(i18n dxvk_per_game)" "$(i18n dxvk_assign_done "$bundle")"
-    else
-        msgbox "$(i18n dxvk_per_game)" "$(i18n dxvk_assign_partial)"
-    fi
-}
-
-dxvk_clear_games_menu() {
-    local rows="" bundle path selected="" id idx=1 count=0 failures=0
-    local -a items=()
-
-    [ -s "$DXVK_GAME_FILE" ] || {
-        msgbox "$(i18n dxvk_clear_per_game)" "$(i18n dxvk_no_game_overrides)"
-        return
-    }
-
-    while IFS=    local active rows="" name idx=1 selected="" id path failures=0
-    local -a items=()
-
-    active="$(dxvk_active_bundle)"
-
-    while IFS= read -r name; do
-        [ -n "$name" ] || continue
-        if [ "$name" = "$active" ]; then
-            items+=("$idx" "$name | $(i18n dxvk_active)" "off")
-        else
-            items+=("$idx" "$name" "off")
-        fi
-        rows+="$name"$'\n'
-        idx=$((idx+1))
-    done < <(dxvk_list_bundles)
-
-    [ "${#items[@]}" -gt 0 ] || {
-        msgbox "$(i18n dxvk_manage)" "$(i18n dxvk_no_bundles)"
-        return
-    }
-
-    selected="$(checklist_select "$(i18n dxvk_manage)" "$(i18n dxvk_remove_prompt)" "${items[@]}")" || return
-    [ -n "$selected" ] || return
-
-    while IFS= read -r id; do
-        [ -n "$id" ] || continue
-        name="$(sed -n "${id}p" <<< "$rows")"
-        [ -n "$name" ] || continue
-        if [ "$name" = "$active" ]; then
-            failures=$((failures+1))
-            continue
-        fi
-        path="$DXVK_BUNDLE_DIR/$name"
-        case "$path" in "$DXVK_BUNDLE_DIR"/*) rm -rf -- "$path" || failures=$((failures+1)) ;; esac
-    done <<< "$selected"
-
-    if [ "$failures" -eq 0 ]; then
-        msgbox "$(i18n dxvk_manage)" "$(i18n dxvk_remove_done)"
-    else
-        msgbox "$(i18n dxvk_manage)" "$(i18n dxvk_remove_partial)"
-    fi
-}
-
-dxvk_manager_menu() {
-    while true; do
-        local choice
-        choice="$(menu_select "$(i18n dxvk_title)" \
-            "$(i18n dxvk_intro)\n\n$(i18n dxvk_global_status "$(dxvk_status)")" \
-            "1" "$(i18n dxvk_install_bundle)" \
-            "2" "$(i18n dxvk_choose_global)" \
-            "3" "$(i18n dxvk_manage)" \
-            "4" "$(i18n dxvk_use_batocera)" \
-            "0" "$(i18n back)")" || return
-
-        case "$choice" in
-            1) dxvk_install_bundle_menu ;;
-            2) dxvk_choose_global_menu ;;
-            3) dxvk_remove_bundles_menu ;;
-            4) dxvk_use_batocera_default ;;
-            0|"") return ;;
-        esac
-    done
-}
-\t' read -r bundle path; do
-        [ -n "$bundle" ] && [ -n "$path" ] || continue
-        items+=("$idx" "$(basename "$path") | $bundle" "off")
-        rows+="$path"    local active rows="" name idx=1 selected="" id path failures=0
-    local -a items=()
-
-    active="$(dxvk_active_bundle)"
-
-    while IFS= read -r name; do
-        [ -n "$name" ] || continue
-        if [ "$name" = "$active" ]; then
-            items+=("$idx" "$name | $(i18n dxvk_active)" "off")
-        else
-            items+=("$idx" "$name" "off")
-        fi
-        rows+="$name"$'\n'
-        idx=$((idx+1))
-    done < <(dxvk_list_bundles)
-
-    [ "${#items[@]}" -gt 0 ] || {
-        msgbox "$(i18n dxvk_manage)" "$(i18n dxvk_no_bundles)"
-        return
-    }
-
-    selected="$(checklist_select "$(i18n dxvk_manage)" "$(i18n dxvk_remove_prompt)" "${items[@]}")" || return
-    [ -n "$selected" ] || return
-
-    while IFS= read -r id; do
-        [ -n "$id" ] || continue
-        name="$(sed -n "${id}p" <<< "$rows")"
-        [ -n "$name" ] || continue
-        if [ "$name" = "$active" ]; then
-            failures=$((failures+1))
-            continue
-        fi
-        path="$DXVK_BUNDLE_DIR/$name"
-        case "$path" in "$DXVK_BUNDLE_DIR"/*) rm -rf -- "$path" || failures=$((failures+1)) ;; esac
-    done <<< "$selected"
-
-    if [ "$failures" -eq 0 ]; then
-        msgbox "$(i18n dxvk_manage)" "$(i18n dxvk_remove_done)"
-    else
-        msgbox "$(i18n dxvk_manage)" "$(i18n dxvk_remove_partial)"
-    fi
-}
-
-dxvk_manager_menu() {
-    while true; do
-        local choice
-        choice="$(menu_select "$(i18n dxvk_title)" \
-            "$(i18n dxvk_intro)\n\n$(i18n dxvk_global_status "$(dxvk_status)")" \
-            "1" "$(i18n dxvk_install_bundle)" \
-            "2" "$(i18n dxvk_choose_global)" \
-            "3" "$(i18n dxvk_manage)" \
-            "4" "$(i18n dxvk_use_batocera)" \
-            "0" "$(i18n back)")" || return
-
-        case "$choice" in
-            1) dxvk_install_bundle_menu ;;
-            2) dxvk_choose_global_menu ;;
-            3) dxvk_remove_bundles_menu ;;
-            4) dxvk_use_batocera_default ;;
-            0|"") return ;;
-        esac
-    done
-}
-\n'
-        idx=$((idx+1))
-        count=$((count+1))
-    done < "$DXVK_GAME_FILE"
-
-    [ "$count" -gt 0 ] || {
-        msgbox "$(i18n dxvk_clear_per_game)" "$(i18n dxvk_no_game_overrides)"
-        return
-    }
-
-    selected="$(checklist_select "$(i18n dxvk_clear_per_game)" "$(i18n dxvk_clear_prompt)" "${items[@]}")" || return
-    [ -n "$selected" ] || return
-
-    while IFS= read -r id; do
-        [ -n "$id" ] || continue
-        path="$(sed -n "${id}p" <<< "$rows")"
-        [ -n "$path" ] || { failures=$((failures+1)); continue; }
-        dxvk_set_game_bundle "$path" "" || failures=$((failures+1))
-    done <<< "$selected"
-
-    if [ "$failures" -eq 0 ]; then
-        msgbox "$(i18n dxvk_clear_per_game)" "$(i18n dxvk_clear_done)"
-    else
-        msgbox "$(i18n dxvk_clear_per_game)" "$(i18n dxvk_assign_partial)"
-    fi
-}
-
-dxvk_remove_bundles_menu() {
-    local active rows="" name idx=1 selected="" id path failures=0
-    local -a items=()
-
-    active="$(dxvk_active_bundle)"
-
-    while IFS= read -r name; do
-        [ -n "$name" ] || continue
-        if [ "$name" = "$active" ]; then
-            items+=("$idx" "$name | $(i18n dxvk_active)" "off")
-        else
-            items+=("$idx" "$name" "off")
-        fi
-        rows+="$name"$'\n'
-        idx=$((idx+1))
-    done < <(dxvk_list_bundles)
-
-    [ "${#items[@]}" -gt 0 ] || {
-        msgbox "$(i18n dxvk_manage)" "$(i18n dxvk_no_bundles)"
-        return
-    }
-
-    selected="$(checklist_select "$(i18n dxvk_manage)" "$(i18n dxvk_remove_prompt)" "${items[@]}")" || return
-    [ -n "$selected" ] || return
-
-    while IFS= read -r id; do
-        [ -n "$id" ] || continue
-        name="$(sed -n "${id}p" <<< "$rows")"
-        [ -n "$name" ] || continue
-        if [ "$name" = "$active" ]; then
-            failures=$((failures+1))
-            continue
-        fi
-        path="$DXVK_BUNDLE_DIR/$name"
-        case "$path" in "$DXVK_BUNDLE_DIR"/*) rm -rf -- "$path" || failures=$((failures+1)) ;; esac
-    done <<< "$selected"
-
-    if [ "$failures" -eq 0 ]; then
-        msgbox "$(i18n dxvk_manage)" "$(i18n dxvk_remove_done)"
-    else
-        msgbox "$(i18n dxvk_manage)" "$(i18n dxvk_remove_partial)"
-    fi
-}
-
-dxvk_manager_menu() {
-    while true; do
-        local choice
-        choice="$(menu_select "$(i18n dxvk_title)" \
-            "$(i18n dxvk_intro)\n\n$(i18n dxvk_global_status "$(dxvk_status)")" \
-            "1" "$(i18n dxvk_install_bundle)" \
-            "2" "$(i18n dxvk_choose_global)" \
-            "3" "$(i18n dxvk_manage)" \
-            "4" "$(i18n dxvk_use_batocera)" \
-            "0" "$(i18n back)")" || return
-
-        case "$choice" in
-            1) dxvk_install_bundle_menu ;;
-            2) dxvk_choose_global_menu ;;
-            3) dxvk_remove_bundles_menu ;;
-            4) dxvk_use_batocera_default ;;
             0|"") return ;;
         esac
     done
