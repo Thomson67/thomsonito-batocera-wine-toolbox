@@ -69,18 +69,20 @@ mangohud_list_games() {
 
 mangohud_game_menu() {
     local -a items=()
-    local path state selected="" count=0 failures=0
+    local rows="" path state selected="" id count=0 failures=0 idx=1
 
     while IFS= read -r path; do
         [ -n "$path" ] || continue
         state="$(mangohud_game_override "$path")"
 
         if [ "$state" = "on" ]; then
-            items+=("$path" "$(basename "$path") | $(i18n enabled)" "on")
+            items+=("$idx" "$(basename "$path")" "on")
         else
-            items+=("$path" "$(basename "$path")" "off")
+            items+=("$idx" "$(basename "$path")" "off")
         fi
 
+        rows+="$path"$'\n'
+        idx=$((idx+1))
         count=$((count+1))
     done < <(mangohud_list_games)
 
@@ -98,8 +100,10 @@ mangohud_game_menu() {
         return
     fi
 
-    while IFS= read -r path; do
-        [ -n "$path" ] || continue
+    while IFS= read -r id; do
+        [ -n "$id" ] || continue
+        path="$(sed -n "${id}p" <<< "$rows")"
+        [ -n "$path" ] || { failures=$((failures+1)); continue; }
         mangohud_set_game_override "$path" on || failures=$((failures+1))
     done <<< "$selected"
 
@@ -111,7 +115,7 @@ mangohud_game_menu() {
 }
 mangohud_disable_individual_menu() {
     local -a items=()
-    local state path selected="" count=0 failures=0
+    local rows="" state path selected="" id count=0 failures=0 idx=1
 
     if [ ! -s "$MANGOHUD_OVERRIDE_FILE" ]; then
         msgbox "$(i18n mangohud_disable_individual)" "$(i18n mangohud_no_individual_enabled)"
@@ -121,7 +125,10 @@ mangohud_disable_individual_menu() {
     while IFS=$'\t' read -r state path; do
         [ "$state" = "on" ] || continue
         [ -n "$path" ] || continue
-        items+=("$path" "$(basename "$path")" "off")
+
+        items+=("$idx" "$(basename "$path")" "off")
+        rows+="$path"$'\n'
+        idx=$((idx+1))
         count=$((count+1))
     done < "$MANGOHUD_OVERRIDE_FILE"
 
@@ -139,8 +146,10 @@ mangohud_disable_individual_menu() {
         return
     fi
 
-    while IFS= read -r path; do
-        [ -n "$path" ] || continue
+    while IFS= read -r id; do
+        [ -n "$id" ] || continue
+        path="$(sed -n "${id}p" <<< "$rows")"
+        [ -n "$path" ] || { failures=$((failures+1)); continue; }
         mangohud_set_game_override "$path" inherit || failures=$((failures+1))
     done <<< "$selected"
 
@@ -150,7 +159,6 @@ mangohud_disable_individual_menu() {
         msgbox "$(i18n mangohud_disable_individual)" "$(i18n mangohud_disable_individual_partial)"
     fi
 }
-
 graphics_menu() {
     while true; do
         local choice
