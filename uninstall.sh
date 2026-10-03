@@ -4,6 +4,7 @@ set -euo pipefail
 DEST="/userdata/system/thomsonito-wine-toolbox"
 PORT="/userdata/roms/ports/Thomsonito Batocera Wine Toolbox.sh"
 KEYS="$PORT.keys"
+MANGOHUD_HOOK="/userdata/system/scripts/thomsonito-wine-toolbox-mangohud.sh"
 
 case "${LC_ALL:-${LANG:-}}" in fr*|fr_*) L=fr ;; *) L=en ;; esac
 say() {
@@ -16,7 +17,7 @@ say() {
 }
 
 rm -rf "$DEST"
-rm -f "$PORT" "$KEYS"
+rm -f "$PORT" "$KEYS" "$MANGOHUD_HOOK"
 
 say "Toolbox supprimée. Les runners Wine/UMU installés ont été conservés." \
     "Toolbox removed. Installed Wine/UMU runners were left untouched."
