@@ -17,7 +17,7 @@ fi
 runner_release_rows_ge() {
     local tmp
     tmp="$(mktemp /tmp/wt-ge.XXXXXX)" || return 1
-    runner_api_get "https://api.github.com/repos/$GE_REPO/releases?per_page=100" > "$tmp" || {
+    runner_fetch_all_releases "$GE_REPO" "$tmp" || {
         rm -f "$tmp"
         return 1
     }
@@ -25,7 +25,7 @@ runner_release_rows_ge() {
     python3 - "$tmp" <<'PY'
 import json, re, sys
 try:
-    releases=json.load(open(sys.argv[1], encoding="utf-8"))
+    releases=[json.loads(line) for line in open(sys.argv[1], encoding="utf-8") if line.strip()]
 except Exception:
     sys.exit(1)
 
