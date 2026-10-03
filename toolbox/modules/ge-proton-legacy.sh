@@ -5,11 +5,11 @@
 # - GE-Proton <=10 => legacy/manual Batocera layout supported by flattening files/ into runner root
 
 if [ "${WT_LANGUAGE:-en}" = "fr" ]; then
-    I18N[runner_ge_umu_notice]="Les GE-Proton 11.x et suivants ne sont pas proposés dans ce menu.\n\nPour les jeux non-Steam, les versions récentes de GE-Proton doivent passer par UMU afin d'utiliser le runtime prévu par Proton.\n\nPour conserver la rétrocompatibilité Batocera, ce menu propose uniquement les GE-Proton 10.x et antérieurs.\n\nPour GE-Proton 11.x et suivants, utilisez UMU Runner Toolbox."
+    I18N[runner_ge_umu_notice]="Pour les jeux non-Steam, l'utilisation de GE-Proton via UMU est recommandée, y compris pour les versions 10.x, car UMU fournit le runtime prévu pour Proton.\n\nCe menu classique reste néanmoins disponible pour les GE-Proton 10.x et antérieurs afin de conserver la rétrocompatibilité Batocera et de permettre des tests de compatibilité : certains jeux peuvent se comporter différemment entre un GE-Proton classique adapté à Batocera et son utilisation via UMU.\n\nLes GE-Proton 11.x et suivants ne sont pas proposés ici : utilisez UMU Runner Toolbox pour ces versions."
     I18N[runner_ge_flattening]="Adaptation Batocera : déplacement du contenu de files/ à la racine du runner..."
     I18N[runner_ge_files_missing]="Impossible d'adapter %s pour Batocera : le dossier files/ attendu est absent."
 else
-    I18N[runner_ge_umu_notice]="GE-Proton 11.x and later are not offered in this menu.\n\nFor non-Steam games, recent GE-Proton versions should be used through UMU so Proton can use its intended runtime.\n\nFor Batocera backward compatibility, this menu only offers GE-Proton 10.x and older.\n\nFor GE-Proton 11.x and later, use UMU Runner Toolbox."
+    I18N[runner_ge_umu_notice]="For non-Steam games, using GE-Proton through UMU is recommended, including 10.x releases, because UMU provides Proton's intended runtime.\n\nThis classic menu remains available for GE-Proton 10.x and older to preserve Batocera backward compatibility and allow compatibility testing: some games may behave differently between a classic GE-Proton adapted for Batocera and the same family used through UMU.\n\nGE-Proton 11.x and later are not offered here: use UMU Runner Toolbox for those versions."
     I18N[runner_ge_flattening]="Batocera adaptation: moving the contents of files/ to the runner root..."
     I18N[runner_ge_files_missing]="Unable to adapt %s for Batocera: expected files/ directory is missing."
 fi
@@ -17,7 +17,7 @@ fi
 runner_release_rows_ge() {
     local tmp
     tmp="$(mktemp /tmp/wt-ge.XXXXXX)" || return 1
-    runner_api_get "https://api.github.com/repos/$GE_REPO/releases?per_page=30" > "$tmp" || {
+    runner_api_get "https://api.github.com/repos/$GE_REPO/releases?per_page=100" > "$tmp" || {
         rm -f "$tmp"
         return 1
     }
