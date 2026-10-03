@@ -12,6 +12,36 @@ runner_api_get() {
         "$url"
 }
 
+runner_fetch_all_releases() {
+    local repo="$1" out="$2" page=1 pagefile count
+    : > "$out"
+    while true; do
+        pagefile="$(mktemp /tmp/wt-releases-page.XXXXXX)" || return 1
+        if ! runner_api_get "https://api.github.com/repos/$repo/releases?per_page=100&page=$page" > "$pagefile"; then
+            rm -f "$pagefile"
+            return 1
+        fi
+        count="$(python3 - "$pagefile" <<'PY'
+import json, sys
+try:
+    data=json.load(open(sys.argv[1], encoding="utf-8"))
+    print(len(data) if isinstance(data, list) else 0)
+except Exception:
+    print(0)
+PY
+)"
+        [ "$count" -gt 0 ] || { rm -f "$pagefile"; break; }
+        python3 - "$pagefile" >> "$out" <<'PY'
+import json, sys
+for item in json.load(open(sys.argv[1], encoding="utf-8")):
+    print(json.dumps(item, separators=(",", ":")))
+PY
+        rm -f "$pagefile"
+        [ "$count" -lt 100 ] && break
+        page=$((page+1))
+    done
+}
+
 runner_installed() {
     [ -d "$BATOCERA_CUSTOM_WINE/$1" ]
 }
@@ -19,7 +49,7 @@ runner_installed() {
 runner_release_rows_kron4ek() {
     local family="$1" tmp
     tmp="$(mktemp /tmp/wt-kron4ek.XXXXXX)" || return 1
-    runner_api_get "https://api.github.com/repos/$KRON4EK_REPO/releases?per_page=100" > "$tmp" || {
+    runner_fetch_all_releases "$KRON4EK_REPO" "$tmp" || {
         rm -f "$tmp"
         return 1
     }
@@ -27,7 +57,7 @@ runner_release_rows_kron4ek() {
 import json, re, sys
 family=sys.argv[1]
 try:
-    releases=json.load(open(sys.argv[2], encoding="utf-8"))
+    releases=[json.loads(line) for line in open(sys.argv[2], encoding="utf-8") if line.strip()]
 except Exception:
     sys.exit(1)
 suffix = "-amd64-wow64.tar.xz" if family == "vanilla" else "-staging-tkg-amd64-wow64.tar.xz"
