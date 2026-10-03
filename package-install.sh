@@ -9,6 +9,7 @@ PORT="$PORTS/$PORT_NAME"
 KEYS="$PORTS/$PORT_NAME.keys"
 SCRIPTS="/userdata/system/scripts"
 MANGOHUD_HOOK="$SCRIPTS/thomsonito-wine-toolbox-mangohud.sh"
+DXVK_HOOK="$SCRIPTS/thomsonito-wine-toolbox-dxvk.sh"
 
 case "${LC_ALL:-${LANG:-}}" in fr*|fr_*) L=fr ;; *) L=en ;; esac
 
@@ -47,6 +48,11 @@ cp -f "$DEST/toolbox/ports/$PORT_NAME.keys" "$KEYS"
 if [ -s "$DEST/toolbox/hooks/mangohud-game-event.sh" ]; then
     cp -f "$DEST/toolbox/hooks/mangohud-game-event.sh" "$MANGOHUD_HOOK"
     chmod +x "$MANGOHUD_HOOK"
+fi
+
+if [ -s "$DEST/toolbox/hooks/dxvk-game-event.sh" ]; then
+    cp -f "$DEST/toolbox/hooks/dxvk-game-event.sh" "$DXVK_HOOK"
+    chmod +x "$DXVK_HOOK"
 fi
 
 # Refresh the Ports list when the helper exists; harmless on older Batocera builds.
