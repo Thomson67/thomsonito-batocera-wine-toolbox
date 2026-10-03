@@ -68,36 +68,47 @@ mangohud_list_games() {
 }
 
 mangohud_game_menu() {
-    local rows="" path state label choice idx=1 selected
     local -a items=()
+    local path state selected="" count=0 failures=0
 
     while IFS= read -r path; do
         [ -n "$path" ] || continue
         state="$(mangohud_game_override "$path")"
-        label="$(basename "$path") | $(mangohud_override_label "$state")"
-        items+=("$idx" "$label")
-        rows+="$path"$'\n'
-        idx=$((idx+1))
+
+        if [ "$state" = "on" ]; then
+            items+=("$path" "$(basename "$path") | $(i18n enabled)" "on")
+        else
+            items+=("$path" "$(basename "$path")" "off")
+        fi
+
+        count=$((count+1))
     done < <(mangohud_list_games)
 
-    if [ "${#items[@]}" -eq 0 ]; then
+    if [ "$count" -eq 0 ]; then
         msgbox "$(i18n mangohud_per_game)" "$(i18n mangohud_no_games)"
         return
     fi
 
-    choice="$(menu_select "$(i18n mangohud_per_game)" "$(i18n mangohud_choose_game)" "${items[@]}" "0" "$(i18n back)")" || return
-    [ "$choice" != "0" ] && [ -n "$choice" ] || return
+    selected="$(checklist_select "$(i18n mangohud_per_game)" \
+        "$(i18n mangohud_enable_multi_prompt)" \
+        "${items[@]}")" || return
 
-    selected="$(sed -n "${choice}p" <<< "$rows")"
-    [ -n "$selected" ] || return
+    if [ -z "$selected" ]; then
+        msgbox "$(i18n mangohud_per_game)" "$(i18n mangohud_select_none)"
+        return
+    fi
 
-    yesno "$(i18n mangohud_per_game)" \
-        "$(i18n mangohud_enable_confirm "$(basename "$selected")")" || return
+    while IFS= read -r path; do
+        [ -n "$path" ] || continue
+        mangohud_set_game_override "$path" on || failures=$((failures+1))
+    done <<< "$selected"
 
-    mangohud_set_game_override "$selected" on
-    msgbox "$(i18n mangohud_title)" "$(i18n mangohud_game_enabled "$(basename "$selected")")"
+    if [ "$failures" -eq 0 ]; then
+        msgbox "$(i18n mangohud_per_game)" "$(i18n mangohud_enable_multi_done)"
+    else
+        msgbox "$(i18n mangohud_per_game)" "$(i18n mangohud_enable_multi_partial)"
+    fi
 }
-
 mangohud_disable_individual_menu() {
     local -a items=()
     local state path selected="" count=0 failures=0
