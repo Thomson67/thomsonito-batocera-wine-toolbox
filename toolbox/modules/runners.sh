@@ -1,4 +1,329 @@
 #!/bin/bash
+
+RUNNER_STAGE="$WT_HOME/staging/runner-manager"
+KRON4EK_REPO="Kron4ek/Wine-Builds"
+GE_REPO="GloriousEggroll/proton-ge-custom"
+
+runner_api_get() {
+    local url="$1"
+    curl -fsSL --connect-timeout 10 --max-time 30 \
+        -H "Accept: application/vnd.github+json" \
+        -H "User-Agent: Thomsonito-Batocera-Wine-Toolbox" \
+        "$url"
+}
+
+runner_installed() {
+    [ -d "$BATOCERA_CUSTOM_WINE/$1" ]
+}
+
+runner_release_rows_kron4ek() {
+    local family="$1" tmp
+    tmp="$(mktemp /tmp/wt-kron4ek.XXXXXX)" || return 1
+    runner_api_get "https://api.github.com/repos/$KRON4EK_REPO/releases?per_page=30" > "$tmp" || {
+        rm -f "$tmp"
+        return 1
+    }
+    python3 - "$family" "$tmp" <<'PY'
+import json, re, sys
+family=sys.argv[1]
+try:
+    releases=json.load(open(sys.argv[2], encoding="utf-8"))
+except Exception:
+    sys.exit(1)
+suffix = "-amd64-wow64.tar.xz" if family == "vanilla" else "-staging-tkg-amd64-wow64.tar.xz"
+for rel in releases:
+    if rel.get("draft") or rel.get("prerelease"):
+        continue
+    tag=str(rel.get("tag_name") or "")
+    body=rel.get("body") or ""
+    for asset in rel.get("assets") or []:
+        name=asset.get("name") or ""
+        if not name.endswith(suffix):
+            continue
+        if family == "vanilla" and "-staging-" in name:
+            continue
+        checksum=""
+        m=re.search(r'(?im)^([0-9a-f]{64})\s+\*?'+re.escape(name)+r'\s*$', body)
+        if m:
+            checksum=m.group(1).lower()
+        print("\t".join([tag,name,asset.get("browser_download_url") or "",str(asset.get("size") or 0),checksum]))
+        break
+PY
+    local rc=$?
+    rm -f "$tmp"
+    return $rc
+}
+
+runner_release_rows_ge() {
+    local tmp
+    tmp="$(mktemp /tmp/wt-ge.XXXXXX)" || return 1
+    runner_api_get "https://api.github.com/repos/$GE_REPO/releases?per_page=30" > "$tmp" || {
+        rm -f "$tmp"
+        return 1
+    }
+    python3 - "$tmp" <<'PY'
+import json, sys
+try:
+    releases=json.load(open(sys.argv[1], encoding="utf-8"))
+except Exception:
+    sys.exit(1)
+for rel in releases:
+    if rel.get("draft") or rel.get("prerelease"):
+        continue
+    tag=str(rel.get("tag_name") or "")
+    assets=rel.get("assets") or []
+    tars=[]
+    checks={}
+    for a in assets:
+        n=a.get("name") or ""
+        u=a.get("browser_download_url") or ""
+        if n.endswith(".tar.gz") and n.startswith("GE-Proton"):
+            tars.append(a)
+        elif n.endswith(".sha512sum"):
+            checks[n[:-10]]=u
+    if not tars:
+        continue
+    chosen=next((a for a in tars if "x86_64" in (a.get("name") or "")), tars[0])
+    name=chosen.get("name") or ""
+    checksum_url=checks.get(name, "")
+    print("\t".join([tag,name,chosen.get("browser_download_url") or "",str(chosen.get("size") or 0),checksum_url]))
+PY
+    local rc=$?
+    rm -f "$tmp"
+    return $rc
+}
+
+runner_choose_release() {
+    local source="$1" title="$2"
+    local rows="" tag name url size extra expected state
+    local -a items=()
+    local idx=1
+    case "$source" in
+        kron4ek-vanilla) rows="$(runner_release_rows_kron4ek vanilla)" || true ;;
+        kron4ek-tkg) rows="$(runner_release_rows_kron4ek tkg)" || true ;;
+        ge-proton) rows="$(runner_release_rows_ge)" || true ;;
+        *) return 1 ;;
+    esac
+    if [ -z "$rows" ]; then
+        msgbox "$title" "$(i18n runner_fetch_failed)"
+        return 1
+    fi
+    while IFS=$'\t' read -r tag name url size extra; do
+        [ -n "$tag" ] || continue
+        state=""
+        expected="${name%.tar.xz}"
+        expected="${expected%.tar.gz}"
+        if runner_installed "$expected"; then
+            state=" | $(i18n installed)"
+        fi
+        items+=("$idx" "$tag | $(human_bytes "$size")$state")
+        idx=$((idx+1))
+        [ "$idx" -gt 15 ] && break
+    done <<< "$rows"
+    local choice
+    choice="$(menu_select "$title" "$(i18n runner_choose_version)" "${items[@]}" "0" "$(i18n back)")" || return 1
+    [ "$choice" != "0" ] && [ -n "$choice" ] || return 1
+    sed -n "${choice}p" <<< "$rows"
+}
+
+runner_install_archive() {
+    local title="$1" name="$2" url="$3" size="$4" verify_kind="$5" verify_value="$6"
+    local stage archive extract candidate target count expected_hash checksum_file actual free estimate
+
+    mkdir -p "$RUNNER_STAGE" "$BATOCERA_CUSTOM_WINE"
+    free="$(free_bytes_userdata)"
+    estimate=$(( size * 4 + 536870912 ))
+    if [ -n "$free" ] && [ "$free" -lt "$estimate" ]; then
+        msgbox "$title" "$(i18n runner_space_low "$(human_bytes "$estimate")" "$(human_bytes "$free")")"
+        return 1
+    fi
+
+    stage="$(mktemp -d "$RUNNER_STAGE/install.XXXXXX")" || return 1
+    archive="$stage/$name"
+    extract="$stage/extracted"
+    mkdir -p "$extract"
+
+    echo
+    echo "$(i18n runner_downloading "$name")"
+    if ! download_file "$url" "$archive"; then
+        rm -rf "$stage"
+        msgbox "$title" "$(i18n runner_download_failed "$name")"
+        return 1
+    fi
+
+    case "$verify_kind" in
+        sha256)
+            if [ -n "$verify_value" ]; then
+                echo "$(i18n runner_verifying)"
+                if ! verify_sha256 "$archive" "$verify_value"; then
+                    rm -rf "$stage"
+                    msgbox "$title" "$(i18n runner_checksum_failed "$name")"
+                    return 1
+                fi
+            fi
+            ;;
+        sha512-url)
+            if [ -n "$verify_value" ]; then
+                checksum_file="$stage/checksum.sha512"
+                if curl -fsSL "$verify_value" -o "$checksum_file"; then
+                    expected_hash="$(awk -v n="$name" '$2==n || $2=="*"n {print $1; exit}' "$checksum_file")"
+                    if [ -n "$expected_hash" ]; then
+                        actual="$(sha512sum "$archive" | awk '{print $1}')"
+                        if [ "$actual" != "$expected_hash" ]; then
+                            rm -rf "$stage"
+                            msgbox "$title" "$(i18n runner_checksum_failed "$name")"
+                            return 1
+                        fi
+                    fi
+                fi
+            fi
+            ;;
+    esac
+
+    echo "$(i18n runner_extracting "$name")"
+    case "$name" in
+        *.tar.xz) tar -xJf "$archive" -C "$extract" ;;
+        *.tar.gz) tar -xzf "$archive" -C "$extract" ;;
+        *)
+            rm -rf "$stage"
+            msgbox "$title" "$(i18n runner_archive_invalid "$name")"
+            return 1
+            ;;
+    esac || {
+        rm -rf "$stage"
+        msgbox "$title" "$(i18n runner_archive_invalid "$name")"
+        return 1
+    }
+
+    count="$(find "$extract" -mindepth 1 -maxdepth 1 -type d | wc -l)"
+    if [ "$count" -ne 1 ]; then
+        rm -rf "$stage"
+        msgbox "$title" "$(i18n runner_archive_invalid "$name")"
+        return 1
+    fi
+
+    candidate="$(find "$extract" -mindepth 1 -maxdepth 1 -type d | head -n1)"
+    target="$BATOCERA_CUSTOM_WINE/$(basename "$candidate")"
+
+    if [ -e "$target" ]; then
+        rm -rf "$stage"
+        msgbox "$title" "$(i18n runner_already_installed "$(basename "$target")")"
+        return 1
+    fi
+
+    mv "$candidate" "$target" || {
+        rm -rf "$stage"
+        msgbox "$title" "$(i18n runner_install_failed "$(basename "$target")")"
+        return 1
+    }
+
+    rm -rf "$stage"
+    msgbox "$title" "$(i18n runner_installed_ok "$(basename "$target")")"
+}
+
+runner_install_kron4ek() {
+    local family="$1" title row tag name url size checksum
+    if [ "$family" = "vanilla" ]; then
+        title="$(i18n runner_kron4ek_vanilla)"
+        row="$(runner_choose_release kron4ek-vanilla "$title")" || return
+    else
+        title="$(i18n runner_kron4ek_tkg)"
+        row="$(runner_choose_release kron4ek-tkg "$title")" || return
+    fi
+    IFS=$'\t' read -r tag name url size checksum <<< "$row"
+    yesno "$title" "$(i18n runner_install_confirm "$tag" "$name" "$(human_bytes "$size")" "$BATOCERA_CUSTOM_WINE")" || return
+    runner_install_archive "$title" "$name" "$url" "$size" "sha256" "$checksum"
+}
+
+runner_install_ge() {
+    local title row tag name url size checksum_url
+    title="$(i18n runner_ge_proton)"
+    row="$(runner_choose_release ge-proton "$title")" || return
+    IFS=$'\t' read -r tag name url size checksum_url <<< "$row"
+    yesno "$title" "$(i18n runner_install_confirm "$tag" "$name" "$(human_bytes "$size")" "$BATOCERA_CUSTOM_WINE")" || return
+    runner_install_archive "$title" "$name" "$url" "$size" "sha512-url" "$checksum_url"
+}
+
+runner_family_label() {
+    local name="$1"
+    case "$name" in
+        *-UMU) printf '%s' "UMU" ;;
+        GE-Proton*) printf '%s' "GE-Proton" ;;
+        wine-*-staging-tkg-amd64-wow64|wine-tkg-*) printf '%s' "Kron4ek TKG" ;;
+        wine-*-amd64-wow64) printf '%s' "Kron4ek Vanilla" ;;
+        *) printf '%s' "$(i18n runner_other_family)" ;;
+    esac
+}
+
+runner_uninstall_menu() {
+    local -a items=()
+    local name path family selected="" pretty=""
+    local count=0 failures=0
+
+    mkdir -p "$BATOCERA_CUSTOM_WINE"
+    while IFS= read -r path; do
+        [ -n "$path" ] || continue
+        name="$(basename "$path")"
+        case "$name" in "."|"..") continue ;; esac
+        family="$(runner_family_label "$name")"
+        items+=("$name" "$family | $name" "off")
+        count=$((count+1))
+    done < <(find "$BATOCERA_CUSTOM_WINE" -mindepth 1 -maxdepth 1 \( -type d -o -type l \) -print | sort)
+
+    if [ "$count" -eq 0 ]; then
+        msgbox "$(i18n runner_uninstall)" "$(i18n runner_none_installed)"
+        return
+    fi
+
+    selected="$(checklist_select "$(i18n runner_uninstall)" "$(i18n runner_uninstall_prompt)" "${items[@]}")" || return
+    if [ -z "$selected" ]; then
+        msgbox "$(i18n runner_uninstall)" "$(i18n runner_select_none)"
+        return
+    fi
+
+    while IFS= read -r name; do
+        [ -n "$name" ] || continue
+        pretty+="- $name"$'\n'
+    done <<< "$selected"
+    yesno "$(i18n runner_uninstall)" "$(i18n runner_uninstall_confirm "$pretty")" || return
+
+    while IFS= read -r name; do
+        [ -n "$name" ] || continue
+        case "$name" in */*|.|..) failures=$((failures+1)); continue ;; esac
+        path="$BATOCERA_CUSTOM_WINE/$name"
+        case "$path" in
+            "$BATOCERA_CUSTOM_WINE"/*)
+                if [ -e "$path" ] || [ -L "$path" ]; then
+                    rm -rf -- "$path" || failures=$((failures+1))
+                fi
+                ;;
+            *) failures=$((failures+1)) ;;
+        esac
+    done <<< "$selected"
+
+    if [ "$failures" -eq 0 ]; then
+        msgbox "$(i18n runner_uninstall)" "$(i18n runner_uninstall_done)"
+    else
+        msgbox "$(i18n runner_uninstall)" "$(i18n runner_uninstall_partial)"
+    fi
+}
+
 runner_manager_menu() {
-    msgbox "$(i18n runner_manager_title)" "$(i18n runner_manager_body)"
+    while true; do
+        local choice
+        choice="$(menu_select "$(i18n runner_manager_title)" "$(i18n runner_manager_intro)" \
+            "1" "$(i18n runner_kron4ek_vanilla)" \
+            "2" "$(i18n runner_kron4ek_tkg)" \
+            "3" "$(i18n runner_ge_proton)" \
+            "4" "$(i18n runner_uninstall)" \
+            "0" "$(i18n back)")" || return
+
+        case "$choice" in
+            1) runner_install_kron4ek vanilla ;;
+            2) runner_install_kron4ek tkg ;;
+            3) runner_install_ge ;;
+            4) runner_uninstall_menu ;;
+            0|"") return ;;
+        esac
+    done
 }
