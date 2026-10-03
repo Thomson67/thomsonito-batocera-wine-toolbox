@@ -168,6 +168,7 @@ graphics_menu() {
             "2" "$(i18n mangohud_disable_global)" \
             "3" "$(i18n mangohud_per_game)" \
             "4" "$(i18n mangohud_disable_individual)" \
+            "5" "$(i18n dxvk_manager)" \
             "0" "$(i18n back)")" || return
 
         case "$choice" in
@@ -175,6 +176,7 @@ graphics_menu() {
             2) mangohud_set_global 0 ;;
             3) mangohud_game_menu ;;
             4) mangohud_disable_individual_menu ;;
+            5) dxvk_manager_menu ;;
             0|"") return ;;
         esac
     done
