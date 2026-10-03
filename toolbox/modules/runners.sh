@@ -19,7 +19,7 @@ runner_installed() {
 runner_release_rows_kron4ek() {
     local family="$1" tmp
     tmp="$(mktemp /tmp/wt-kron4ek.XXXXXX)" || return 1
-    runner_api_get "https://api.github.com/repos/$KRON4EK_REPO/releases?per_page=30" > "$tmp" || {
+    runner_api_get "https://api.github.com/repos/$KRON4EK_REPO/releases?per_page=100" > "$tmp" || {
         rm -f "$tmp"
         return 1
     }
@@ -118,7 +118,6 @@ runner_choose_release() {
         fi
         items+=("$idx" "$tag | $(human_bytes "$size")$state")
         idx=$((idx+1))
-        [ "$idx" -gt 15 ] && break
     done <<< "$rows"
     local choice
     choice="$(menu_select "$title" "$(i18n runner_choose_version)" "${items[@]}" "0" "$(i18n back)")" || return 1
