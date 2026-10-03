@@ -119,6 +119,13 @@ declare -gA I18N=(
   [mangohud_game_disabled]="MangoHud will be disabled for: %s"
   [mangohud_game_inherit]="%s now uses the global MangoHud setting again."
   [mangohud_no_games]="No compatible Windows game was found in /userdata/roms/windows."
+  [mangohud_disable_individual]="Disable MangoHud for individually enabled games"
+  [mangohud_disable_individual_prompt]="Select the games for which the individual MangoHud enable setting should be removed.\n\nThey will return to the global setting.\n\nControls: X/Y = toggle • A/Start = confirm • B = back"
+  [mangohud_no_individual_enabled]="No game currently has MangoHud enabled individually."
+  [mangohud_select_none]="No game was selected."
+  [mangohud_disable_individual_confirm]="Remove the individual MangoHud enable setting for the following games?\n\n%s\nThey will then use the global setting."
+  [mangohud_disable_individual_done]="The selected games now use the global MangoHud setting again."
+  [mangohud_disable_individual_partial]="The operation completed with one or more errors."
 
   [maintenance_title]="Maintenance & Diagnostics"
   [maintenance_body]="Batocera: %s\n\nClassic/custom runner directories: %s\nUMU Runner Toolbox: %s\n\nMore maintenance tools will be added in later versions."
