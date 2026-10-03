@@ -6,12 +6,22 @@ BUNDLE_DIR="$ROOT/dxvk/bundles"
 GLOBAL_FILE="$CONFIG_DIR/dxvk-global"
 GAME_FILE="$CONFIG_DIR/dxvk-games.tsv"
 DXVK_PATH="/userdata/system/wine/dxvk"
+LOG_DIR="/userdata/system/logs/thomsonito-wine-toolbox"
+LOG_FILE="$LOG_DIR/dxvk-game-event.log"
+
+mkdir -p "$LOG_DIR"
+
+log() {
+    printf '[%s] %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$*" >> "$LOG_FILE" 2>/dev/null || true
+}
 
 event="${1:-}"
 system="${2:-}"
 rom="${5:-}"
 
 [ "$system" = "windows" ] || exit 0
+
+log "event=$event system=$system rom=$rom"
 
 managed_target() {
     local target
@@ -24,34 +34,51 @@ managed_target() {
 }
 
 apply_state() {
-    local state="$1" target
+    local state="$1" target before after
+
+    before="$(readlink -f "$DXVK_PATH" 2>/dev/null || printf '<none>')"
+    log "apply_state requested=$state before=$before"
 
     if [ "$state" = "batocera" ] || [ -z "$state" ]; then
         if managed_target; then
             rm -f "$DXVK_PATH"
         fi
+        after="$(readlink -f "$DXVK_PATH" 2>/dev/null || printf '<none>')"
+        log "apply_state batocera after=$after"
         return 0
     fi
 
     target="$BUNDLE_DIR/$state"
-    [ -d "$target/x64" ] && [ -d "$target/x32" ] || return 0
+    if [ ! -d "$target/x64" ] || [ ! -d "$target/x32" ]; then
+        log "bundle_invalid target=$target"
+        return 0
+    fi
 
     if [ -e "$DXVK_PATH" ] && [ ! -L "$DXVK_PATH" ]; then
+        log "skip_external_directory path=$DXVK_PATH"
         return 0
     fi
 
     if [ -L "$DXVK_PATH" ] && ! managed_target; then
+        log "skip_external_symlink path=$DXVK_PATH target=$(readlink -f "$DXVK_PATH" 2>/dev/null || true)"
         return 0
     fi
 
     rm -f "$DXVK_PATH" 2>/dev/null || true
-    ln -s "$target" "$DXVK_PATH" 2>/dev/null || true
+    if ln -s "$target" "$DXVK_PATH" 2>/dev/null; then
+        after="$(readlink -f "$DXVK_PATH" 2>/dev/null || printf '<none>')"
+        log "apply_state success requested=$state after=$after"
+    else
+        log "apply_state failed requested=$state target=$target"
+    fi
 }
 
 global_state=""
 if [ -s "$GLOBAL_FILE" ]; then
     global_state="$(head -n1 "$GLOBAL_FILE" | tr -d '\r\n')"
 fi
+
+log "global_state_initial=$global_state"
 
 if [ -z "$global_state" ]; then
     if managed_target; then
@@ -72,13 +99,17 @@ case "$event" in
             override="$(awk -F '\t' -v p="$rom" '$2==p {v=$1} END{print v}' "$GAME_FILE")"
         fi
 
+        log "gameStart override=$override global=$global_state"
         if [ -n "$override" ] && [ -d "$BUNDLE_DIR/$override" ]; then
+            log "gameStart selected=override:$override"
             apply_state "$override"
         else
+            log "gameStart selected=global:$global_state"
             apply_state "$global_state"
         fi
         ;;
     gameStop)
+        log "gameStop restore=$global_state"
         apply_state "$global_state"
         ;;
 esac
