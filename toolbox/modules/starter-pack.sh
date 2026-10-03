@@ -279,13 +279,11 @@ starter_pack_menu() {
         choice="$(menu_select "$(i18n starter_title)" "$(i18n starter_intro)\n\n$summary" \
             "1" "$(i18n starter_install_all)" \
             "2" "$(i18n starter_install_select)" \
-            "3" "$(i18n starter_refresh)" \
             "0" "$(i18n back)")" || return
 
         case "$choice" in
             1) install_starter_pack ;;
             2) install_selected_starter_runners ;;
-            3) continue ;;
             0|"") return ;;
         esac
     done
