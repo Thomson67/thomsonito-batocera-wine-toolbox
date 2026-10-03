@@ -91,40 +91,16 @@ mangohud_game_menu() {
     selected="$(sed -n "${choice}p" <<< "$rows")"
     [ -n "$selected" ] || return
 
-    while true; do
-        state="$(mangohud_game_override "$selected")"
-        choice="$(menu_select "$(basename "$selected")" "$(i18n mangohud_game_status "$(mangohud_override_label "$state")")" \
-            "1" "$(i18n mangohud_enable_game)" \
-            "2" "$(i18n mangohud_disable_game)" \
-            "3" "$(i18n mangohud_use_global)" \
-            "0" "$(i18n back)")" || return
+    yesno "$(i18n mangohud_per_game)" \
+        "$(i18n mangohud_enable_confirm "$(basename "$selected")")" || return
 
-        case "$choice" in
-            1)
-                mangohud_set_game_override "$selected" on
-                msgbox "$(i18n mangohud_title)" "$(i18n mangohud_game_enabled "$(basename "$selected")")"
-                return
-                ;;
-            2)
-                mangohud_set_game_override "$selected" off
-                msgbox "$(i18n mangohud_title)" "$(i18n mangohud_game_disabled "$(basename "$selected")")"
-                return
-                ;;
-            3)
-                mangohud_set_game_override "$selected" inherit
-                msgbox "$(i18n mangohud_title)" "$(i18n mangohud_game_inherit "$(basename "$selected")")"
-                return
-                ;;
-            0|"")
-                return
-                ;;
-        esac
-    done
+    mangohud_set_game_override "$selected" on
+    msgbox "$(i18n mangohud_title)" "$(i18n mangohud_game_enabled "$(basename "$selected")")"
 }
 
 mangohud_disable_individual_menu() {
     local -a items=()
-    local state path selected="" pretty="" count=0 failures=0
+    local state path selected="" count=0 failures=0
 
     if [ ! -s "$MANGOHUD_OVERRIDE_FILE" ]; then
         msgbox "$(i18n mangohud_disable_individual)" "$(i18n mangohud_no_individual_enabled)"
@@ -151,14 +127,6 @@ mangohud_disable_individual_menu() {
         msgbox "$(i18n mangohud_disable_individual)" "$(i18n mangohud_select_none)"
         return
     fi
-
-    while IFS= read -r path; do
-        [ -n "$path" ] || continue
-        pretty+="- $(basename "$path")"$'\n'
-    done <<< "$selected"
-
-    yesno "$(i18n mangohud_disable_individual)" \
-        "$(i18n mangohud_disable_individual_confirm "$pretty")" || return
 
     while IFS= read -r path; do
         [ -n "$path" ] || continue
