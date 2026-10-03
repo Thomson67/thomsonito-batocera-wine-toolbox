@@ -277,7 +277,7 @@ starter_pack_menu() {
             "$(human_bytes "$estimate")" \
             "$(human_bytes "${free:-0}")")"
 
-        choice="$(menu_select "$(i18n starter_title)" "$summary" \
+        choice="$(menu_select "$(i18n starter_title)" "$(i18n starter_intro)\n\n$summary" \
             "1" "$(i18n starter_install_all)" \
             "2" "$(i18n starter_install_select)" \
             "3" "$(i18n starter_refresh)" \
