@@ -39,7 +39,7 @@ declare -gA I18N=(
 
   [starter_title]="Thomsonito Runner Starter Pack"
   [starter_intro]="The Starter Pack installs a curated selection of classic Wine and UMU runners spanning several generations to maximize game compatibility. You can install the entire missing pack or select only specific runners. Existing runners are never overwritten."
-  [starter_summary]="Starter Pack: %s\n\n=== Classic Wine ===\nTotal: %s\nInstalled: %s\nMissing: %s\n\n=== UMU runners ===\nTotal: %s\nInstalled: %s\nMissing: %s\n\n=== Disk space ===\nMissing download size: %s\nEstimated temporary requirement: %s\nAvailable share space: %s"
+  [starter_summary]="Starter Pack: %s\n\nClassic Wine runners: %s\nInstalled: %s\nMissing: %s\n\nUMU runners: %s\nInstalled: %s\nMissing: %s\n\nMissing download size: %s\nEstimated temporary requirement: %s\nAvailable share space: %s"
   [starter_install]="Install missing Starter Pack components"
   [starter_install_all]="Install all missing Starter Pack runners"
   [starter_install_select]="Choose runners to install"
