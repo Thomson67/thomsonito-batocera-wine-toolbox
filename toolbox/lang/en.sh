@@ -262,6 +262,21 @@ declare -gA I18N=(
   [squash_delete_source_done]="Source .wine folder removed: %s"
   [squash_delete_source_failed]="Unable to completely remove source .wine folder: %s\n\nThe created .wsquashfs archive remains intact."
 
+  [games_delete_title]="Remove Windows games"
+  [games_delete_prompt]="Select games to remove (.pc, .wine, .wsquashfs, .wtgz).\n\n.wine/.pc folders are removed without ever following symbolic links. Associated Wine bottles are not removed automatically.\n\nControls: X/Y = toggle • A/Start = confirm • B = back"
+  [games_delete_none]="No .pc, .wine, .wsquashfs or .wtgz game was found in /userdata/roms/windows."
+  [games_delete_confirm_title]="Confirm game removal"
+  [games_delete_confirm]="Permanently remove the following games?\n\n%s\nIMPORTANT:\n- symbolic-link targets will never be removed;\n- associated Wine bottles are kept and may then appear as orphaned;\n- this operation cannot be undone.\n\nContinue?"
+  [games_delete_done]="Removal completed.\n\nGames removed: %s"
+  [games_delete_partial]="Removal completed with error(s).\n\nRemoved: %s\nFailures: %s"
+
+  [toolbox_uninstall_title]="Uninstall Toolbox"
+  [toolbox_uninstall_warning]="This operation removes the Thomsonito Batocera Wine Toolbox, its launcher, MangoHud/DXVK hooks and internal files.\n\nWine/UMU runners, bottles, saves and games are preserved.\n\nIf /userdata/system/wine/dxvk points to a Toolbox-managed bundle, that link is removed so Batocera can use its default DXVK again.\n\nContinue?"
+  [toolbox_uninstall_confirm]="FINAL CONFIRMATION\n\nUninstall the Toolbox now?\n\nNo is selected by default."
+  [toolbox_uninstall_missing]="The Toolbox uninstall.sh script could not be found."
+  [toolbox_uninstall_done]="The Toolbox was removed.\n\nWine/UMU runners, bottles, saves and games were preserved."
+  [toolbox_uninstall_failed]="Uninstallation failed. Check the terminal or logs for details."
+
   [cleanup_title]="Logs & temporary data"
   [cleanup_intro]="Toolbox logs: %s\nDownload caches: %s\nToolbox temporary files: %s\n\nAutomatic rotation keeps at most 20 Toolbox session logs. The DXVK event log is rotated automatically as well."
   [cleanup_logs]="Clean old logs"
