@@ -652,6 +652,46 @@ maintenance_next_wsquashfs_name() {
     done
 }
 
+maintenance_choose_renamed_wsquashfs() {
+    local original_dest="$1" default_dest default_name entered candidate parent
+    parent="$(dirname "$original_dest")"
+    default_dest="$(maintenance_next_wsquashfs_name "$original_dest")"
+    default_name="$(basename "$default_dest")"
+
+    while true; do
+        entered="$(input_text "$(i18n squash_rename_title)" "$(i18n squash_rename_prompt)" "$default_name")" || return 1
+        entered="${entered##*/}"
+
+        [ -n "$entered" ] || {
+            msgbox "$(i18n squash_rename_title)" "$(i18n squash_rename_invalid)"
+            continue
+        }
+
+        case "$entered" in
+            "."|".."|*/*)
+                msgbox "$(i18n squash_rename_title)" "$(i18n squash_rename_invalid)"
+                continue
+                ;;
+        esac
+
+        case "${entered,,}" in
+            *.wsquashfs) ;;
+            *) entered="$entered.wsquashfs" ;;
+        esac
+
+        candidate="$parent/$entered"
+
+        if [ -e "$candidate" ]; then
+            msgbox "$(i18n squash_rename_title)" "$(i18n squash_rename_exists "$(basename "$candidate")")"
+            default_name="$(basename "$(maintenance_next_wsquashfs_name "$candidate")")"
+            continue
+        fi
+
+        printf '%s' "$candidate"
+        return 0
+    done
+}
+
 maintenance_squash_wine() {
     local source="$1" dest="$2" tmp
     [ -d "$source" ] || return 1
@@ -868,7 +908,10 @@ maintenance_select_and_squash() {
                     fi
                     ;;
                 2)
-                    target="$(maintenance_next_wsquashfs_name "$dest")"
+                    target="$(maintenance_choose_renamed_wsquashfs "$dest")" || {
+                        skipped=$((skipped+1))
+                        continue
+                    }
                     if maintenance_squash_wine "$path" "$target"; then
                         renamed=$((renamed+1))
                         success=1
