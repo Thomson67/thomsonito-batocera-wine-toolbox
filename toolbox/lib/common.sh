@@ -111,6 +111,28 @@ menu_select() {
     fi
 }
 
+input_text() {
+    local title="$1" prompt="$2" initial="${3:-}"
+
+    if have_dialog; then
+        wt_clear_tty
+        local result rc
+        result="$(dialog --stdout --clear --no-shadow --cr-wrap \
+            --ok-label "$(i18n ok)" --cancel-label "$(i18n cancel)" \
+            --title "$title" --inputbox "$prompt" 12 96 "$initial")"
+        rc=$?
+        wt_clear_tty
+        [ "$rc" -eq 0 ] && printf '%s' "$result"
+        return "$rc"
+    fi
+
+    clear
+    printf '==== %s ====\n\n%b\n\n' "$title" "$prompt"
+    printf '[%s] : ' "$initial"
+    read -r REPLY
+    [ -n "$REPLY" ] && printf '%s' "$REPLY" || printf '%s' "$initial"
+}
+
 checklist_select() {
     local title="$1" prompt="$2"
     shift 2
