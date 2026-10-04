@@ -99,6 +99,7 @@ declare -gA I18N=(
   [runner_uninstall_partial]="Removal completed with one or more errors."
 
   [graphics_title]="Graphics & Performance"
+  [graphics_intro]="Choose the graphics or performance feature to configure."
   [enabled]="Enabled"
   [disabled]="Disabled"
   [mangohud_title]="MangoHud"
