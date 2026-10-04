@@ -691,6 +691,31 @@ maintenance_choose_renamed_wsquashfs() {
     done
 }
 
+maintenance_run_progress() {
+    local title="$1" body="$2"
+    shift 2
+
+    if have_dialog; then
+        wt_clear_tty
+
+        if [ -n "${WT_SESSION_LOG:-}" ]; then
+            "$@" 2>>"$WT_SESSION_LOG" | dialog --clear --no-shadow \
+                --title "$title" --gauge "$body" 10 92 0
+        else
+            "$@" 2>/dev/null | dialog --clear --no-shadow \
+                --title "$title" --gauge "$body" 10 92 0
+        fi
+
+        local cmd_rc="${PIPESTATUS[0]}"
+        wt_clear_tty
+        return "$cmd_rc"
+    fi
+
+    clear
+    printf '==== %s ====\n\n%b\n\n' "$title" "$body"
+    "$@"
+}
+
 maintenance_squash_wine() {
     local source="$1" dest="$2" tmp
     [ -d "$source" ] || return 1
@@ -699,7 +724,10 @@ maintenance_squash_wine() {
     tmp="$dest.tmp-$$"
     rm -f -- "$tmp" 2>/dev/null || true
 
-    if ! mksquashfs "$source" "$tmp" -comp zstd -no-progress >/dev/null 2>&1; then
+    if ! maintenance_run_progress \
+        "$(i18n squash_progress_title)" \
+        "$(i18n squash_progress_body "$(basename "$source")")" \
+        mksquashfs "$source" "$tmp" -comp zstd -percentage; then
         rm -f -- "$tmp" 2>/dev/null || true
         return 1
     fi
@@ -754,7 +782,7 @@ PY
 maintenance_offer_source_deletion() {
     local source="$1"
 
-    yesno "$(i18n squash_delete_source_title)" \
+    yesno_default_no "$(i18n squash_delete_source_title)" \
         "$(i18n squash_delete_source_confirm "$(basename "$source")")" || return 0
 
     if maintenance_delete_wine_dir_symlink_safe "$source"; then
@@ -837,7 +865,10 @@ maintenance_unsquash_game() {
     tmp="$dest.tmp-$$"
     rm -rf -- "$tmp" 2>/dev/null || true
 
-    if ! unsquashfs -d "$tmp" "$source" >/dev/null 2>&1; then
+    if ! maintenance_run_progress \
+        "$(i18n unsquash_progress_title)" \
+        "$(i18n unsquash_progress_body "$(basename "$source")")" \
+        unsquashfs -percentage -d "$tmp" "$source"; then
         rm -rf -- "$tmp" 2>/dev/null || true
         return 1
     fi
