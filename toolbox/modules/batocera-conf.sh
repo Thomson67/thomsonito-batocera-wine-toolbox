@@ -9,6 +9,7 @@ batocera_conf_scan() {
 
     python3 - "$BATOCERA_CONF" "$WINDOWS_ROMS_DIR" <<'PY'
 from pathlib import Path
+import os
 import re
 import sys
 
@@ -19,14 +20,33 @@ game_re = re.compile(r'^\s*windows\["([^"]+)"\]')
 global_re = re.compile(r'^\s*(?:windows\.|windows-renderer\.)')
 
 existing = set()
+game_dir_suffixes = (".wine", ".pc")
+
 try:
-    for p in roms.rglob("*"):
-        try:
+    for current, dirs, files in os.walk(roms):
+        current_path = Path(current)
+
+        # A .wine/.pc directory is itself a game container. Record it but
+        # never descend into its prefix/game contents.
+        kept_dirs = []
+        for name in dirs:
+            p = current_path / name
             rel = p.relative_to(roms).as_posix()
-        except ValueError:
-            continue
-        existing.add(p.name.casefold())
-        existing.add(rel.casefold())
+            if name.casefold().endswith(game_dir_suffixes):
+                existing.add(name.casefold())
+                existing.add(rel.casefold())
+            else:
+                kept_dirs.append(name)
+        dirs[:] = kept_dirs
+
+        # Files are cheap to record and accepting all of them is deliberately
+        # conservative: an unusual Windows launcher must never be flagged as
+        # orphaned merely because its extension is not in a hard-coded list.
+        for name in files:
+            p = current_path / name
+            rel = p.relative_to(roms).as_posix()
+            existing.add(name.casefold())
+            existing.add(rel.casefold())
 except OSError:
     raise SystemExit(2)
 
