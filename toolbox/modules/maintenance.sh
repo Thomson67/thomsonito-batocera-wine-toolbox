@@ -738,6 +738,64 @@ maintenance_offer_source_deletion() {
     fi
 }
 
+maintenance_detect_wsquashfs_type() {
+    local source="$1"
+
+    [ -f "$source" ] || return 1
+
+    unsquashfs -ll "$source" 2>/dev/null | python3 - <<'PY'
+import sys
+
+paths = set()
+
+for line in sys.stdin:
+    line = line.rstrip("\n")
+    if not line:
+        continue
+
+    # unsquashfs -ll outputs metadata columns followed by the archive path.
+    # Keep the final whitespace-separated field, which is sufficient for
+    # Batocera game archives where the paths we inspect contain no spaces.
+    parts = line.split()
+    if not parts:
+        continue
+
+    path = parts[-1]
+    if path == "squashfs-root":
+        continue
+    if path.startswith("squashfs-root/"):
+        path = path[len("squashfs-root/"):]
+
+    paths.add(path.rstrip("/"))
+
+def exists(name):
+    return name in paths
+
+def has_prefix(prefix):
+    return any(p == prefix or p.startswith(prefix + "/") for p in paths)
+
+# A real Wine prefix wins even if autorun.cmd is also present.
+prefix_score = 0
+if has_prefix("drive_c"):
+    prefix_score += 1
+if has_prefix("dosdevices"):
+    prefix_score += 1
+if exists("system.reg"):
+    prefix_score += 1
+if exists("user.reg"):
+    prefix_score += 1
+if exists("userdef.reg"):
+    prefix_score += 1
+
+if has_prefix("drive_c") and prefix_score >= 2:
+    print("wine")
+elif exists("autorun.cmd"):
+    print("pc")
+else:
+    print("unknown")
+PY
+}
+
 maintenance_unsquash_game() {
     local source="$1" out_ext="$2" dest tmp rc=0
     [ -f "$source" ] || return 1
@@ -852,23 +910,12 @@ maintenance_select_and_squash() {
 
 maintenance_select_and_unsquash() {
     local -a items=()
-    local rows="" path selected id idx=1 ok=0 failed=0 skipped=0 rc out_ext choice
+    local rows="" path selected id idx=1 ok=0 failed=0 skipped=0 rc detected
 
     command -v unsquashfs >/dev/null 2>&1 || {
         msgbox "$(i18n squash_title)" "$(i18n squash_tools_missing)"
         return
     }
-
-    choice="$(menu_select "$(i18n unsquash_games)" "$(i18n unsquash_choose_format)" \
-        "1" "$(i18n unsquash_as_wine)" \
-        "2" "$(i18n unsquash_as_pc)" \
-        "0" "$(i18n back)")" || return
-
-    case "$choice" in
-        1) out_ext="wine" ;;
-        2) out_ext="pc" ;;
-        *) return ;;
-    esac
 
     while IFS= read -r path; do
         [ -n "$path" ] || continue
@@ -882,22 +929,31 @@ maintenance_select_and_unsquash() {
         return
     }
 
-    selected="$(checklist_select "$(i18n unsquash_games)" "$(i18n squash_select_wsquashfs "$out_ext")" "${items[@]}")" || return
+    selected="$(checklist_select "$(i18n unsquash_games)" "$(i18n squash_select_wsquashfs_auto)" "${items[@]}")" || return
     [ -n "$selected" ] || return
 
-    yesno "$(i18n squash_title)" "$(i18n unsquash_confirm "$out_ext")" || return
+    yesno "$(i18n squash_title)" "$(i18n unsquash_confirm_auto)" || return
 
     while IFS= read -r id; do
         [ -n "$id" ] || continue
         path="$(sed -n "${id}p" <<< "$rows")"
         [ -n "$path" ] || continue
 
-        maintenance_unsquash_game "$path" "$out_ext"
-        rc=$?
-        case "$rc" in
-            0) ok=$((ok+1)) ;;
-            2) skipped=$((skipped+1)) ;;
-            *) failed=$((failed+1)) ;;
+        detected="$(maintenance_detect_wsquashfs_type "$path")"
+        case "$detected" in
+            wine|pc)
+                maintenance_unsquash_game "$path" "$detected"
+                rc=$?
+                case "$rc" in
+                    0) ok=$((ok+1)) ;;
+                    2) skipped=$((skipped+1)) ;;
+                    *) failed=$((failed+1)) ;;
+                esac
+                ;;
+            *)
+                msgbox "$(i18n squash_title)" "$(i18n unsquash_unknown_type "$(basename "$path")")"
+                failed=$((failed+1))
+                ;;
         esac
     done <<< "$selected"
 
