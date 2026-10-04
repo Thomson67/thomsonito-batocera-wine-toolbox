@@ -470,6 +470,220 @@ maintenance_cleanup_menu() {
     done
 }
 
+maintenance_show_report() {
+    local title="$1" file="$2"
+
+    if have_dialog; then
+        wt_clear_tty
+        dialog --clear --no-shadow --title "$title" --textbox "$file" 28 110
+        local rc=$?
+        wt_clear_tty
+        return $rc
+    fi
+
+    clear
+    printf '==== %s ====\n\n' "$title"
+    cat "$file"
+    printf '\n'
+    read -r -p "$(i18n press_enter)" _
+}
+
+maintenance_find_runner_binary() {
+    local root="$1" name="$2" path
+
+    for path in \
+        "$root/bin/$name" \
+        "$root/files/bin/$name" \
+        "$root/usr/bin/$name"; do
+        [ -x "$path" ] && { printf '%s' "$path"; return 0; }
+    done
+
+    find "$root" -maxdepth 5 \( -type f -o -type l \) -name "$name" -executable -print -quit 2>/dev/null
+}
+
+maintenance_verify_runners() {
+    local report runner name wine wineserver broken status ok=0 bad=0 total=0
+    report="$(mktemp /tmp/wt-runner-check.XXXXXX)" || return
+
+    {
+        printf '%s\n' "$(i18n runner_check_header "$BATOCERA_CUSTOM_WINE")"
+        printf '\n'
+    } > "$report"
+
+    if [ ! -d "$BATOCERA_CUSTOM_WINE" ]; then
+        printf '%s\n' "$(i18n runner_check_none)" >> "$report"
+        maintenance_show_report "$(i18n runner_check_title)" "$report"
+        rm -f "$report"
+        return
+    fi
+
+    while IFS= read -r runner; do
+        [ -d "$runner" ] || continue
+        name="$(basename "$runner")"
+        total=$((total+1))
+        wine="$(maintenance_find_runner_binary "$runner" wine)"
+        wineserver="$(maintenance_find_runner_binary "$runner" wineserver)"
+        broken="$(find "$runner" -xtype l -print 2>/dev/null | wc -l)"
+
+        if [ -n "$wine" ] && [ -n "$wineserver" ] && [ "$broken" -eq 0 ]; then
+            status="OK"
+            ok=$((ok+1))
+        else
+            status="$(i18n runner_check_problem)"
+            bad=$((bad+1))
+        fi
+
+        printf '[%s] %s\n' "$status" "$name" >> "$report"
+        if [ -n "$wine" ]; then
+            printf '  wine       : %s\n' "${wine#$runner/}" >> "$report"
+        else
+            printf '  wine       : %s\n' "$(i18n runner_check_missing)" >> "$report"
+        fi
+        if [ -n "$wineserver" ]; then
+            printf '  wineserver : %s\n' "${wineserver#$runner/}" >> "$report"
+        else
+            printf '  wineserver : %s\n' "$(i18n runner_check_missing)" >> "$report"
+        fi
+        printf '  %s : %s\n\n' "$(i18n runner_check_broken_links)" "$broken" >> "$report"
+    done < <(find "$BATOCERA_CUSTOM_WINE" -mindepth 1 -maxdepth 1 -type d -print 2>/dev/null | sort -f)
+
+    if [ "$total" -eq 0 ]; then
+        printf '%s\n' "$(i18n runner_check_none)" >> "$report"
+    else
+        printf '%s\n' "$(i18n runner_check_summary "$total" "$ok" "$bad")" >> "$report"
+    fi
+    printf '\n%s\n' "$(i18n runner_check_umu_note)" >> "$report"
+
+    maintenance_show_report "$(i18n runner_check_title)" "$report"
+    rm -f "$report"
+}
+
+maintenance_verify_dxvk() {
+    local report bundle name arch dll issues bundle_total=0 bundle_ok=0 bundle_bad=0
+    local global_state active_target invalid_games=0 invalid_bundles=0 game_bundle game_path
+    local required_dlls="d3d9.dll d3d10core.dll d3d11.dll dxgi.dll d3d12.dll d3d12core.dll"
+
+    report="$(mktemp /tmp/wt-dxvk-check.XXXXXX)" || return
+
+    {
+        printf '%s\n\n' "$(i18n dxvk_check_header "$DXVK_BUNDLE_DIR")"
+
+        if [ -s "$DXVK_GLOBAL_FILE" ]; then
+            global_state="$(head -n1 "$DXVK_GLOBAL_FILE" | tr -d '\r\n')"
+        else
+            global_state="$(i18n dxvk_check_no_global_state)"
+        fi
+        printf '%s : %s\n' "$(i18n dxvk_check_global_state)" "$global_state"
+
+        if [ -L "$BATOCERA_DXVK_PATH" ]; then
+            active_target="$(readlink -f "$BATOCERA_DXVK_PATH" 2>/dev/null || true)"
+            if [ -n "$active_target" ]; then
+                printf '%s : %s\n' "$(i18n dxvk_check_active_link)" "$active_target"
+            else
+                printf '%s : %s\n' "$(i18n dxvk_check_active_link)" "$(i18n dxvk_check_broken)"
+            fi
+        elif [ -e "$BATOCERA_DXVK_PATH" ]; then
+            printf '%s : %s\n' "$(i18n dxvk_check_active_link)" "$(i18n dxvk_external_custom)"
+        else
+            printf '%s : %s\n' "$(i18n dxvk_check_active_link)" "$(i18n dxvk_batocera_default)"
+        fi
+        printf '\n'
+    } > "$report"
+
+    if [ -d "$DXVK_BUNDLE_DIR" ]; then
+        while IFS= read -r bundle; do
+            [ -d "$bundle" ] || continue
+            name="$(basename "$bundle")"
+            bundle_total=$((bundle_total+1))
+            issues=""
+
+            [ -s "$bundle/bundle.conf" ] || issues+="bundle.conf "
+            for arch in x64 x32; do
+                [ -d "$bundle/$arch" ] || { issues+="$arch/ "; continue; }
+                for dll in $required_dlls; do
+                    [ -s "$bundle/$arch/$dll" ] || issues+="$arch/$dll "
+                done
+            done
+
+            if [ -z "$issues" ]; then
+                printf '[OK] %s\n' "$name" >> "$report"
+                bundle_ok=$((bundle_ok+1))
+            else
+                printf '[%s] %s\n' "$(i18n dxvk_check_problem)" "$name" >> "$report"
+                printf '  %s : %s\n' "$(i18n dxvk_check_missing)" "$issues" >> "$report"
+                bundle_bad=$((bundle_bad+1))
+            fi
+        done < <(find "$DXVK_BUNDLE_DIR" -mindepth 1 -maxdepth 1 -type d -print 2>/dev/null | sort -f)
+    fi
+
+    if [ "$bundle_total" -eq 0 ]; then
+        printf '%s\n' "$(i18n dxvk_check_none)" >> "$report"
+    fi
+
+    printf '\n%s\n' "$(i18n dxvk_check_assignments)" >> "$report"
+    if [ -s "$DXVK_GAME_FILE" ]; then
+        while IFS=
+    local wine_count umu_state bottle_count bottle_kib log_kib
+    wine_count="$(find /userdata/system/wine/custom -mindepth 1 -maxdepth 1 -type d 2>/dev/null | wc -l)"
+    umu_state="$(umu_toolbox_status)"
+
+    if [ -s "$BOTTLES_CACHE" ]; then
+        bottle_count="$(maintenance_bottle_count)"
+        bottle_kib="$(maintenance_bottle_total_kib)"
+    else
+        bottle_count="$(maintenance_bottle_count)"
+        bottle_kib="$(maintenance_bottle_total_kib)"
+    fi
+
+    log_kib="$(maintenance_logs_kib)"
+
+    msgbox "$(i18n maintenance_summary_title)" \
+        "$(i18n maintenance_summary_body "$(batocera_version)" "$wine_count" "$umu_state" "$bottle_count" "$(maintenance_kib_human "$bottle_kib")" "$(maintenance_kib_human "$log_kib")")"
+}
+
+maintenance_menu() {
+    while true; do
+        local choice
+        choice="$(menu_select "$(i18n maintenance_title)" "$(i18n maintenance_intro)" \
+            "1" "$(i18n maintenance_summary_title)" \
+            "2" "$(i18n bottles_title)" \
+            "3" "$(i18n runner_check_title)" \
+            "4" "$(i18n dxvk_check_title)" \
+            "5" "$(i18n cleanup_title)" \
+            "0" "$(i18n back)")" || return
+
+        case "$choice" in
+            1) maintenance_summary ;;
+            2) maintenance_bottles_menu ;;
+            3) maintenance_verify_runners ;;
+            4) maintenance_verify_dxvk ;;
+            5) maintenance_cleanup_menu ;;
+            0|"") return ;;
+        esac
+    done
+}
+\t' read -r game_bundle game_path; do
+            [ -n "$game_bundle" ] && [ -n "$game_path" ] || continue
+            if [ ! -d "$DXVK_BUNDLE_DIR/$game_bundle" ]; then
+                printf '[%s] %s -> %s (%s)\n' "$(i18n dxvk_check_problem)" "$(basename "$game_path")" "$game_bundle" "$(i18n dxvk_check_bundle_missing)" >> "$report"
+                invalid_bundles=$((invalid_bundles+1))
+            elif [ ! -e "$game_path" ]; then
+                printf '[%s] %s -> %s (%s)\n' "$(i18n dxvk_check_problem)" "$(basename "$game_path")" "$game_bundle" "$(i18n dxvk_check_game_missing)" >> "$report"
+                invalid_games=$((invalid_games+1))
+            else
+                printf '[OK] %s -> %s\n' "$(basename "$game_path")" "$game_bundle" >> "$report"
+            fi
+        done < "$DXVK_GAME_FILE"
+    else
+        printf '%s\n' "$(i18n dxvk_check_no_assignments)" >> "$report"
+    fi
+
+    printf '\n%s\n' "$(i18n dxvk_check_summary "$bundle_total" "$bundle_ok" "$bundle_bad" "$invalid_bundles" "$invalid_games")" >> "$report"
+
+    maintenance_show_report "$(i18n dxvk_check_title)" "$report"
+    rm -f "$report"
+}
+
 maintenance_summary() {
     local wine_count umu_state bottle_count bottle_kib log_kib
     wine_count="$(find /userdata/system/wine/custom -mindepth 1 -maxdepth 1 -type d 2>/dev/null | wc -l)"
