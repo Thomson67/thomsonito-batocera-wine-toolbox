@@ -86,6 +86,25 @@ yesno() {
     case "$ans" in y|Y|o|O|oui|OUI|yes|YES) return 0 ;; *) return 1 ;; esac
 }
 
+yesno_default_no() {
+    local title="$1" body="$2"
+    if have_dialog; then
+        wt_clear_tty
+        dialog --clear --no-shadow --defaultno \
+            --yes-label "$(i18n yes)" --no-label "$(i18n no)" \
+            --title "$title" --yesno "$body" 22 96
+        local rc=$?
+        wt_clear_tty
+        return $rc
+    fi
+
+    clear
+    printf '==== %s ====\n\n%b\n\n' "$title" "$body"
+    printf '%s [y/N] ' "$(i18n choice_prompt)"
+    read -r ans
+    case "$ans" in y|Y|o|O|oui|OUI|yes|YES) return 0 ;; *) return 1 ;; esac
+}
+
 menu_select() {
     local title="$1" prompt="$2"
     shift 2
