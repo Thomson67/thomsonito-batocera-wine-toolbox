@@ -6,6 +6,11 @@ MAIN="$ROOT/thomsonito-wine-toolbox.sh"
 LOG_DIR="/userdata/system/logs/thomsonito-wine-toolbox"
 mkdir -p "$LOG_DIR"
 
+# Keep only the 20 most recent Toolbox session logs.
+ls -1t "$LOG_DIR"/toolbox-*.log 2>/dev/null | tail -n +21 | while IFS= read -r oldlog; do
+    [ -n "$oldlog" ] && rm -f -- "$oldlog"
+done
+
 STAMP="$(date '+%Y%m%d-%H%M%S')"
 LOG="$LOG_DIR/toolbox-$STAMP.log"
 ln -sfn "$(basename "$LOG")" "$LOG_DIR/latest.log" 2>/dev/null || true
