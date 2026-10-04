@@ -725,11 +725,74 @@ maintenance_offer_source_deletion() {
     fi
 }
 
-maintenance_unsquash_wine() {
-    local source="$1" dest tmp rc=0
+maintenance_detect_wsquashfs_type() {
+    local source="$1" listing detected
+
+    [ -f "$source" ] || return 1
+    listing="$(mktemp /tmp/wt-wsq-list.XXXXXX)" || return 1
+
+    if ! unsquashfs -l "$source" > "$listing" 2>/dev/null; then
+        rm -f "$listing"
+        return 1
+    fi
+
+    detected="$(python3 - "$listing" <<'PY'
+import sys
+
+paths = set()
+
+with open(sys.argv[1], encoding="utf-8", errors="replace") as fh:
+    for raw in fh:
+        line = raw.rstrip("\r\n")
+        marker = "squashfs-root"
+        pos = line.find(marker)
+        if pos < 0:
+            continue
+
+        path = line[pos + len(marker):]
+        if path.startswith("/"):
+            path = path[1:]
+        path = path.rstrip("/")
+        if path:
+            paths.add(path)
+
+def exists(name):
+    return name in paths
+
+def has_prefix(name):
+    return any(p == name or p.startswith(name + "/") for p in paths)
+
+# A real Wine prefix has priority, even if autorun.cmd is also present.
+prefix_markers = (
+    has_prefix("dosdevices"),
+    exists("system.reg"),
+    exists("user.reg"),
+    exists("userdef.reg"),
+)
+
+if has_prefix("drive_c") and any(prefix_markers):
+    print("wine")
+elif exists("autorun.cmd"):
+    print("pc")
+else:
+    print("unknown")
+PY
+)"
+
+    rm -f "$listing"
+    printf '%s' "$detected"
+}
+
+maintenance_unsquash_game() {
+    local source="$1" out_ext="$2" dest tmp rc=0
     [ -f "$source" ] || return 1
 
-    dest="${source%.wsquashfs}.wine"
+    case "$out_ext" in
+        wine|pc) ;;
+        *) return 1 ;;
+    esac
+
+    dest="${source%.wsquashfs}.$out_ext"
     [ ! -e "$dest" ] || return 2
 
     tmp="$dest.tmp-$$"
@@ -834,7 +897,7 @@ maintenance_select_and_squash() {
 
 maintenance_select_and_unsquash() {
     local -a items=()
-    local rows="" path selected id idx=1 ok=0 failed=0 skipped=0 rc
+    local rows="" path selected id idx=1 ok=0 failed=0 skipped=0 rc detected
 
     command -v unsquashfs >/dev/null 2>&1 || {
         msgbox "$(i18n squash_title)" "$(i18n squash_tools_missing)"
@@ -853,22 +916,31 @@ maintenance_select_and_unsquash() {
         return
     }
 
-    selected="$(checklist_select "$(i18n unsquash_wine)" "$(i18n squash_select_wsquashfs)" "${items[@]}")" || return
+    selected="$(checklist_select "$(i18n unsquash_wine)" "$(i18n squash_select_wsquashfs_auto)" "${items[@]}")" || return
     [ -n "$selected" ] || return
 
-    yesno "$(i18n squash_title)" "$(i18n unsquash_confirm)" || return
+    yesno "$(i18n squash_title)" "$(i18n unsquash_confirm_auto)" || return
 
     while IFS= read -r id; do
         [ -n "$id" ] || continue
         path="$(sed -n "${id}p" <<< "$rows")"
         [ -n "$path" ] || continue
 
-        maintenance_unsquash_wine "$path"
-        rc=$?
-        case "$rc" in
-            0) ok=$((ok+1)) ;;
-            2) skipped=$((skipped+1)) ;;
-            *) failed=$((failed+1)) ;;
+        detected="$(maintenance_detect_wsquashfs_type "$path")"
+        case "$detected" in
+            wine|pc)
+                maintenance_unsquash_game "$path" "$detected"
+                rc=$?
+                case "$rc" in
+                    0) ok=$((ok+1)) ;;
+                    2) skipped=$((skipped+1)) ;;
+                    *) failed=$((failed+1)) ;;
+                esac
+                ;;
+            *)
+                msgbox "$(i18n squash_title)" "$(i18n unsquash_unknown_type "$(basename "$path")")"
+                failed=$((failed+1))
+                ;;
         esac
     done <<< "$selected"
 
