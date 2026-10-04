@@ -262,6 +262,21 @@ declare -gA I18N=(
   [squash_delete_source_done]="Dossier .wine source supprimé : %s"
   [squash_delete_source_failed]="Impossible de supprimer complètement le dossier .wine source : %s\n\nL'archive .wsquashfs créée reste intacte."
 
+  [games_delete_title]="Supprimer des jeux Windows"
+  [games_delete_prompt]="Sélectionnez les jeux à supprimer (.pc, .wine, .wsquashfs, .wtgz).\n\nLes dossiers .wine/.pc sont supprimés sans jamais suivre leurs liens symboliques. Les bottles associées ne sont pas supprimées automatiquement.\n\nLégende : X/Y = cocher/décocher • A/Start = valider • B = retour"
+  [games_delete_none]="Aucun jeu .pc, .wine, .wsquashfs ou .wtgz n'a été trouvé dans /userdata/roms/windows."
+  [games_delete_confirm_title]="Confirmer la suppression des jeux"
+  [games_delete_confirm]="Supprimer définitivement les jeux suivants ?\n\n%s\nIMPORTANT :\n- les cibles des liens symboliques ne seront jamais supprimées ;\n- les bottles Wine associées seront conservées et pourront ensuite apparaître comme orphelines ;\n- cette opération est irréversible.\n\nContinuer ?"
+  [games_delete_done]="Suppression terminée.\n\nJeux supprimés : %s"
+  [games_delete_partial]="Suppression terminée avec erreur(s).\n\nSupprimés : %s\nÉchecs : %s"
+
+  [toolbox_uninstall_title]="Désinstaller la Toolbox"
+  [toolbox_uninstall_warning]="Cette opération supprimera la Thomsonito Batocera Wine Toolbox, son lanceur, ses hooks MangoHud/DXVK et ses fichiers internes.\n\nLes runners Wine/UMU, les bottles, les saves et les jeux seront conservés.\n\nSi /userdata/system/wine/dxvk pointe vers un bundle géré par la Toolbox, ce lien sera retiré pour laisser Batocera reprendre son DXVK par défaut.\n\nContinuer ?"
+  [toolbox_uninstall_confirm]="CONFIRMATION FINALE\n\nDésinstaller maintenant la Toolbox ?\n\nNon est sélectionné par défaut."
+  [toolbox_uninstall_missing]="Le script uninstall.sh de la Toolbox est introuvable."
+  [toolbox_uninstall_done]="La Toolbox a été supprimée.\n\nLes runners Wine/UMU, bottles, saves et jeux ont été conservés."
+  [toolbox_uninstall_failed]="La désinstallation a échoué. Consultez le terminal ou les logs pour plus de détails."
+
   [cleanup_title]="Logs & données temporaires"
   [cleanup_intro]="Logs de la Toolbox : %s\nCaches de téléchargement : %s\nFichiers temporaires Toolbox : %s\n\nLa rotation automatique conserve au maximum 20 logs de session de la Toolbox. Le journal DXVK est également rotaté automatiquement."
   [cleanup_logs]="Nettoyer les anciens logs"
