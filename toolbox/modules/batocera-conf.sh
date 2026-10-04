@@ -163,7 +163,7 @@ batocera_conf_clean_orphans() {
 
     selected="$(checklist_select "$(i18n batocera_conf_clean)" \
         "$(i18n batocera_conf_clean_prompt "$orphan_games" "$orphan_lines")" \
-        "\${items[@]}")" || return
+        "${items[@]}")" || return
     [ -n "$selected" ] || return
 
     selected_file="$(mktemp /tmp/wt-batocera-conf-selected.XXXXXX)" || return
@@ -171,7 +171,7 @@ batocera_conf_clean_orphans() {
 
     while IFS= read -r id; do
         [ -n "$id" ] || continue
-        line="$(sed -n "\${id}p" <<< "$rows")"
+        line="$(sed -n "${id}p" <<< "$rows")"
         [ -n "$line" ] && printf '%s\n' "$line" >> "$selected_file"
     done <<< "$selected"
 
