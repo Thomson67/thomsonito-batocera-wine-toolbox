@@ -739,34 +739,38 @@ maintenance_offer_source_deletion() {
 }
 
 maintenance_detect_wsquashfs_type() {
-    local source="$1"
+    local source="$1" listing detected
 
     [ -f "$source" ] || return 1
+    listing="$(mktemp /tmp/wt-wsq-list.XXXXXX)" || return 1
 
-    unsquashfs -ll "$source" 2>/dev/null | python3 - <<'PY'
+    if ! unsquashfs -ll "$source" > "$listing" 2>/dev/null; then
+        rm -f "$listing"
+        return 1
+    fi
+
+    detected="$(python3 - "$listing" <<'PY'
 import sys
 
 paths = set()
+with open(sys.argv[1], encoding="utf-8", errors="replace") as fh:
+    for line in fh:
+        line = line.rstrip("\n")
+        if not line:
+            continue
 
-for line in sys.stdin:
-    line = line.rstrip("\n")
-    if not line:
-        continue
+        parts = line.split()
+        if not parts:
+            continue
 
-    # unsquashfs -ll outputs metadata columns followed by the archive path.
-    # Keep the final whitespace-separated field, which is sufficient for
-    # Batocera game archives where the paths we inspect contain no spaces.
-    parts = line.split()
-    if not parts:
-        continue
+        # The archive path is the final whitespace-separated field.
+        path = parts[-1]
+        if path == "squashfs-root":
+            continue
+        if path.startswith("squashfs-root/"):
+            path = path[len("squashfs-root/"):]
 
-    path = parts[-1]
-    if path == "squashfs-root":
-        continue
-    if path.startswith("squashfs-root/"):
-        path = path[len("squashfs-root/"):]
-
-    paths.add(path.rstrip("/"))
+        paths.add(path.rstrip("/"))
 
 def exists(name):
     return name in paths
@@ -794,6 +798,10 @@ elif exists("autorun.cmd"):
 else:
     print("unknown")
 PY
+)"
+
+    rm -f "$listing"
+    printf '%s' "$detected"
 }
 
 maintenance_unsquash_game() {
