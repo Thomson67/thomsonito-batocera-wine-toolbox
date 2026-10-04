@@ -642,12 +642,10 @@ maintenance_list_wsquashfs() {
 }
 
 maintenance_squash_wine() {
-    local source="$1" dest tmp rc=0
+    local source="$1" dest tmp
     [ -d "$source" ] || return 1
 
     dest="${source%.wine}.wsquashfs"
-    [ ! -e "$dest" ] || return 2
-
     tmp="$dest.tmp-$$"
     rm -f -- "$tmp" 2>/dev/null || true
 
@@ -661,8 +659,14 @@ maintenance_squash_wine() {
         return 1
     fi
 
-    mv -f -- "$tmp" "$dest" || rc=1
-    return "$rc"
+    # Only replace an existing archive after the new one has been created
+    # and validated successfully.
+    mv -f -- "$tmp" "$dest" || {
+        rm -f -- "$tmp" 2>/dev/null || true
+        return 1
+    }
+
+    return 0
 }
 
 maintenance_unsquash_wine() {
@@ -691,7 +695,8 @@ maintenance_unsquash_wine() {
 
 maintenance_select_and_squash() {
     local -a items=()
-    local rows="" path selected id idx=1 ok=0 failed=0 skipped=0 rc
+    local rows="" path selected id idx=1 ok=0 failed=0 existing=0
+    local selected_paths="" dest
 
     command -v mksquashfs >/dev/null 2>&1 && command -v unsquashfs >/dev/null 2>&1 || {
         msgbox "$(i18n squash_title)" "$(i18n squash_tools_missing)"
@@ -713,23 +718,33 @@ maintenance_select_and_squash() {
     selected="$(checklist_select "$(i18n squash_wine)" "$(i18n squash_select_wine)" "${items[@]}")" || return
     [ -n "$selected" ] || return
 
-    yesno "$(i18n squash_title)" "$(i18n squash_confirm)" || return
-
     while IFS= read -r id; do
         [ -n "$id" ] || continue
         path="$(sed -n "${id}p" <<< "$rows")"
         [ -n "$path" ] || continue
-
-        maintenance_squash_wine "$path"
-        rc=$?
-        case "$rc" in
-            0) ok=$((ok+1)) ;;
-            2) skipped=$((skipped+1)) ;;
-            *) failed=$((failed+1)) ;;
-        esac
+        selected_paths+="$path"$'\n'
+        dest="${path%.wine}.wsquashfs"
+        [ -e "$dest" ] && existing=$((existing+1))
     done <<< "$selected"
 
-    msgbox "$(i18n squash_title)" "$(i18n squash_result "$ok" "$skipped" "$failed")"
+    [ -n "$selected_paths" ] || return
+
+    if [ "$existing" -gt 0 ]; then
+        yesno "$(i18n squash_title)" "$(i18n squash_resquash_confirm "$existing")" || return
+    else
+        yesno "$(i18n squash_title)" "$(i18n squash_confirm)" || return
+    fi
+
+    while IFS= read -r path; do
+        [ -n "$path" ] || continue
+        if maintenance_squash_wine "$path"; then
+            ok=$((ok+1))
+        else
+            failed=$((failed+1))
+        fi
+    done <<< "$selected_paths"
+
+    msgbox "$(i18n squash_title)" "$(i18n squash_result "$ok" "$failed")"
 }
 
 maintenance_select_and_unsquash() {
