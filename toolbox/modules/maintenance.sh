@@ -502,7 +502,7 @@ maintenance_find_runner_binary() {
 }
 
 maintenance_verify_runners() {
-    local report runner name wine wineserver broken status ok=0 bad=0 total=0
+    local report runner name wine wineserver broken ok=0 bad=0 total=0
     report="$(mktemp /tmp/wt-runner-check.XXXXXX)" || return
 
     {
@@ -521,39 +521,26 @@ maintenance_verify_runners() {
         [ -d "$runner" ] || continue
         name="$(basename "$runner")"
         total=$((total+1))
+
         wine="$(maintenance_find_runner_binary "$runner" wine)"
         wineserver="$(maintenance_find_runner_binary "$runner" wineserver)"
         broken="$(find "$runner" -xtype l -print 2>/dev/null | wc -l)"
 
         if [ -n "$wine" ] && [ -n "$wineserver" ] && [ "$broken" -eq 0 ]; then
-            status="OK"
+            printf '[OK] %s\n' "$name" >> "$report"
             ok=$((ok+1))
         else
-            status="$(i18n runner_check_problem)"
+            printf '[%s] %s\n' "$(i18n runner_check_problem)" "$name" >> "$report"
             bad=$((bad+1))
         fi
-
-        printf '[%s] %s\n' "$status" "$name" >> "$report"
-        if [ -n "$wine" ]; then
-            printf '  wine       : %s\n' "${wine#$runner/}" >> "$report"
-        else
-            printf '  wine       : %s\n' "$(i18n runner_check_missing)" >> "$report"
-        fi
-        if [ -n "$wineserver" ]; then
-            printf '  wineserver : %s\n' "${wineserver#$runner/}" >> "$report"
-        else
-            printf '  wineserver : %s\n' "$(i18n runner_check_missing)" >> "$report"
-        fi
-        printf '  %s : %s\n\n' "$(i18n runner_check_broken_links)" "$broken" >> "$report"
     done < <(find "$BATOCERA_CUSTOM_WINE" -mindepth 1 -maxdepth 1 -type d -print 2>/dev/null | sort -f)
 
     if [ "$total" -eq 0 ]; then
         printf '%s\n' "$(i18n runner_check_none)" >> "$report"
     else
-        printf '%s\n' "$(i18n runner_check_summary "$total" "$ok" "$bad")" >> "$report"
+        printf '\n%s\n' "$(i18n runner_check_summary "$total" "$ok" "$bad")" >> "$report"
     fi
 
-    printf '\n%s\n' "$(i18n runner_check_umu_note)" >> "$report"
     maintenance_show_report "$(i18n runner_check_title)" "$report"
     rm -f "$report"
 }
