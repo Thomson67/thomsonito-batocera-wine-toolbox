@@ -4,10 +4,13 @@ BATOCERA_CONF="/userdata/system/batocera.conf"
 BATOCERA_CONF_BACKUP_DIR="/userdata/system/backups/thomsonito-wine-toolbox"
 
 batocera_conf_scan() {
-    [ -r "$BATOCERA_CONF" ] || return 1
-    [ -d "$WINDOWS_ROMS_DIR" ] || return 2
+    [ -r "$BATOCERA_CONF" ] || return 10
+    [ -d "$WINDOWS_ROMS_DIR" ] || return 11
 
-    python3 - "$BATOCERA_CONF" "$WINDOWS_ROMS_DIR" <<'PY'
+    local err rc
+    err="$(mktemp /tmp/wt-batocera-conf-scan.XXXXXX)" || return 12
+
+    python3 - "$BATOCERA_CONF" "$WINDOWS_ROMS_DIR" 2>"$err" <<'PY'
 from pathlib import Path
 import os
 import re
@@ -55,7 +58,7 @@ game_lines = 0
 games = {}
 order = []
 
-with conf.open("r", encoding="utf-8", errors="surrogateescape", newline="") as fh:
+with open(conf, "r", encoding="utf-8", errors="surrogateescape") as fh:
     for raw in fh:
         line = raw.rstrip("\r\n")
         match = game_re.match(line)
@@ -102,11 +105,11 @@ batocera_conf_analyze() {
     rc=$?
     case "$rc" in
         0) ;;
-        1)
+        10)
             msgbox "$(i18n batocera_conf_title)" "$(i18n batocera_conf_unreadable "$BATOCERA_CONF")"
             return
             ;;
-        2)
+        11)
             msgbox "$(i18n batocera_conf_title)" "$(i18n batocera_conf_roms_missing "$WINDOWS_ROMS_DIR")"
             return
             ;;
@@ -152,11 +155,11 @@ batocera_conf_clean_orphans() {
     rc=$?
     case "$rc" in
         0) ;;
-        1)
+        10)
             msgbox "$(i18n batocera_conf_title)" "$(i18n batocera_conf_unreadable "$BATOCERA_CONF")"
             return
             ;;
-        2)
+        11)
             msgbox "$(i18n batocera_conf_title)" "$(i18n batocera_conf_roms_missing "$WINDOWS_ROMS_DIR")"
             return
             ;;
@@ -273,11 +276,11 @@ batocera_conf_organize() {
     rc=$?
     case "$rc" in
         0) ;;
-        1)
+        10)
             msgbox "$(i18n batocera_conf_title)" "$(i18n batocera_conf_unreadable "$BATOCERA_CONF")"
             return
             ;;
-        2)
+        11)
             msgbox "$(i18n batocera_conf_title)" "$(i18n batocera_conf_roms_missing "$WINDOWS_ROMS_DIR")"
             return
             ;;
