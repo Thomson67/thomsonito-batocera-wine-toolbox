@@ -1161,22 +1161,44 @@ maintenance_uninstall_toolbox() {
 }
 
 maintenance_summary() {
-    local wine_count umu_state bottle_count bottle_kib log_kib
-    wine_count="$(find /userdata/system/wine/custom -mindepth 1 -maxdepth 1 -type d 2>/dev/null | wc -l)"
+    local wine_count umu_state bottle_count bottle_kib free_bytes free_human
+    local mangohud_state dxvk_state hooks_state
+
+    wine_count="$(find "$BATOCERA_CUSTOM_WINE" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | wc -l)"
     umu_state="$(umu_toolbox_status)"
 
-    if [ -s "$BOTTLES_CACHE" ]; then
-        bottle_count="$(maintenance_bottle_count)"
-        bottle_kib="$(maintenance_bottle_total_kib)"
+    bottle_count="$(maintenance_bottle_count)"
+    bottle_kib="$(maintenance_bottle_total_kib)"
+
+    free_bytes="$(free_bytes_userdata)"
+    if [ -n "$free_bytes" ]; then
+        free_human="$(human_bytes "$free_bytes")"
     else
-        bottle_count="$(maintenance_bottle_count)"
-        bottle_kib="$(maintenance_bottle_total_kib)"
+        free_human="$(i18n unknown)"
     fi
 
-    log_kib="$(maintenance_logs_kib)"
+    mangohud_state="$(mangohud_global_state)"
+    dxvk_state="$(dxvk_status)"
+
+    if [ -x "/userdata/system/scripts/thomsonito-wine-toolbox-mangohud.sh" ] && \
+       [ -x "/userdata/system/scripts/thomsonito-wine-toolbox-dxvk.sh" ]; then
+        hooks_state="$(i18n maintenance_hooks_ok)"
+    else
+        hooks_state="$(i18n maintenance_hooks_incomplete)"
+    fi
 
     msgbox "$(i18n maintenance_summary_title)" \
-        "$(i18n maintenance_summary_body "$(batocera_version)" "$wine_count" "$umu_state" "$bottle_count" "$(maintenance_kib_human "$bottle_kib")" "$(maintenance_kib_human "$log_kib")")"
+        "$(i18n maintenance_summary_body \
+            "$(batocera_version)" \
+            "$(wt_version)" \
+            "$free_human" \
+            "$wine_count" \
+            "$umu_state" \
+            "$mangohud_state" \
+            "$dxvk_state" \
+            "$bottle_count" \
+            "$(maintenance_kib_human "$bottle_kib")" \
+            "$hooks_state")"
 }
 
 maintenance_menu() {
