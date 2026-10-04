@@ -552,8 +552,8 @@ maintenance_verify_runners() {
     else
         printf '%s\n' "$(i18n runner_check_summary "$total" "$ok" "$bad")" >> "$report"
     fi
-    printf '\n%s\n' "$(i18n runner_check_umu_note)" >> "$report"
 
+    printf '\n%s\n' "$(i18n runner_check_umu_note)" >> "$report"
     maintenance_show_report "$(i18n runner_check_title)" "$report"
     rm -f "$report"
 }
@@ -622,47 +622,7 @@ maintenance_verify_dxvk() {
 
     printf '\n%s\n' "$(i18n dxvk_check_assignments)" >> "$report"
     if [ -s "$DXVK_GAME_FILE" ]; then
-        while IFS=
-    local wine_count umu_state bottle_count bottle_kib log_kib
-    wine_count="$(find /userdata/system/wine/custom -mindepth 1 -maxdepth 1 -type d 2>/dev/null | wc -l)"
-    umu_state="$(umu_toolbox_status)"
-
-    if [ -s "$BOTTLES_CACHE" ]; then
-        bottle_count="$(maintenance_bottle_count)"
-        bottle_kib="$(maintenance_bottle_total_kib)"
-    else
-        bottle_count="$(maintenance_bottle_count)"
-        bottle_kib="$(maintenance_bottle_total_kib)"
-    fi
-
-    log_kib="$(maintenance_logs_kib)"
-
-    msgbox "$(i18n maintenance_summary_title)" \
-        "$(i18n maintenance_summary_body "$(batocera_version)" "$wine_count" "$umu_state" "$bottle_count" "$(maintenance_kib_human "$bottle_kib")" "$(maintenance_kib_human "$log_kib")")"
-}
-
-maintenance_menu() {
-    while true; do
-        local choice
-        choice="$(menu_select "$(i18n maintenance_title)" "$(i18n maintenance_intro)" \
-            "1" "$(i18n maintenance_summary_title)" \
-            "2" "$(i18n bottles_title)" \
-            "3" "$(i18n runner_check_title)" \
-            "4" "$(i18n dxvk_check_title)" \
-            "5" "$(i18n cleanup_title)" \
-            "0" "$(i18n back)")" || return
-
-        case "$choice" in
-            1) maintenance_summary ;;
-            2) maintenance_bottles_menu ;;
-            3) maintenance_verify_runners ;;
-            4) maintenance_verify_dxvk ;;
-            5) maintenance_cleanup_menu ;;
-            0|"") return ;;
-        esac
-    done
-}
-\t' read -r game_bundle game_path; do
+        while IFS=$'\t' read -r game_bundle game_path; do
             [ -n "$game_bundle" ] && [ -n "$game_path" ] || continue
             if [ ! -d "$DXVK_BUNDLE_DIR/$game_bundle" ]; then
                 printf '[%s] %s -> %s (%s)\n' "$(i18n dxvk_check_problem)" "$(basename "$game_path")" "$game_bundle" "$(i18n dxvk_check_bundle_missing)" >> "$report"
@@ -709,13 +669,17 @@ maintenance_menu() {
         choice="$(menu_select "$(i18n maintenance_title)" "$(i18n maintenance_intro)" \
             "1" "$(i18n maintenance_summary_title)" \
             "2" "$(i18n bottles_title)" \
-            "3" "$(i18n cleanup_title)" \
+            "3" "$(i18n runner_check_title)" \
+            "4" "$(i18n dxvk_check_title)" \
+            "5" "$(i18n cleanup_title)" \
             "0" "$(i18n back)")" || return
 
         case "$choice" in
             1) maintenance_summary ;;
             2) maintenance_bottles_menu ;;
-            3) maintenance_cleanup_menu ;;
+            3) maintenance_verify_runners ;;
+            4) maintenance_verify_dxvk ;;
+            5) maintenance_cleanup_menu ;;
             0|"") return ;;
         esac
     done
