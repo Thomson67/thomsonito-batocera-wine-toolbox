@@ -157,9 +157,16 @@ maintenance_delete_selected_bottles() {
     local mode="${1:-all}"
     local -a items=()
     local rows="" kind runner name path kib orphan label idx=1 count=0
-    local selected="" id selected_paths="" selected_names="" total=0 failures=0
+    local selected="" id line selected_paths="" selected_names="" total=0 failures=0
 
-    while IFS=        if [ "$kind" = "v43" ]; then
+    while IFS=$'\t' read -r kind runner name path kib orphan; do
+        [ -n "$path" ] || continue
+
+        if [ "$mode" = "orphans" ] && [ "$orphan" != "1" ]; then
+            continue
+        fi
+
+        if [ "$kind" = "v43" ]; then
             label="$(i18n bottles_item_v43 "$name" "$runner" "$(maintenance_kib_human "$kib")")"
         else
             label="$(i18n bottles_item_legacy "$name" "$(maintenance_kib_human "$kib")")"
@@ -237,7 +244,8 @@ maintenance_delete_all_bottles() {
     yesno "$(i18n bottles_warning_title)" "$(i18n bottles_warning)" || return
     yesno "$(i18n bottles_delete_all)" "$(i18n bottles_delete_all_confirm "$count" "$(maintenance_kib_human "$total")")" || return
 
-    while IFS=        [ -n "$path" ] || continue
+    while IFS=$'\t' read -r kind runner name path kib orphan; do
+        [ -n "$path" ] || continue
         case "$path" in
             "$BOTTLES_ROOT"/*)
                 [ "$path" != "$BOTTLES_ROOT" ] || { failures=$((failures+1)); continue; }
