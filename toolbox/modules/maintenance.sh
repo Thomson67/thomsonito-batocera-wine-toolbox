@@ -42,24 +42,11 @@ def is_runner_container(p: Path) -> bool:
     except OSError:
         return False
 
-KNOWN_EXTENSIONS = (".wsquashfs", ".wtgz", ".wine", ".pc")
-
-def canonical_game_name(name: str) -> str:
-    value = name.strip()
-    while True:
-        lower = value.casefold()
-        for ext in KNOWN_EXTENSIONS:
-            if lower.endswith(ext):
-                value = value[:-len(ext)]
-                break
-        else:
-            return value.casefold()
-
 game_names = set()
 if roms.is_dir():
     try:
         for p in roms.iterdir():
-            game_names.add(canonical_game_name(p.name))
+            game_names.add(p.name.casefold())
     except OSError:
         pass
 
@@ -93,8 +80,19 @@ for bottle in roots:
         continue
     records.append(("legacy", "-", bottle.name, str(bottle)))
 
-def bottle_has_game(name: str) -> bool:
-    return canonical_game_name(name) in game_names
+def bottle_has_game(kind: str, name: str) -> bool:
+    # Batocera 43+ appends ".wine" to the complete ROM filename.
+    # Example:
+    #   ROM    : Out of Sight.pc
+    #   Bottle : Out of Sight.pc.wine
+    #
+    # The ROM extension is significant and must not be normalized away.
+    if kind == "v43" and name.lower().endswith(".wine"):
+        rom_name = name[:-5]
+    else:
+        rom_name = name
+
+    return rom_name.casefold() in game_names
 
 # One du process per batch instead of one process per bottle.
 sizes = {}
@@ -122,7 +120,7 @@ for pos in range(0, len(paths), 200):
             continue
 
 for kind, runner, name, path in records:
-    orphan = "0" if bottle_has_game(name) else "1"
+    orphan = "0" if bottle_has_game(kind, name) else "1"
     print("\t".join((kind, runner, name, path, str(sizes.get(path, 0)), orphan)))
 PY
 
