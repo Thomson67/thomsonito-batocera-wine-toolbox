@@ -660,7 +660,6 @@ maintenance_choose_renamed_wsquashfs() {
 
     while true; do
         entered="$(input_text "$(i18n squash_rename_title)" "$(i18n squash_rename_prompt)" "$default_name")" || return 1
-        entered="${entered##*/}"
 
         [ -n "$entered" ] || {
             msgbox "$(i18n squash_rename_title)" "$(i18n squash_rename_invalid)"
