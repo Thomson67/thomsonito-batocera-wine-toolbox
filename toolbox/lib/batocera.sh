@@ -15,6 +15,15 @@ ensure_batocera_paths() {
     mkdir -p "$BATOCERA_CUSTOM_WINE" "$BATOCERA_PORTS"
 }
 
+free_bytes_path() {
+    local path="$1"
+    df -PB1 -- "$path" 2>/dev/null | awk 'NR==2 {print $4}'
+}
+
 free_bytes_userdata() {
-    df -PB1 /userdata 2>/dev/null | awk 'NR==2 {print $4}'
+    free_bytes_path /userdata
+}
+
+free_bytes_roms() {
+    free_bytes_path /userdata/roms
 }
