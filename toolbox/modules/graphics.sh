@@ -159,16 +159,15 @@ mangohud_disable_individual_menu() {
         msgbox "$(i18n mangohud_disable_individual)" "$(i18n mangohud_disable_individual_partial)"
     fi
 }
-graphics_menu() {
+mangohud_menu() {
     while true; do
         local choice
-        choice="$(menu_select "$(i18n graphics_title)" \
+        choice="$(menu_select "$(i18n mangohud_title)" \
             "$(i18n mangohud_intro)\n\n$(i18n mangohud_global_status "$(mangohud_global_state)")" \
             "1" "$(i18n mangohud_enable_global)" \
             "2" "$(i18n mangohud_disable_global)" \
             "3" "$(i18n mangohud_per_game)" \
             "4" "$(i18n mangohud_disable_individual)" \
-            "5" "$(i18n dxvk_manager)" \
             "0" "$(i18n back)")" || return
 
         case "$choice" in
@@ -176,7 +175,23 @@ graphics_menu() {
             2) mangohud_set_global 0 ;;
             3) mangohud_game_menu ;;
             4) mangohud_disable_individual_menu ;;
-            5) dxvk_manager_menu ;;
+            0|"") return ;;
+        esac
+    done
+}
+
+graphics_menu() {
+    while true; do
+        local choice
+        choice="$(menu_select "$(i18n graphics_title)" \
+            "$(i18n graphics_intro)" \
+            "1" "$(i18n mangohud_title)" \
+            "2" "$(i18n dxvk_manager)" \
+            "0" "$(i18n back)")" || return
+
+        case "$choice" in
+            1) mangohud_menu ;;
+            2) dxvk_manager_menu ;;
             0|"") return ;;
         esac
     done
