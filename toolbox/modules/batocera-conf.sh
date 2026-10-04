@@ -79,8 +79,23 @@ print("\t".join((
     str(len(orphans)), str(sum(count for _, count in orphans))
 )))
 for game, count in orphans:
-    print("\t".join(("ORPHAN", game, str(count)))
+    print("\t".join(("ORPHAN", game, str(count))))
 PY
+    rc=$?
+
+    if [ "$rc" -ne 0 ]; then
+        wt_log "batocera.conf scan failed (python rc=$rc)"
+        if [ -s "$err" ]; then
+            while IFS= read -r line; do
+                wt_log "batocera.conf scan: $line"
+            done < "$err"
+        fi
+        rm -f "$err"
+        return 12
+    fi
+
+    rm -f "$err"
+    return 0
 }
 
 batocera_conf_backup() {
