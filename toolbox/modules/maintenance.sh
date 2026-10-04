@@ -631,6 +631,166 @@ maintenance_verify_dxvk() {
     rm -f "$report"
 }
 
+maintenance_list_wine_dirs() {
+    [ -d "$WINDOWS_ROMS_DIR" ] || return 0
+    find "$WINDOWS_ROMS_DIR" -mindepth 1 -maxdepth 1 -type d -iname '*.wine' -print 2>/dev/null | sort -f
+}
+
+maintenance_list_wsquashfs() {
+    [ -d "$WINDOWS_ROMS_DIR" ] || return 0
+    find "$WINDOWS_ROMS_DIR" -mindepth 1 -maxdepth 1 -type f -iname '*.wsquashfs' -print 2>/dev/null | sort -f
+}
+
+maintenance_squash_wine() {
+    local source="$1" dest tmp rc=0
+    [ -d "$source" ] || return 1
+
+    dest="${source%.wine}.wsquashfs"
+    [ ! -e "$dest" ] || return 2
+
+    tmp="$dest.tmp-$$"
+    rm -f -- "$tmp" 2>/dev/null || true
+
+    if ! mksquashfs "$source" "$tmp" -comp zstd -no-progress >/dev/null 2>&1; then
+        rm -f -- "$tmp" 2>/dev/null || true
+        return 1
+    fi
+
+    if ! unsquashfs -s "$tmp" >/dev/null 2>&1; then
+        rm -f -- "$tmp" 2>/dev/null || true
+        return 1
+    fi
+
+    mv -f -- "$tmp" "$dest" || rc=1
+    return "$rc"
+}
+
+maintenance_unsquash_wine() {
+    local source="$1" dest tmp rc=0
+    [ -f "$source" ] || return 1
+
+    dest="${source%.wsquashfs}.wine"
+    [ ! -e "$dest" ] || return 2
+
+    tmp="$dest.tmp-$$"
+    rm -rf -- "$tmp" 2>/dev/null || true
+
+    if ! unsquashfs -d "$tmp" "$source" >/dev/null 2>&1; then
+        rm -rf -- "$tmp" 2>/dev/null || true
+        return 1
+    fi
+
+    [ -d "$tmp" ] || {
+        rm -rf -- "$tmp" 2>/dev/null || true
+        return 1
+    }
+
+    mv -- "$tmp" "$dest" || rc=1
+    return "$rc"
+}
+
+maintenance_select_and_squash() {
+    local -a items=()
+    local rows="" path selected id idx=1 ok=0 failed=0 skipped=0 rc
+
+    command -v mksquashfs >/dev/null 2>&1 && command -v unsquashfs >/dev/null 2>&1 || {
+        msgbox "$(i18n squash_title)" "$(i18n squash_tools_missing)"
+        return
+    }
+
+    while IFS= read -r path; do
+        [ -n "$path" ] || continue
+        items+=("$idx" "$(basename "$path")" "off")
+        rows+="$path"$'\n'
+        idx=$((idx+1))
+    done < <(maintenance_list_wine_dirs)
+
+    [ "${#items[@]}" -gt 0 ] || {
+        msgbox "$(i18n squash_title)" "$(i18n squash_no_wine)"
+        return
+    }
+
+    selected="$(checklist_select "$(i18n squash_wine)" "$(i18n squash_select_wine)" "${items[@]}")" || return
+    [ -n "$selected" ] || return
+
+    yesno "$(i18n squash_title)" "$(i18n squash_confirm)" || return
+
+    while IFS= read -r id; do
+        [ -n "$id" ] || continue
+        path="$(sed -n "${id}p" <<< "$rows")"
+        [ -n "$path" ] || continue
+
+        maintenance_squash_wine "$path"
+        rc=$?
+        case "$rc" in
+            0) ok=$((ok+1)) ;;
+            2) skipped=$((skipped+1)) ;;
+            *) failed=$((failed+1)) ;;
+        esac
+    done <<< "$selected"
+
+    msgbox "$(i18n squash_title)" "$(i18n squash_result "$ok" "$skipped" "$failed")"
+}
+
+maintenance_select_and_unsquash() {
+    local -a items=()
+    local rows="" path selected id idx=1 ok=0 failed=0 skipped=0 rc
+
+    command -v unsquashfs >/dev/null 2>&1 || {
+        msgbox "$(i18n squash_title)" "$(i18n squash_tools_missing)"
+        return
+    }
+
+    while IFS= read -r path; do
+        [ -n "$path" ] || continue
+        items+=("$idx" "$(basename "$path")" "off")
+        rows+="$path"$'\n'
+        idx=$((idx+1))
+    done < <(maintenance_list_wsquashfs)
+
+    [ "${#items[@]}" -gt 0 ] || {
+        msgbox "$(i18n squash_title)" "$(i18n squash_no_wsquashfs)"
+        return
+    }
+
+    selected="$(checklist_select "$(i18n unsquash_wine)" "$(i18n squash_select_wsquashfs)" "${items[@]}")" || return
+    [ -n "$selected" ] || return
+
+    yesno "$(i18n squash_title)" "$(i18n unsquash_confirm)" || return
+
+    while IFS= read -r id; do
+        [ -n "$id" ] || continue
+        path="$(sed -n "${id}p" <<< "$rows")"
+        [ -n "$path" ] || continue
+
+        maintenance_unsquash_wine "$path"
+        rc=$?
+        case "$rc" in
+            0) ok=$((ok+1)) ;;
+            2) skipped=$((skipped+1)) ;;
+            *) failed=$((failed+1)) ;;
+        esac
+    done <<< "$selected"
+
+    msgbox "$(i18n squash_title)" "$(i18n unsquash_result "$ok" "$skipped" "$failed")"
+}
+
+maintenance_squash_menu() {
+    while true; do
+        local choice
+        choice="$(menu_select "$(i18n squash_title)" "$(i18n squash_intro)" \
+            "1" "$(i18n squash_wine)" \
+            "2" "$(i18n unsquash_wine)" \
+            "0" "$(i18n back)")" || return
+
+        case "$choice" in
+            1) maintenance_select_and_squash ;;
+            2) maintenance_select_and_unsquash ;;
+            0|"") return ;;
+        esac
+    done
+}
+
 maintenance_summary() {
     local wine_count umu_state bottle_count bottle_kib log_kib
     wine_count="$(find /userdata/system/wine/custom -mindepth 1 -maxdepth 1 -type d 2>/dev/null | wc -l)"
@@ -658,7 +818,8 @@ maintenance_menu() {
             "2" "$(i18n bottles_title)" \
             "3" "$(i18n runner_check_title)" \
             "4" "$(i18n dxvk_check_title)" \
-            "5" "$(i18n cleanup_title)" \
+            "5" "$(i18n squash_title)" \
+            "6" "$(i18n cleanup_title)" \
             "0" "$(i18n back)")" || return
 
         case "$choice" in
@@ -666,7 +827,8 @@ maintenance_menu() {
             2) maintenance_bottles_menu ;;
             3) maintenance_verify_runners ;;
             4) maintenance_verify_dxvk ;;
-            5) maintenance_cleanup_menu ;;
+            5) maintenance_squash_menu ;;
+            6) maintenance_cleanup_menu ;;
             0|"") return ;;
         esac
     done
