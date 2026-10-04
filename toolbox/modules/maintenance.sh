@@ -276,12 +276,25 @@ maintenance_tmp_kib() {
 }
 
 maintenance_clean_logs() {
-    local before
+    local before current=""
     before="$(maintenance_logs_kib)"
 
     mkdir -p "$WT_LOG_DIR"
-    find "$WT_LOG_DIR" -maxdepth 1 -type f -name '*.log' -delete 2>/dev/null || true
-    rm -f "$WT_LOG_DIR/latest.log" 2>/dev/null || true
+    [ -n "${WT_SESSION_LOG:-}" ] && current="$(readlink -f "$WT_SESSION_LOG" 2>/dev/null || printf '%s' "$WT_SESSION_LOG")"
+
+    while IFS= read -r file; do
+        [ -n "$file" ] || continue
+        if [ -n "$current" ] && [ "$(readlink -f "$file" 2>/dev/null || printf '%s' "$file")" = "$current" ]; then
+            continue
+        fi
+        rm -f -- "$file" 2>/dev/null || true
+    done < <(find "$WT_LOG_DIR" -maxdepth 1 -type f -name '*.log' -print 2>/dev/null)
+
+    if [ -n "${WT_SESSION_LOG:-}" ] && [ -e "$WT_SESSION_LOG" ]; then
+        ln -sfn "$(basename "$WT_SESSION_LOG")" "$WT_LOG_DIR/latest.log" 2>/dev/null || true
+    else
+        rm -f "$WT_LOG_DIR/latest.log" 2>/dev/null || true
+    fi
 
     msgbox "$(i18n cleanup_title)" "$(i18n cleanup_logs_done "$(maintenance_kib_human "$before")")"
 }
