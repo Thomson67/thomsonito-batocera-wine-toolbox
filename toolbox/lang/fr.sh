@@ -177,7 +177,9 @@ declare -gA I18N=(
   [maintenance_title]="Maintenance & diagnostics"
   [maintenance_intro]="Outils de maintenance et de diagnostic de la Toolbox. Les opérations destructives demandent toujours une confirmation."
   [maintenance_summary_title]="Résumé de l'environnement"
-  [maintenance_summary_body]="Batocera : %s\nRunners Wine custom : %s\nUMU Runner Toolbox : %s\n\nWine bottles détectées : %s\nEspace occupé par les bottles : %s\nLogs de la Toolbox : %s"
+  [maintenance_summary_body]="Batocera : %s\nToolbox : %s\nLibre sur /userdata : %s\n\nRunners Wine custom : %s\nUMU Toolbox : %s\nMangoHud global : %s\nDXVK global : %s\n\nWine bottles : %s (%s)\nHooks Toolbox : %s"
+  [maintenance_hooks_ok]="OK"
+  [maintenance_hooks_incomplete]="incomplets"
 
   [runner_check_title]="Vérifier les runners Wine"
   [runner_check_header]="Vérification des runners Wine custom installés dans :\n%s"
