@@ -42,17 +42,24 @@ def is_runner_container(p: Path) -> bool:
     except OSError:
         return False
 
+KNOWN_EXTENSIONS = (".wsquashfs", ".wtgz", ".wine", ".pc")
+
+def canonical_game_name(name: str) -> str:
+    value = name.strip()
+    while True:
+        lower = value.casefold()
+        for ext in KNOWN_EXTENSIONS:
+            if lower.endswith(ext):
+                value = value[:-len(ext)]
+                break
+        else:
+            return value.casefold()
+
 game_names = set()
 if roms.is_dir():
     try:
         for p in roms.iterdir():
-            name = p.name
-            game_names.add(name)
-            lower = name.lower()
-            for ext in (".wsquashfs", ".wtgz", ".wine", ".pc"):
-                if lower.endswith(ext):
-                    game_names.add(name[:-len(ext)])
-                    break
+            game_names.add(canonical_game_name(p.name))
     except OSError:
         pass
 
@@ -87,15 +94,7 @@ for bottle in roots:
     records.append(("legacy", "-", bottle.name, str(bottle)))
 
 def bottle_has_game(name: str) -> bool:
-    candidate = name[:-5] if name.lower().endswith(".wine") else name
-    if candidate in game_names or name in game_names:
-        return True
-
-    lower = candidate.lower()
-    for ext in (".wsquashfs", ".wtgz", ".wine", ".pc"):
-        if lower.endswith(ext) and candidate[:-len(ext)] in game_names:
-            return True
-    return False
+    return canonical_game_name(name) in game_names
 
 # One du process per batch instead of one process per bottle.
 sizes = {}
