@@ -1036,6 +1036,130 @@ maintenance_squash_menu() {
     done
 }
 
+maintenance_list_windows_games() {
+    [ -d "$WINDOWS_ROMS_DIR" ] || return 0
+
+    find "$WINDOWS_ROMS_DIR" -mindepth 1 -maxdepth 1 \
+        \( \
+            \( -type d \( -iname '*.wine' -o -iname '*.pc' \) \) -o \
+            \( -type f \( -iname '*.wsquashfs' -o -iname '*.wtgz' \) \) \
+        \) -print 2>/dev/null | sort -f
+}
+
+maintenance_delete_game_path_symlink_safe() {
+    local source="$1"
+
+    python3 - "$WINDOWS_ROMS_DIR" "$source" <<'PY'
+import os
+import sys
+
+root = os.path.abspath(sys.argv[1])
+path = os.path.abspath(sys.argv[2])
+
+if os.path.dirname(path) != root:
+    raise SystemExit(2)
+
+lower = path.casefold()
+
+if lower.endswith((".wsquashfs", ".wtgz")):
+    if not os.path.isfile(path) or os.path.islink(path):
+        raise SystemExit(2)
+    os.unlink(path)
+    raise SystemExit(0)
+
+if not lower.endswith((".wine", ".pc")):
+    raise SystemExit(2)
+if not os.path.isdir(path) or os.path.islink(path):
+    raise SystemExit(2)
+
+def remove_tree_no_follow(current):
+    with os.scandir(current) as entries:
+        for entry in entries:
+            p = entry.path
+            if entry.is_symlink():
+                os.unlink(p)
+            elif entry.is_dir(follow_symlinks=False):
+                remove_tree_no_follow(p)
+                os.rmdir(p)
+            else:
+                os.unlink(p)
+
+remove_tree_no_follow(path)
+os.rmdir(path)
+PY
+}
+
+maintenance_delete_windows_games() {
+    local -a items=()
+    local rows="" path selected id idx=1 count=0 selected_paths="" selected_names=""
+    local failures=0 deleted=0
+
+    while IFS= read -r path; do
+        [ -n "$path" ] || continue
+        items+=("$idx" "$(basename "$path")" "off")
+        rows+="$path"$'\n'
+        idx=$((idx+1))
+        count=$((count+1))
+    done < <(maintenance_list_windows_games)
+
+    [ "$count" -gt 0 ] || {
+        msgbox "$(i18n games_delete_title)" "$(i18n games_delete_none)"
+        return
+    }
+
+    selected="$(checklist_select "$(i18n games_delete_title)" "$(i18n games_delete_prompt)" "${items[@]}")" || return
+    [ -n "$selected" ] || return
+
+    while IFS= read -r id; do
+        [ -n "$id" ] || continue
+        path="$(sed -n "${id}p" <<< "$rows")"
+        [ -n "$path" ] || continue
+        selected_paths+="$path"$'\n'
+        selected_names+="• $(basename "$path")"$'\n'
+    done <<< "$selected"
+
+    [ -n "$selected_paths" ] || return
+
+    yesno_default_no "$(i18n games_delete_confirm_title)" \
+        "$(i18n games_delete_confirm "$selected_names")" || return
+
+    while IFS= read -r path; do
+        [ -n "$path" ] || continue
+        if maintenance_delete_game_path_symlink_safe "$path"; then
+            deleted=$((deleted+1))
+        else
+            failures=$((failures+1))
+        fi
+    done <<< "$selected_paths"
+
+    maintenance_bottles_cache_invalidate
+
+    if [ "$failures" -eq 0 ]; then
+        msgbox "$(i18n games_delete_title)" "$(i18n games_delete_done "$deleted")"
+    else
+        msgbox "$(i18n games_delete_title)" "$(i18n games_delete_partial "$deleted" "$failures")"
+    fi
+}
+
+maintenance_uninstall_toolbox() {
+    local uninstall_script="$WT_HOME/uninstall.sh"
+
+    [ -x "$uninstall_script" ] || [ -f "$uninstall_script" ] || {
+        msgbox "$(i18n toolbox_uninstall_title)" "$(i18n toolbox_uninstall_missing)"
+        return
+    }
+
+    yesno_default_no "$(i18n toolbox_uninstall_title)" "$(i18n toolbox_uninstall_warning)" || return
+    yesno_default_no "$(i18n toolbox_uninstall_title)" "$(i18n toolbox_uninstall_confirm)" || return
+
+    if bash "$uninstall_script"; then
+        msgbox "$(i18n toolbox_uninstall_title)" "$(i18n toolbox_uninstall_done)"
+        exit 0
+    fi
+
+    msgbox "$(i18n toolbox_uninstall_title)" "$(i18n toolbox_uninstall_failed)"
+}
+
 maintenance_summary() {
     local wine_count umu_state bottle_count bottle_kib log_kib
     wine_count="$(find /userdata/system/wine/custom -mindepth 1 -maxdepth 1 -type d 2>/dev/null | wc -l)"
@@ -1064,7 +1188,9 @@ maintenance_menu() {
             "3" "$(i18n runner_check_title)" \
             "4" "$(i18n dxvk_check_title)" \
             "5" "$(i18n squash_title)" \
-            "6" "$(i18n cleanup_title)" \
+            "6" "$(i18n games_delete_title)" \
+            "7" "$(i18n cleanup_title)" \
+            "8" "$(i18n toolbox_uninstall_title)" \
             "0" "$(i18n back)")" || return
 
         case "$choice" in
@@ -1073,7 +1199,9 @@ maintenance_menu() {
             3) maintenance_verify_runners ;;
             4) maintenance_verify_dxvk ;;
             5) maintenance_squash_menu ;;
-            6) maintenance_cleanup_menu ;;
+            6) maintenance_delete_windows_games ;;
+            7) maintenance_cleanup_menu ;;
+            8) maintenance_uninstall_toolbox ;;
             0|"") return ;;
         esac
     done
