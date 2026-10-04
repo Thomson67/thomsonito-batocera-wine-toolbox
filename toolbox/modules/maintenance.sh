@@ -631,10 +631,9 @@ maintenance_verify_dxvk() {
     rm -f "$report"
 }
 
-maintenance_list_game_dirs() {
+maintenance_list_wine_dirs() {
     [ -d "$WINDOWS_ROMS_DIR" ] || return 0
-    find "$WINDOWS_ROMS_DIR" -mindepth 1 -maxdepth 1 -type d \
-        \( -iname '*.wine' -o -iname '*.pc' \) -print 2>/dev/null | sort -f
+    find "$WINDOWS_ROMS_DIR" -mindepth 1 -maxdepth 1 -type d -iname '*.wine' -print 2>/dev/null | sort -f
 }
 
 maintenance_list_wsquashfs() {
@@ -653,16 +652,7 @@ maintenance_next_wsquashfs_name() {
     done
 }
 
-maintenance_wsquashfs_dest_for_source() {
-    local source="$1"
-    case "${source,,}" in
-        *.wine) printf '%s.wsquashfs' "${source%.wine}" ;;
-        *.pc)   printf '%s.wsquashfs' "${source%.pc}" ;;
-        *) return 1 ;;
-    esac
-}
-
-maintenance_squash_game() {
+maintenance_squash_wine() {
     local source="$1" dest="$2" tmp
     [ -d "$source" ] || return 1
     [ -n "$dest" ] || return 1
@@ -680,8 +670,6 @@ maintenance_squash_game() {
         return 1
     fi
 
-    # Existing destination is only replaced after the new archive was
-    # successfully created and validated.
     mv -f -- "$tmp" "$dest" || {
         rm -f -- "$tmp" 2>/dev/null || true
         return 1
@@ -690,7 +678,7 @@ maintenance_squash_game() {
     return 0
 }
 
-maintenance_delete_game_dir_symlink_safe() {
+maintenance_delete_wine_dir_symlink_safe() {
     local source="$1"
 
     python3 - "$WINDOWS_ROMS_DIR" "$source" <<'PY'
@@ -700,10 +688,9 @@ import sys
 root = os.path.abspath(sys.argv[1])
 path = os.path.abspath(sys.argv[2])
 
-# Only top-level .wine/.pc game directories inside roms/windows are allowed.
 if os.path.dirname(path) != root:
     raise SystemExit(2)
-if not path.casefold().endswith((".wine", ".pc")):
+if not path.casefold().endswith(".wine"):
     raise SystemExit(2)
 if not os.path.isdir(path) or os.path.islink(path):
     raise SystemExit(2)
@@ -731,86 +718,18 @@ maintenance_offer_source_deletion() {
     yesno "$(i18n squash_delete_source_title)" \
         "$(i18n squash_delete_source_confirm "$(basename "$source")")" || return 0
 
-    if maintenance_delete_game_dir_symlink_safe "$source"; then
+    if maintenance_delete_wine_dir_symlink_safe "$source"; then
         msgbox "$(i18n squash_delete_source_title)" "$(i18n squash_delete_source_done "$(basename "$source")")"
     else
         msgbox "$(i18n squash_delete_source_title)" "$(i18n squash_delete_source_failed "$(basename "$source")")"
     fi
 }
 
-maintenance_detect_wsquashfs_type() {
-    local source="$1" listing detected
-
-    [ -f "$source" ] || return 1
-    listing="$(mktemp /tmp/wt-wsq-list.XXXXXX)" || return 1
-
-    if ! unsquashfs -ll "$source" > "$listing" 2>/dev/null; then
-        rm -f "$listing"
-        return 1
-    fi
-
-    detected="$(python3 - "$listing" <<'PY'
-import sys
-
-paths = set()
-with open(sys.argv[1], encoding="utf-8", errors="replace") as fh:
-    for line in fh:
-        line = line.rstrip("\n")
-        if not line:
-            continue
-
-        parts = line.split()
-        if not parts:
-            continue
-
-        # The archive path is the final whitespace-separated field.
-        path = parts[-1]
-        if path == "squashfs-root":
-            continue
-        if path.startswith("squashfs-root/"):
-            path = path[len("squashfs-root/"):]
-
-        paths.add(path.rstrip("/"))
-
-def exists(name):
-    return name in paths
-
-def has_prefix(prefix):
-    return any(p == prefix or p.startswith(prefix + "/") for p in paths)
-
-# A real Wine prefix wins even if autorun.cmd is also present.
-prefix_score = 0
-if has_prefix("drive_c"):
-    prefix_score += 1
-if has_prefix("dosdevices"):
-    prefix_score += 1
-if exists("system.reg"):
-    prefix_score += 1
-if exists("user.reg"):
-    prefix_score += 1
-if exists("userdef.reg"):
-    prefix_score += 1
-
-if has_prefix("drive_c") and prefix_score >= 2:
-    print("wine")
-elif exists("autorun.cmd"):
-    print("pc")
-else:
-    print("unknown")
-PY
-)"
-
-    rm -f "$listing"
-    printf '%s' "$detected"
-}
-
-maintenance_unsquash_game() {
-    local source="$1" out_ext="$2" dest tmp rc=0
+maintenance_unsquash_wine() {
+    local source="$1" dest tmp rc=0
     [ -f "$source" ] || return 1
 
-    case "$out_ext" in wine|pc) ;; *) return 1 ;; esac
-
-    dest="${source%.wsquashfs}.$out_ext"
+    dest="${source%.wsquashfs}.wine"
     [ ! -e "$dest" ] || return 2
 
     tmp="$dest.tmp-$$"
@@ -845,14 +764,14 @@ maintenance_select_and_squash() {
         items+=("$idx" "$(basename "$path")" "off")
         rows+="$path"$'\n'
         idx=$((idx+1))
-    done < <(maintenance_list_game_dirs)
+    done < <(maintenance_list_wine_dirs)
 
     [ "${#items[@]}" -gt 0 ] || {
-        msgbox "$(i18n squash_title)" "$(i18n squash_no_game_dirs)"
+        msgbox "$(i18n squash_title)" "$(i18n squash_no_wine)"
         return
     }
 
-    selected="$(checklist_select "$(i18n squash_games)" "$(i18n squash_select_games)" "${items[@]}")" || return
+    selected="$(checklist_select "$(i18n squash_wine)" "$(i18n squash_select_wine)" "${items[@]}")" || return
     [ -n "$selected" ] || return
 
     yesno "$(i18n squash_title)" "$(i18n squash_confirm)" || return
@@ -862,10 +781,7 @@ maintenance_select_and_squash() {
         path="$(sed -n "${id}p" <<< "$rows")"
         [ -n "$path" ] || continue
 
-        dest="$(maintenance_wsquashfs_dest_for_source "$path")" || {
-            failed=$((failed+1))
-            continue
-        }
+        dest="${path%.wine}.wsquashfs"
         target="$dest"
         success=0
 
@@ -881,7 +797,7 @@ maintenance_select_and_squash() {
 
             case "$choice" in
                 1)
-                    if maintenance_squash_game "$path" "$target"; then
+                    if maintenance_squash_wine "$path" "$target"; then
                         replaced=$((replaced+1))
                         success=1
                     else
@@ -890,7 +806,7 @@ maintenance_select_and_squash() {
                     ;;
                 2)
                     target="$(maintenance_next_wsquashfs_name "$dest")"
-                    if maintenance_squash_game "$path" "$target"; then
+                    if maintenance_squash_wine "$path" "$target"; then
                         renamed=$((renamed+1))
                         success=1
                     else
@@ -902,7 +818,7 @@ maintenance_select_and_squash() {
                     ;;
             esac
         else
-            if maintenance_squash_game "$path" "$target"; then
+            if maintenance_squash_wine "$path" "$target"; then
                 created=$((created+1))
                 success=1
             else
@@ -918,7 +834,7 @@ maintenance_select_and_squash() {
 
 maintenance_select_and_unsquash() {
     local -a items=()
-    local rows="" path selected id idx=1 ok=0 failed=0 skipped=0 rc detected
+    local rows="" path selected id idx=1 ok=0 failed=0 skipped=0 rc
 
     command -v unsquashfs >/dev/null 2>&1 || {
         msgbox "$(i18n squash_title)" "$(i18n squash_tools_missing)"
@@ -937,31 +853,22 @@ maintenance_select_and_unsquash() {
         return
     }
 
-    selected="$(checklist_select "$(i18n unsquash_games)" "$(i18n squash_select_wsquashfs_auto)" "${items[@]}")" || return
+    selected="$(checklist_select "$(i18n unsquash_wine)" "$(i18n squash_select_wsquashfs)" "${items[@]}")" || return
     [ -n "$selected" ] || return
 
-    yesno "$(i18n squash_title)" "$(i18n unsquash_confirm_auto)" || return
+    yesno "$(i18n squash_title)" "$(i18n unsquash_confirm)" || return
 
     while IFS= read -r id; do
         [ -n "$id" ] || continue
         path="$(sed -n "${id}p" <<< "$rows")"
         [ -n "$path" ] || continue
 
-        detected="$(maintenance_detect_wsquashfs_type "$path")"
-        case "$detected" in
-            wine|pc)
-                maintenance_unsquash_game "$path" "$detected"
-                rc=$?
-                case "$rc" in
-                    0) ok=$((ok+1)) ;;
-                    2) skipped=$((skipped+1)) ;;
-                    *) failed=$((failed+1)) ;;
-                esac
-                ;;
-            *)
-                msgbox "$(i18n squash_title)" "$(i18n unsquash_unknown_type "$(basename "$path")")"
-                failed=$((failed+1))
-                ;;
+        maintenance_unsquash_wine "$path"
+        rc=$?
+        case "$rc" in
+            0) ok=$((ok+1)) ;;
+            2) skipped=$((skipped+1)) ;;
+            *) failed=$((failed+1)) ;;
         esac
     done <<< "$selected"
 
@@ -972,8 +879,8 @@ maintenance_squash_menu() {
     while true; do
         local choice
         choice="$(menu_select "$(i18n squash_title)" "$(i18n squash_intro)" \
-            "1" "$(i18n squash_games)" \
-            "2" "$(i18n unsquash_games)" \
+            "1" "$(i18n squash_wine)" \
+            "2" "$(i18n unsquash_wine)" \
             "0" "$(i18n back)")" || return
 
         case "$choice" in
