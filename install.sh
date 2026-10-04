@@ -47,7 +47,7 @@ ROOT="$TMP/thomsonito-batocera-wine-toolbox-test"
   exit 1
 }
 
-for f in "$ROOT/package-install.sh" "$ROOT/uninstall.sh" "$ROOT/toolbox/thomsonito-wine-toolbox.sh" "$ROOT/toolbox/lib/common.sh" "$ROOT/toolbox/modules/starter-pack.sh"; do
+for f in "$ROOT/package-install.sh" "$ROOT/uninstall.sh" "$ROOT/toolbox/thomsonito-wine-toolbox.sh" "$ROOT/toolbox/lib/common.sh" "$ROOT/toolbox/modules/starter-pack.sh" "$ROOT/toolbox/modules/batocera-conf.sh"; do
   /bin/bash -n "$f" || {
     say "ERREUR : erreur de syntaxe dans $f" "ERROR: syntax error in $f"
     exit 1
