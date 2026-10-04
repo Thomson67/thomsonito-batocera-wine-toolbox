@@ -42,11 +42,15 @@ def is_runner_container(p: Path) -> bool:
     except OSError:
         return False
 
+SUPPORTED_ROM_EXTENSIONS = (".pc", ".exe", ".wine", ".wsquashfs", ".wtgz")
+
 game_names = set()
 if roms.is_dir():
     try:
         for p in roms.iterdir():
-            game_names.add(p.name.casefold())
+            lower = p.name.casefold()
+            if lower.endswith(SUPPORTED_ROM_EXTENSIONS):
+                game_names.add(lower)
     except OSError:
         pass
 
