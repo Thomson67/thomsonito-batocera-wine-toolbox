@@ -1162,7 +1162,7 @@ maintenance_uninstall_toolbox() {
 
 maintenance_summary() {
     local wine_count wine_kib umu_state bottle_count bottle_kib free_bytes free_human
-    local windows_kib mangohud_state dxvk_state hooks_state
+    local roms_free_bytes roms_free_human windows_kib mangohud_state dxvk_state hooks_state
 
     wine_count="$(find "$BATOCERA_CUSTOM_WINE" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | wc -l)"
     wine_kib="$(maintenance_path_kib "$BATOCERA_CUSTOM_WINE")"
@@ -1177,6 +1177,13 @@ maintenance_summary() {
         free_human="$(human_bytes "$free_bytes")"
     else
         free_human="$(i18n unknown)"
+    fi
+
+    roms_free_bytes="$(free_bytes_roms)"
+    if [ -n "$roms_free_bytes" ]; then
+        roms_free_human="$(human_bytes "$roms_free_bytes")"
+    else
+        roms_free_human="$(i18n unknown)"
     fi
 
     mangohud_state="$(mangohud_global_state)"
@@ -1194,6 +1201,7 @@ maintenance_summary() {
             "$(batocera_version)" \
             "$(wt_version)" \
             "$free_human" \
+            "$roms_free_human" \
             "$wine_count" \
             "$(maintenance_kib_human "$wine_kib")" \
             "$(maintenance_kib_human "$windows_kib")" \
