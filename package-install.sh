@@ -26,7 +26,9 @@ mkdir -p "$DEST" "$PORTS" "$SCRIPTS"
 rm -rf "$DEST/toolbox"
 cp -a "$SRC/toolbox" "$DEST/toolbox"
 cp -a "$SRC/VERSION" "$DEST/VERSION"
+cp -a "$SRC/uninstall.sh" "$DEST/uninstall.sh"
 
+chmod +x "$DEST/uninstall.sh"
 chmod +x "$DEST/toolbox/thomsonito-wine-toolbox.sh"
 chmod +x "$DEST/toolbox/launch-in-terminal.sh"
 chmod +x "$DEST/toolbox/modules/"*.sh "$DEST/toolbox/lib/"*.sh "$DEST/toolbox/hooks/"*.sh 2>/dev/null || true
