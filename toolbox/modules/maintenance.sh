@@ -641,11 +641,22 @@ maintenance_list_wsquashfs() {
     find "$WINDOWS_ROMS_DIR" -mindepth 1 -maxdepth 1 -type f -iname '*.wsquashfs' -print 2>/dev/null | sort -f
 }
 
-maintenance_squash_wine() {
-    local source="$1" dest tmp
-    [ -d "$source" ] || return 1
+maintenance_next_wsquashfs_name() {
+    local dest="$1" base n=1 candidate
+    base="${dest%.wsquashfs}"
 
-    dest="${source%.wine}.wsquashfs"
+    while true; do
+        candidate="$base ($n).wsquashfs"
+        [ ! -e "$candidate" ] && { printf '%s' "$candidate"; return 0; }
+        n=$((n+1))
+    done
+}
+
+maintenance_squash_wine() {
+    local source="$1" dest="$2" tmp
+    [ -d "$source" ] || return 1
+    [ -n "$dest" ] || return 1
+
     tmp="$dest.tmp-$$"
     rm -f -- "$tmp" 2>/dev/null || true
 
@@ -659,8 +670,8 @@ maintenance_squash_wine() {
         return 1
     fi
 
-    # Only replace an existing archive after the new one has been created
-    # and validated successfully.
+    # Existing destination is only replaced after the new archive was
+    # successfully created and validated.
     mv -f -- "$tmp" "$dest" || {
         rm -f -- "$tmp" 2>/dev/null || true
         return 1
@@ -695,8 +706,8 @@ maintenance_unsquash_wine() {
 
 maintenance_select_and_squash() {
     local -a items=()
-    local rows="" path selected id idx=1 ok=0 failed=0 existing=0
-    local selected_paths="" dest
+    local rows="" path selected id idx=1 created=0 replaced=0 renamed=0 skipped=0 failed=0
+    local dest choice target
 
     command -v mksquashfs >/dev/null 2>&1 && command -v unsquashfs >/dev/null 2>&1 || {
         msgbox "$(i18n squash_title)" "$(i18n squash_tools_missing)"
@@ -718,33 +729,57 @@ maintenance_select_and_squash() {
     selected="$(checklist_select "$(i18n squash_wine)" "$(i18n squash_select_wine)" "${items[@]}")" || return
     [ -n "$selected" ] || return
 
+    yesno "$(i18n squash_title)" "$(i18n squash_confirm)" || return
+
     while IFS= read -r id; do
         [ -n "$id" ] || continue
         path="$(sed -n "${id}p" <<< "$rows")"
         [ -n "$path" ] || continue
-        selected_paths+="$path"$'\n'
+
         dest="${path%.wine}.wsquashfs"
-        [ -e "$dest" ] && existing=$((existing+1))
+        target="$dest"
+
+        if [ -e "$dest" ]; then
+            choice="$(menu_select "$(i18n squash_conflict_title)" \
+                "$(i18n squash_conflict_body "$(basename "$dest")")" \
+                "1" "$(i18n squash_replace_existing)" \
+                "2" "$(i18n squash_create_renamed)" \
+                "0" "$(i18n cancel)")" || {
+                    skipped=$((skipped+1))
+                    continue
+                }
+
+            case "$choice" in
+                1)
+                    target="$dest"
+                    if maintenance_squash_wine "$path" "$target"; then
+                        replaced=$((replaced+1))
+                    else
+                        failed=$((failed+1))
+                    fi
+                    ;;
+                2)
+                    target="$(maintenance_next_wsquashfs_name "$dest")"
+                    if maintenance_squash_wine "$path" "$target"; then
+                        renamed=$((renamed+1))
+                    else
+                        failed=$((failed+1))
+                    fi
+                    ;;
+                *)
+                    skipped=$((skipped+1))
+                    ;;
+            esac
+        else
+            if maintenance_squash_wine "$path" "$target"; then
+                created=$((created+1))
+            else
+                failed=$((failed+1))
+            fi
+        fi
     done <<< "$selected"
 
-    [ -n "$selected_paths" ] || return
-
-    if [ "$existing" -gt 0 ]; then
-        yesno "$(i18n squash_title)" "$(i18n squash_resquash_confirm "$existing")" || return
-    else
-        yesno "$(i18n squash_title)" "$(i18n squash_confirm)" || return
-    fi
-
-    while IFS= read -r path; do
-        [ -n "$path" ] || continue
-        if maintenance_squash_wine "$path"; then
-            ok=$((ok+1))
-        else
-            failed=$((failed+1))
-        fi
-    done <<< "$selected_paths"
-
-    msgbox "$(i18n squash_title)" "$(i18n squash_result "$ok" "$failed")"
+    msgbox "$(i18n squash_title)" "$(i18n squash_result "$created" "$replaced" "$renamed" "$skipped" "$failed")"
 }
 
 maintenance_select_and_unsquash() {
