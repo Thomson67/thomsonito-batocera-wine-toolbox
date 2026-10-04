@@ -11,6 +11,23 @@ LOG_FILE="$LOG_DIR/dxvk-game-event.log"
 
 mkdir -p "$LOG_DIR"
 
+rotate_dxvk_log() {
+    local size archive
+    [ -f "$LOG_FILE" ] || return 0
+    size="$(stat -c %s "$LOG_FILE" 2>/dev/null || echo 0)"
+    [ "$size" -ge 1048576 ] 2>/dev/null || return 0
+
+    archive="$LOG_DIR/dxvk-game-event-$(date '+%Y%m%d-%H%M%S')-$.log"
+    mv -f "$LOG_FILE" "$archive" 2>/dev/null || return 0
+
+    # 19 archives + the current log = at most 20 DXVK logs.
+    ls -1t "$LOG_DIR"/dxvk-game-event-*.log 2>/dev/null | tail -n +20 | while IFS= read -r oldlog; do
+        [ -n "$oldlog" ] && rm -f -- "$oldlog"
+    done
+}
+
+rotate_dxvk_log
+
 log() {
     printf '[%s] %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$*" >> "$LOG_FILE" 2>/dev/null || true
 }
