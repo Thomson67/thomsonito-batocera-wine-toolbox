@@ -55,7 +55,7 @@ if [ ! -s "$LAUNCHER" ]; then
     exit 1
 fi
 
-/usr/bin/xterm     -u8 1     -fa "DejaVu Sans Mono"     -fs 10     -title "Ultimate Wine Toolbox"     -geometry 120x36     -e /bin/bash "$LAUNCHER"     >>"$BOOT_LOG" 2>&1
+/usr/bin/xterm     -u8     -fa "DejaVu Sans Mono"     -fs 10     -title "Ultimate Wine Toolbox"     -geometry 120x36     -e /bin/bash "$LAUNCHER"     >>"$BOOT_LOG" 2>&1
 
 rc=$?
 echo "xterm_exit_code=$rc" >>"$BOOT_LOG"
