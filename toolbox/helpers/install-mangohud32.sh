@@ -7,18 +7,17 @@ LIB32="$RUNTIME/lib32/mangohud"
 LIB="$RUNTIME/lib/mangohud"
 LIB64="$RUNTIME/lib64/mangohud"
 
-VERSION="0.7.2"
-ASSET="MangoHud-0.7.2.r0.g7b80f73.tar.gz"
-ASSET_SIZE="8757355"
-URL="https://github.com/flightlessmango/MangoHud/releases/download/v0.7.2/$ASSET"
+VERSION="0.8.4"
+ASSET="MangoHud-0.8.4.r0.g992103e.tar.gz"
+ASSET_SIZE="10282346"
+URL="https://github.com/flightlessmango/MangoHud/releases/download/v0.8.4/$ASSET"
 
 if [ -s "$RUNTIME/PROVENANCE.txt" ] && grep -qx "version=$VERSION" "$RUNTIME/PROVENANCE.txt" 2>/dev/null && \
-   [ -s "$LIB32/libMangoHud.so" ] && [ -s "$LIB32/libMangoHud_dlsym.so" ] && [ -s "$LIB32/libMangoHud_opengl.so" ] && \
-   [ -e "$LIB/libMangoHud_opengl.so" ] && [ -e "$LIB64/libMangoHud_opengl.so" ]; then
-    echo "MangoHud32: runtime $VERSION already installed."
+   [ -s "$LIB32/libMangoHud.so" ] && [ -s "$LIB32/libMangoHud_opengl.so" ] && [ -s "$LIB32/libMangoHud_shim.so" ] && \
+   [ -s "$LIB64/libMangoHud.so" ] && [ -s "$LIB64/libMangoHud_opengl.so" ] && [ -s "$LIB64/libMangoHud_shim.so" ]; then
+    echo "MangoHud: runtime $VERSION already installed."
     exit 0
 fi
-
 TMP="$(mktemp -d /tmp/uwt-mangohud32.XXXXXX)"
 trap 'rm -rf "$TMP"' EXIT
 
@@ -52,49 +51,46 @@ package_tar="$(find "$TMP/outer" -type f -name 'MangoHud-package.tar' -print -qu
 mkdir -p "$TMP/package"
 tar -xf "$package_tar" -C "$TMP/package"
 
-src="$TMP/package/usr/lib/mangohud/lib32"
-for lib in libMangoHud.so libMangoHud_dlsym.so libMangoHud_opengl.so; do
-    [ -s "$src/$lib" ] || {
-        echo "MangoHud32: missing $lib in official package." >&2
+src32="$TMP/package/usr/lib/mangohud/lib32"
+src64="$TMP/package/usr/lib/mangohud/lib64"
+
+for lib in libMangoHud.so libMangoHud_opengl.so libMangoHud_shim.so; do
+    [ -s "$src32/$lib" ] || {
+        echo "MangoHud: missing 32-bit $lib in official package." >&2
         exit 1
     }
-    python3 - "$src/$lib" <<'PY'
+    [ -s "$src64/$lib" ] || {
+        echo "MangoHud: missing 64-bit $lib in official package." >&2
+        exit 1
+    }
+    python3 - "$src32/$lib" "$src64/$lib" <<'PY'
 import sys
-p=sys.argv[1]
-with open(p, "rb") as f:
-    ident=f.read(5)
-if ident != b"\x7fELF\x01":
-    raise SystemExit(f"{p}: expected ELF32 library")
+for path, expected in ((sys.argv[1], b"\x7fELF\x01"), (sys.argv[2], b"\x7fELF\x02")):
+    with open(path, "rb") as f:
+        ident=f.read(5)
+    if ident != expected:
+        raise SystemExit(f"{path}: unexpected ELF class")
 PY
 done
 
 rm -rf "$RUNTIME"
-mkdir -p "$LIB32" "$LIB" "$LIB64"
+mkdir -p "$LIB32" "$LIB64"
 
-# 32-bit libraries are bundled by the Toolbox.
-cp -f "$src/libMangoHud.so" "$LIB32/libMangoHud.so"
-cp -f "$src/libMangoHud_dlsym.so" "$LIB32/libMangoHud_dlsym.so"
-cp -f "$src/libMangoHud_opengl.so" "$LIB32/libMangoHud_opengl.so"
-chmod 0644 "$LIB32/libMangoHud.so" "$LIB32/libMangoHud_dlsym.so" "$LIB32/libMangoHud_opengl.so"
-
-# Architecture-selectable layout for the dynamic linker's $LIB token.
-# On 32-bit Wine $LIB resolves to lib, while 64-bit resolves to lib64 on
-# the glibc layouts used by Batocera. Keep the 64-bit files as symlinks
-# to Batocera's native MangoHud so we do not duplicate its runtime.
-ln -s "$LIB32/libMangoHud.so" "$LIB/libMangoHud.so"
-ln -s "$LIB32/libMangoHud_dlsym.so" "$LIB/libMangoHud_dlsym.so"
-ln -s "$LIB32/libMangoHud_opengl.so" "$LIB/libMangoHud_opengl.so"
-
-ln -s /usr/lib/mangohud/libMangoHud.so "$LIB64/libMangoHud.so"
-ln -s /usr/lib/mangohud/libMangoHud_dlsym.so "$LIB64/libMangoHud_dlsym.so"
-ln -s /usr/lib/mangohud/libMangoHud_opengl.so "$LIB64/libMangoHud_opengl.so"
+for lib in libMangoHud.so libMangoHud_opengl.so libMangoHud_shim.so; do
+    cp -f "$src32/$lib" "$LIB32/$lib"
+    cp -f "$src64/$lib" "$LIB64/$lib"
+done
+chmod 0644 "$LIB32/"*.so "$LIB64/"*.so
 
 {
     echo "version=$VERSION"
     echo "source=$URL"
     echo "asset_size=$ASSET_SIZE"
     echo "installed_at=$(date '+%Y-%m-%d %H:%M:%S %z')"
-    (cd "$LIB32" && sha256sum libMangoHud.so libMangoHud_dlsym.so libMangoHud_opengl.so)
+    echo "[lib32]"
+    (cd "$LIB32" && sha256sum libMangoHud.so libMangoHud_opengl.so libMangoHud_shim.so)
+    echo "[lib64]"
+    (cd "$LIB64" && sha256sum libMangoHud.so libMangoHud_opengl.so libMangoHud_shim.so)
 } > "$RUNTIME/PROVENANCE.txt"
 
-echo "MangoHud32: installed under $RUNTIME"
+echo "MangoHud: installed runtime $VERSION under $RUNTIME"
