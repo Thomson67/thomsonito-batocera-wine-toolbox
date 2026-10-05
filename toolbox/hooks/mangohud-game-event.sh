@@ -9,7 +9,7 @@ LEGACY_LAYER_FILE="$LEGACY_LAYER_DIR/MangoHud.ultimate-wine-toolbox.json"
 X86_LAYER_FILE="$LEGACY_LAYER_DIR/MangoHud.ultimate-wine-toolbox.x86.json"
 MANGOHUD_RUNTIME="$ROOT/runtime/mangohud"
 MANGOHUD32_LIB="$MANGOHUD_RUNTIME/lib32/mangohud/libMangoHud.so"
-MANGOHUD_PRELOAD="/usr/lib/mangohud/libMangoHud_opengl.so:$MANGOHUD_RUNTIME/lib32/mangohud/libMangoHud_opengl.so"
+MANGOHUD_PRELOAD="/usr/lib/mangohud/libMangoHud_dlsym.so:/usr/lib/mangohud/libMangoHud_opengl.so:$MANGOHUD_RUNTIME/lib32/mangohud/libMangoHud_dlsym.so:$MANGOHUD_RUNTIME/lib32/mangohud/libMangoHud_opengl.so"
 LOG_DIR="/userdata/system/logs/ultimate-wine-toolbox"
 HOOK_LOG="$LOG_DIR/mangohud-hook.log"
 
@@ -179,6 +179,7 @@ found=False
 
 def clean_payload(payload):
     payload=re.sub(r'(^|\s)MANGOHUD=[^\s]+', ' ', payload)
+    payload=re.sub(r'(^|\s)MANGOHUD_DLSYM=[^\s]+', ' ', payload)
     # Remove only the LD_PRELOAD value managed by this Toolbox. Never touch a
     # different/custom LD_PRELOAD supplied by the user.
     payload=re.sub(
@@ -192,7 +193,7 @@ for line in lines:
     if line.startswith("ENV=") and not found:
         payload=clean_payload(line[4:])
         if enabled:
-            payload=(payload + " " if payload else "") + "MANGOHUD=1"
+            payload=(payload + " " if payload else "") + "MANGOHUD=1 MANGOHUD_DLSYM=1"
             # Use one architecture-aware preload path for both native 64-bit
             # MangoHud and the Toolbox-provided 32-bit runtime.
             if not re.search(r'(^|\s)LD_PRELOAD=', payload):
@@ -204,7 +205,7 @@ for line in lines:
         out.append(line)
 
 if enabled and not found:
-    payload="MANGOHUD=1"
+    payload="MANGOHUD=1 MANGOHUD_DLSYM=1"
     payload += " LD_PRELOAD='" + managed_preload + "'"
     insert_at=0
     for i,line in enumerate(out):
