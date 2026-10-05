@@ -27,7 +27,15 @@ Created by **Thomsonito**.
 
 ## Installation
 
-Run as `root` on Batocera:
+Run as `root` on Batocera.
+
+Quick install:
+
+```bash
+curl -fsSL https://bit.ly/ultimate-wine-toolbox | bash
+```
+
+Direct GitHub install:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/Thomson67/ultimate-wine-toolbox/main/install.sh | bash
