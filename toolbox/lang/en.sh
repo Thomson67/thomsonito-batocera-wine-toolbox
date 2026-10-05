@@ -1,6 +1,6 @@
 #!/bin/bash
 declare -gA I18N=(
-  [app_subtitle]="Wine • Proton • UMU • By Thomsonito"
+  [app_subtitle]="Wine • Proton • Batocera Tools • By Thomsonito"
   [back]="Back"
   [exit]="Exit"
   [yes]="Yes"
