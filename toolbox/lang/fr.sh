@@ -1,6 +1,6 @@
 #!/bin/bash
 declare -gA I18N=(
-  [app_subtitle]="Wine • Proton • UMU • Par Thomsonito"
+  [app_subtitle]="Une toolbox pour simplifier la gestion de Wine sous Batocera • Par Thomsonito"
   [back]="Retour"
   [exit]="Quitter"
   [yes]="Oui"
