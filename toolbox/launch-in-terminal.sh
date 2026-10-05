@@ -6,6 +6,20 @@ MAIN="$ROOT/ultimate-wine-toolbox.sh"
 LOG_DIR="/userdata/system/logs/ultimate-wine-toolbox"
 mkdir -p "$LOG_DIR"
 
+# Safety net for direct launches: ensure a UTF-8 locale even when Batocera 41/42
+# starts the script from an environment using the C locale.
+if [[ "${LC_ALL:-${LANG:-}}" != *UTF-8* && "${LC_ALL:-${LANG:-}}" != *utf8* ]]; then
+    BATOCERA_LANG="$(batocera-settings-get system.language 2>/dev/null | tr -d '\\r\\n[:space:]' || true)"
+    BATOCERA_LANG="${BATOCERA_LANG%%.*}"
+    if [ -n "$BATOCERA_LANG" ]; then
+        export LANG="$BATOCERA_LANG.UTF-8"
+        export LC_ALL="$BATOCERA_LANG.UTF-8"
+    else
+        export LANG="C.UTF-8"
+        export LC_ALL="C.UTF-8"
+    fi
+fi
+
 # Keep only the 20 most recent Toolbox session logs.
 ls -1t "$LOG_DIR"/toolbox-*.log 2>/dev/null | tail -n +21 | while IFS= read -r oldlog; do
     [ -n "$oldlog" ] && rm -f -- "$oldlog"
@@ -26,6 +40,8 @@ export WT_SESSION_LOG="$LOG"
     echo "pwd=$(pwd)"
     echo "DISPLAY=${DISPLAY:-<unset>}"
     echo "TERM=${TERM:-<unset>}"
+    echo "LANG=${LANG:-<unset>}"
+    echo "LC_ALL=${LC_ALL:-<unset>}"
     echo "main=$MAIN"
 } >>"$LOG" 2>&1
 
