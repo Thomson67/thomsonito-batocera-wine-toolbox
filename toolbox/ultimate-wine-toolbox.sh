@@ -9,6 +9,7 @@ source "$WT_ROOT/lib/github.sh"
 source "$WT_ROOT/lib/download.sh"
 source "$WT_ROOT/lib/checksum.sh"
 source "$WT_ROOT/lib/batocera.sh"
+source "$WT_ROOT/modules/update.sh"
 
 source "$WT_ROOT/modules/umu.sh"
 source "$WT_ROOT/modules/starter-pack.sh"
@@ -23,6 +24,7 @@ source "$WT_ROOT/modules/dxvk-manager.sh"
 source "$WT_ROOT/modules/settings.sh"
 
 ensure_batocera_paths
+startup_update_check
 
 main_menu() {
     while true; do
