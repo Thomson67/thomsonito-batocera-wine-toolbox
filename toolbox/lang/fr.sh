@@ -347,5 +347,21 @@ declare -gA I18N=(
   [cleanup_logs_done]="Nettoyage des logs terminé.\n\nEspace précédemment occupé : %s"
   [cleanup_temp_done]="Nettoyage des caches et fichiers temporaires terminé.\n\nEspace précédemment occupé : %s"
 
+  [update_title]="Mise à jour d'Ultimate Wine Toolbox"
+  [update_check_action]="Rechercher une mise à jour de la Toolbox"
+  [update_available]="Une nouvelle version stable est disponible.\n\nInstallée : %s\nDisponible : %s\n\nLa télécharger, la vérifier et l'installer maintenant ?"
+  [update_none]="Ultimate Wine Toolbox est déjà à jour.\n\nVersion installée : %s"
+  [update_check_failed]="Impossible de vérifier la dernière release GitHub pour le moment."
+  [update_dev_build]="Les mises à jour stables automatiques sont désactivées pour les versions de développement.\n\nVersion actuelle : %s"
+  [update_missing_tool]="Outil requis pour la mise à jour introuvable : %s"
+  [update_download_failed]="Impossible de télécharger la release %s."
+  [update_checksum_missing]="Le fichier de somme SHA-256 est absent pour la release %s.\n\nMise à jour annulée."
+  [update_checksum_failed]="La vérification SHA-256 a échoué.\n\nMise à jour annulée."
+  [update_extract_failed]="Impossible d'extraire le package de mise à jour téléchargé."
+  [update_package_invalid]="Le package téléchargé est invalide ou ne correspond pas à la version de la release."
+  [update_backup_failed]="Impossible de sauvegarder la Toolbox actuelle.\n\nMise à jour annulée."
+  [update_install_failed]="L'installation de la mise à jour a échoué. Une restauration a été tentée.\n\nSauvegarde :\n%s"
+  [update_success]="Mise à jour terminée avec succès.\n\nRelease installée : %s\n\nLa Toolbox va maintenant redémarrer."
+
   [settings_title]="Paramètres"
 )
