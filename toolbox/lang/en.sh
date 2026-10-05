@@ -274,7 +274,7 @@ declare -gA I18N=(
 
 
   [batocera_conf_title]="Clean / organize batocera.conf"
-  [batocera_conf_intro]="Analyze and maintain Windows options in /userdata/system/batocera.conf.\n\nCleanup only removes per-game Windows options for games that are no longer present. Global Windows options are never deleted.\n\nEvery modification first creates a backup."
+  [batocera_conf_intro]="Analyze and maintain /userdata/system/batocera.conf.\n\nOrphan cleanup remains limited to Windows games. Organization can group configuration for all detected systems.\n\nEvery modification first creates a backup."
   [batocera_conf_analyze]="Analyze Windows options"
   [batocera_conf_clean]="Clean orphaned per-game options"
   [batocera_conf_clean_all]="Remove all orphaned options"
@@ -288,7 +288,7 @@ declare -gA I18N=(
   [batocera_conf_restore_done]="Restore completed.\n\nRestored backup: %s\n\nThe configuration that was active immediately before restoration was backed up here:\n%s"
   [batocera_conf_restore_failed]="Restore failed.\n\nThe configuration active before the restore attempt was backed up here:\n%s"
 
-  [batocera_conf_organize]="Group Windows options"
+  [batocera_conf_organize]="Organize configurations by system"
   [batocera_conf_unreadable]="Unable to read:\n%s"
   [batocera_conf_roms_missing]="The Windows games directory is missing or inaccessible:\n%s\n\nFor safety, no game will be considered orphaned."
   [batocera_conf_scan_failed]="Unable to analyze batocera.conf."
@@ -306,6 +306,10 @@ declare -gA I18N=(
   [batocera_conf_no_windows]="No active Windows option was found in batocera.conf."
   [batocera_conf_organize_confirm]="Group Windows options in batocera.conf?\n\nGlobal options: %s line(s)\nPer-game options: %s line(s)\n\nGlobal options will be placed first, followed by one blank line and then per-game options with no blank line between games. No setting is deleted.\n\nA backup will be created before modification."
   [batocera_conf_organize_done]="Organization completed.\n\nWindows lines grouped: %s\nBackup:\n%s"
+  [batocera_conf_organize_confirm_all]="Organize all detected system configurations?\n\nActive system and per-game settings will be moved after:\n# ------------ User-generated Configurations ----------- #\n\nEach system will get its own block: header, global system options, then per-game options.\n\nBatocera\'s « Enable DXVK for Wine and FPS HUD » block will remain exactly where it is and will not be moved.\n\nA complete backup will be created before modification.\n\nContinue?"
+  [batocera_conf_organize_done_all]="Organization completed.\n\nSystems grouped: %s\nConfiguration lines moved/grouped: %s\nBackup:\n%s"
+  [batocera_conf_marker_missing]="The line « # ------------ User-generated Configurations ----------- # » could not be found.\n\nFor safety, no organization was applied.\nThe backup created before the attempt is available here:\n%s"
+  [batocera_conf_systems_missing]="/userdata/roms is missing or inaccessible.\n\nFor safety, system organization was cancelled."
 
   [toolbox_uninstall_title]="Uninstall Toolbox"
   [toolbox_uninstall_warning]="This operation removes the Thomsonito Batocera Wine Toolbox, its launcher, MangoHud/DXVK hooks and internal files.\n\nWine/UMU runners, bottles, saves and games are preserved.\n\nIf /userdata/system/wine/dxvk points to a Toolbox-managed bundle, that link is removed so Batocera can use its default DXVK again.\n\nContinue?"
