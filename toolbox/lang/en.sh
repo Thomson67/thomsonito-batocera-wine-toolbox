@@ -1,6 +1,6 @@
 #!/bin/bash
 declare -gA I18N=(
-  [app_subtitle]="Wine • Proton • Batocera Tools • By Thomsonito"
+  [app_subtitle]="A toolbox to simplify Wine management on Batocera • By Thomsonito"
   [back]="Back"
   [exit]="Exit"
   [yes]="Yes"
