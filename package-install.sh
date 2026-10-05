@@ -91,7 +91,7 @@ chmod +x "$DEST/toolbox/modules/"*.sh "$DEST/toolbox/lib/"*.sh "$DEST/toolbox/ho
 # 64-bit MangoHud remain usable even if GitHub is temporarily unavailable.
 if [ -x "$DEST/toolbox/helpers/install-mangohud32.sh" ]; then
     if ! "$DEST/toolbox/helpers/install-mangohud32.sh"; then
-        say "AVERTISSEMENT : le runtime MangoHud 32 bits n\x27a pas pu être installé. Le support 64 bits reste disponible." \
+        say "AVERTISSEMENT : le runtime MangoHud 32 bits n'a pas pu être installé. Le support 64 bits reste disponible." \
             "WARNING: the MangoHud 32-bit runtime could not be installed. 64-bit support remains available."
     fi
 fi
