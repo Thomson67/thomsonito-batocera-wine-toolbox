@@ -180,7 +180,7 @@ PY
             ;;
     esac
 
-    IFS=
+    IFS="$(printf '\t')" read -r global_count game_count game_lines add_count skip_count <<< "$result"
 
     yesno_default_no "$(i18n batocera_conf_import_title)" \
         "$(i18n batocera_conf_import_confirm "$(basename "$source")" "$global_count" "$game_count" "$game_lines" "$add_count" "$skip_count")" || return
@@ -350,7 +350,13 @@ PY
     rc=$?
 
     if [ "$rc" -eq 0 ]; then
-        IFS=
+        IFS="$(printf '\t')" read -r add_count skip_count <<< "$result"
+        msgbox "$(i18n batocera_conf_import_title)" \
+            "$(i18n batocera_conf_import_done "$add_count" "$skip_count" "$backup")"
+    else
+        msgbox "$(i18n batocera_conf_import_title)" \
+            "$(i18n batocera_conf_import_failed "$backup")"
+    fi
 }
 
 batocera_conf_import_windows() {
