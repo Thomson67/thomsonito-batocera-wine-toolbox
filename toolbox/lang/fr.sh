@@ -1,6 +1,6 @@
 #!/bin/bash
 declare -gA I18N=(
-  [app_subtitle]="Une toolbox pour simplifier la gestion de Wine sous Batocera • Par Thomsonito"
+  [app_subtitle]="La boîte à outils Wine ultime pour Batocera • Par Thomsonito"
   [back]="Retour"
   [exit]="Quitter"
   [yes]="Oui"
@@ -363,5 +363,6 @@ declare -gA I18N=(
   [update_install_failed]="L'installation de la mise à jour a échoué. Une restauration a été tentée.\n\nSauvegarde :\n%s"
   [update_success]="Mise à jour terminée avec succès.\n\nRelease installée : %s\n\nLa Toolbox va maintenant redémarrer."
 
+  [settings_language]="Langue"
   [settings_title]="Paramètres"
 )
