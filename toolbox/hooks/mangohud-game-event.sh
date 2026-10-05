@@ -180,13 +180,23 @@ found=False
 def clean_payload(payload):
     payload=re.sub(r'(^|\s)MANGOHUD=[^\s]+', ' ', payload)
     payload=re.sub(r'(^|\s)MANGOHUD_DLSYM=[^\s]+', ' ', payload)
-    # Remove only the LD_PRELOAD value managed by this Toolbox. Never touch a
-    # different/custom LD_PRELOAD supplied by the user.
-    payload=re.sub(
-        r'(^|\\s)LD_PRELOAD=(?:[\\\'"])?' + re.escape(managed_preload) + r'(?:[\\\'"])?(?=\\s|$)',
-        ' ',
-        payload
-    )
+
+    # Remove every LD_PRELOAD form previously managed by the Toolbox so that
+    # upgrades from dev6/dev7/dev8 do not preserve an obsolete architecture-
+    # specific preload. Leave unrelated user LD_PRELOAD values untouched.
+    managed_values = [
+        managed_preload,
+        "/usr/$LIB/mangohud/libMangoHud_opengl.so",
+        "/usr/lib/mangohud/libMangoHud_opengl.so:/userdata/system/ultimate-wine-toolbox/runtime/mangohud/lib32/mangohud/libMangoHud_opengl.so",
+        "/usr/lib/mangohud/libMangoHud_dlsym.so:/usr/lib/mangohud/libMangoHud_opengl.so:/userdata/system/ultimate-wine-toolbox/runtime/mangohud/lib32/mangohud/libMangoHud_dlsym.so:/userdata/system/ultimate-wine-toolbox/runtime/mangohud/lib32/mangohud/libMangoHud_opengl.so",
+    ]
+    for value in managed_values:
+        payload=re.sub(
+            r'(^|\s)LD_PRELOAD=(?:[\'"])?' + re.escape(value) + r'(?:[\'"])?(?=\s|$)',
+            ' ',
+            payload
+        )
+
     return re.sub(r'\s+', ' ', payload).strip()
 
 for line in lines:
@@ -265,6 +275,7 @@ case "${rom,,}" in
         if [ -f "$autorun" ]; then
             rewrite_autorun "$autorun" "$desired" "$legacy_mangohud" || true
             hook_log "autorun=$autorun legacy=$legacy_mangohud rewritten=1"
+            hook_log "autorun_env=$(grep -m1 '^ENV=' "$autorun" 2>/dev/null || true)"
         else
             hook_log "autorun=$autorun legacy=$legacy_mangohud rewritten=0"
         fi
