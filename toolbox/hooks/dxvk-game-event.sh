@@ -1,12 +1,12 @@
 #!/bin/bash
 
-ROOT="/userdata/system/thomsonito-wine-toolbox"
+ROOT="/userdata/system/ultimate-wine-toolbox"
 CONFIG_DIR="$ROOT/config"
 BUNDLE_DIR="$ROOT/dxvk/bundles"
 GLOBAL_FILE="$CONFIG_DIR/dxvk-global"
 GAME_FILE="$CONFIG_DIR/dxvk-games.tsv"
 DXVK_PATH="/userdata/system/wine/dxvk"
-LOG_DIR="/userdata/system/logs/thomsonito-wine-toolbox"
+LOG_DIR="/userdata/system/logs/ultimate-wine-toolbox"
 LOG_FILE="$LOG_DIR/dxvk-game-event.log"
 
 mkdir -p "$LOG_DIR"
