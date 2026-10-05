@@ -4,6 +4,8 @@ ROOT="/userdata/system/ultimate-wine-toolbox"
 CONFIG_DIR="$ROOT/config"
 GLOBAL_FILE="$CONFIG_DIR/mangohud-global"
 OVERRIDE_FILE="$CONFIG_DIR/mangohud-games.tsv"
+LEGACY_LAYER_DIR="/usr/share/vulkan/implicit_layer.d"
+LEGACY_LAYER_FILE="$LEGACY_LAYER_DIR/MangoHud.ultimate-wine-toolbox.json"
 
 event="${1:-}"
 system="${2:-}"
@@ -12,6 +14,58 @@ rom="${5:-}"
 [ "$event" = "gameStart" ] || exit 0
 [ "$system" = "windows" ] || exit 0
 [ -n "$rom" ] || exit 0
+
+batocera_major() {
+    local raw=""
+    if [ -r /etc/os-release ]; then
+        raw="$(sed -n 's/^VERSION_ID=["'\'']*\([^"'\'']*\)["'\'']*$/\1/p' /etc/os-release | head -n1)"
+        [ -n "$raw" ] || raw="$(sed -n 's/^PRETTY_NAME=["'\'']*\([^"'\'']*\)["'\'']*$/\1/p' /etc/os-release | head -n1)"
+    fi
+    printf '%s\n' "$raw" | grep -oE '[0-9]+' | head -n1
+}
+
+is_legacy_mangohud_batocera() {
+    case "$(batocera_major)" in
+        41|42) return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
+ensure_legacy_vulkan_layer() {
+    is_legacy_mangohud_batocera || return 0
+    [ -r /usr/lib/mangohud/libMangoHud.so ] || return 0
+
+    # Batocera 41/42 ship MangoHud but omit its Vulkan implicit-layer manifest.
+    # Do not add a duplicate if another manifest already exposes the same layer.
+    if [ -d "$LEGACY_LAYER_DIR" ] &&        grep -Rslq '"VK_LAYER_MANGOHUD_overlay_x86_64"' "$LEGACY_LAYER_DIR" 2>/dev/null; then
+        return 0
+    fi
+
+    mkdir -p "$LEGACY_LAYER_DIR" 2>/dev/null || return 0
+    cat > "$LEGACY_LAYER_FILE" <<'EOF'
+{
+    "file_format_version": "1.0.0",
+    "layer": {
+        "name": "VK_LAYER_MANGOHUD_overlay_x86_64",
+        "type": "GLOBAL",
+        "api_version": "1.3.0",
+        "library_path": "/usr/lib/mangohud/libMangoHud.so",
+        "implementation_version": "1",
+        "description": "Vulkan Hud Overlay (Ultimate Wine Toolbox compatibility)",
+        "functions": {
+            "vkGetInstanceProcAddr": "overlay_GetInstanceProcAddr",
+            "vkGetDeviceProcAddr": "overlay_GetDeviceProcAddr"
+        },
+        "enable_environment": {
+            "MANGOHUD": "1"
+        },
+        "disable_environment": {
+            "DISABLE_MANGOHUD": "1"
+        }
+    }
+}
+EOF
+}
 
 global_state="0"
 [ -s "$GLOBAL_FILE" ] && global_state="$(head -n1 "$GLOBAL_FILE" | tr -d '\r\n[:space:]')"
@@ -28,16 +82,25 @@ case "$override" in
     *) desired="$global_state" ;;
 esac
 
+legacy_mangohud=0
+if is_legacy_mangohud_batocera; then
+    legacy_mangohud=1
+    [ "$desired" = "1" ] && ensure_legacy_vulkan_layer
+fi
+
 rewrite_autorun() {
-    local file="$1" state="$2"
+    local file="$1" state="$2" legacy="$3"
     [ -f "$file" ] || return 1
 
-    python3 - "$file" "$state" <<'PY'
+    python3 - "$file" "$state" "$legacy" <<'PY'
 import re, sys
 from pathlib import Path
 
 path=Path(sys.argv[1])
 enabled=sys.argv[2] == "1"
+legacy=sys.argv[3] == "1"
+managed_preload="/usr/$LIB/mangohud/libMangoHud_opengl.so"
+
 try:
     text=path.read_text(encoding="utf-8", errors="replace")
 except Exception:
@@ -47,13 +110,26 @@ lines=text.replace("\r\n","\n").replace("\r","\n").split("\n")
 out=[]
 found=False
 
+def clean_payload(payload):
+    payload=re.sub(r'(^|\s)MANGOHUD=[^\s]+', ' ', payload)
+    # Remove only the LD_PRELOAD value managed by this Toolbox. Never touch a
+    # different/custom LD_PRELOAD supplied by the user.
+    payload=re.sub(
+        r'(^|\s)LD_PRELOAD=(?:[\'"])?/usr/\$LIB/mangohud/libMangoHud_opengl\.so(?:[\'"])?(?=\s|$)',
+        ' ',
+        payload
+    )
+    return re.sub(r'\s+', ' ', payload).strip()
+
 for line in lines:
     if line.startswith("ENV=") and not found:
-        payload=line[4:]
-        payload=re.sub(r'(^|\s)MANGOHUD=[^\s]+', ' ', payload)
-        payload=re.sub(r'\s+', ' ', payload).strip()
+        payload=clean_payload(line[4:])
         if enabled:
             payload=(payload + " " if payload else "") + "MANGOHUD=1"
+            # Batocera 41/42 need the OpenGL preload used by their native
+            # /usr/bin/mangohud wrapper. Preserve any user-supplied LD_PRELOAD.
+            if legacy and not re.search(r'(^|\s)LD_PRELOAD=', payload):
+                payload += " LD_PRELOAD='" + managed_preload + "'"
         if payload:
             out.append("ENV="+payload)
         found=True
@@ -61,12 +137,15 @@ for line in lines:
         out.append(line)
 
 if enabled and not found:
+    payload="MANGOHUD=1"
+    if legacy:
+        payload += " LD_PRELOAD='" + managed_preload + "'"
     insert_at=0
     for i,line in enumerate(out):
         if line.startswith(("DIR=","CMD=","LANG=","SAVEDIR=","SAVEFILES=")):
             insert_at=i
             break
-    out.insert(insert_at, "ENV=MANGOHUD=1")
+    out.insert(insert_at, "ENV="+payload)
 
 while out and out[-1] == "":
     out.pop()
@@ -91,7 +170,7 @@ get_runner() {
 case "${rom,,}" in
     *.pc|*.wine)
         [ -d "$rom" ] || exit 0
-        rewrite_autorun "$rom/autorun.cmd" "$desired" || true
+        rewrite_autorun "$rom/autorun.cmd" "$desired" "$legacy_mangohud" || true
         ;;
     *.wsquashfs)
         [ -f "$rom" ] || exit 0
@@ -107,13 +186,13 @@ case "${rom,,}" in
             fi
             rm -f "$tmp"
         fi
-        [ -f "$autorun" ] && rewrite_autorun "$autorun" "$desired" || true
+        [ -f "$autorun" ] && rewrite_autorun "$autorun" "$desired" "$legacy_mangohud" || true
         ;;
     *.wtgz)
         romname="$(basename "$rom")"
         runner="$(get_runner "$romname")"
         prefix="/userdata/system/wine-bottles/windows/$runner/$romname.wine"
-        [ -f "$prefix/autorun.cmd" ] && rewrite_autorun "$prefix/autorun.cmd" "$desired" || true
+        [ -f "$prefix/autorun.cmd" ] && rewrite_autorun "$prefix/autorun.cmd" "$desired" "$legacy_mangohud" || true
         ;;
 esac
 
