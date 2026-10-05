@@ -182,7 +182,7 @@ def clean_payload(payload):
     # Remove only the LD_PRELOAD value managed by this Toolbox. Never touch a
     # different/custom LD_PRELOAD supplied by the user.
     payload=re.sub(
-        r'(^|\s)LD_PRELOAD=(?:[\'"])?/usr/\$LIB/mangohud/libMangoHud_opengl\.so(?:[\'"])?(?=\s|$)',
+        r'(^|\s)LD_PRELOAD=(?:[\'\"])?(?:/usr/\$LIB/mangohud/libMangoHud_opengl\.so|/userdata/system/ultimate-wine-toolbox/runtime/mangohud/\$LIB/mangohud/libMangoHud_opengl\.so)(?:[\'\"])?(?=\s|$)',
         ' ',
         payload
     )
