@@ -1,4 +1,4 @@
-# Ultimate Wine Toolbox
+# Ultimate Wine Toolbox for Batocera
 
 [English](README.md) | [Français](README.fr.md)
 
