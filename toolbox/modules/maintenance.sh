@@ -2,7 +2,7 @@
 
 BOTTLES_ROOT="/userdata/system/wine-bottles/windows"
 WINDOWS_ROMS_DIR="/userdata/roms/windows"
-WT_LOG_DIR="/userdata/system/logs/thomsonito-wine-toolbox"
+WT_LOG_DIR="/userdata/system/logs/ultimate-wine-toolbox"
 BOTTLES_CACHE="/tmp/wt-bottles-cache.tsv"
 
 maintenance_dir_kib() {
@@ -1189,8 +1189,8 @@ maintenance_summary() {
     mangohud_state="$(mangohud_global_state)"
     dxvk_state="$(dxvk_status)"
 
-    if [ -x "/userdata/system/scripts/thomsonito-wine-toolbox-mangohud.sh" ] && \
-       [ -x "/userdata/system/scripts/thomsonito-wine-toolbox-dxvk.sh" ]; then
+    if [ -x "/userdata/system/scripts/ultimate-wine-toolbox-mangohud.sh" ] && \
+       [ -x "/userdata/system/scripts/ultimate-wine-toolbox-dxvk.sh" ]; then
         hooks_state="$(i18n maintenance_hooks_ok)"
     else
         hooks_state="$(i18n maintenance_hooks_incomplete)"
