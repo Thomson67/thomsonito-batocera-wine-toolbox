@@ -1,0 +1,107 @@
+{
+  "schema_version": 1,
+  "repository": "Thomson67/batocera-wine-runners",
+  "install_path": "/userdata/system/wine/custom",
+  "runners": [
+    {
+      "id": "ge-custom-v40",
+      "name": "ge-custom-v40",
+      "file": "ge-custom-v40.tar.xz",
+      "family": "ge-custom",
+      "size_bytes": 117591328,
+      "release_tag": "starter-pack-2026.10",
+      "download_url": "https://github.com/Thomson67/batocera-wine-runners/releases/download/starter-pack-2026.10/ge-custom-v40.tar.xz",
+      "sha256": "ca3554cfbbbb480ef5dbadf249fd4f885fa0cdb90e84a75fd0b78a5548340cd4"
+    },
+    {
+      "id": "wine-10.0-amd64",
+      "name": "wine-10.0-amd64",
+      "file": "wine-10.0-amd64.tar.xz",
+      "family": "wine",
+      "size_bytes": 65094660,
+      "release_tag": "starter-pack-2026.10",
+      "download_url": "https://github.com/Thomson67/batocera-wine-runners/releases/download/starter-pack-2026.10/wine-10.0-amd64.tar.xz",
+      "sha256": "a2b6ae3253736a13162c7c505f69b1c6076432c3ba64b54e1b923613ebdab698"
+    },
+    {
+      "id": "wine-11.17-amd64-wow64",
+      "name": "wine-11.17-amd64-wow64",
+      "file": "wine-11.17-amd64-wow64.tar.xz",
+      "family": "wine-wow64",
+      "size_bytes": 101052988,
+      "release_tag": "starter-pack-2026.10",
+      "download_url": "https://github.com/Thomson67/batocera-wine-runners/releases/download/starter-pack-2026.10/wine-11.17-amd64-wow64.tar.xz",
+      "sha256": "3211db09086bc6fbd769c0286f27790b32d6fc6fb0bc610dad6b59796f07d462"
+    },
+    {
+      "id": "wine-11.5-amd64-wow64",
+      "name": "wine-11.5-amd64-wow64",
+      "file": "wine-11.5-amd64-wow64.tar.xz",
+      "family": "wine-wow64",
+      "size_bytes": 85793836,
+      "release_tag": "starter-pack-2026.10",
+      "download_url": "https://github.com/Thomson67/batocera-wine-runners/releases/download/starter-pack-2026.10/wine-11.5-amd64-wow64.tar.xz",
+      "sha256": "ecf9ec141063cdc1f37ae309500c390884757cba561a8c324ec1743627faa5ec"
+    },
+    {
+      "id": "wine-9.17-amd64",
+      "name": "wine-9.17-amd64",
+      "file": "wine-9.17-amd64.tar.xz",
+      "family": "wine",
+      "size_bytes": 57010336,
+      "release_tag": "starter-pack-2026.10",
+      "download_url": "https://github.com/Thomson67/batocera-wine-runners/releases/download/starter-pack-2026.10/wine-9.17-amd64.tar.xz",
+      "sha256": "3f2020ccbb7ab5d531b79621e698a5f5417d3ddab45ecd2b6e09b4eb319c7ae0"
+    },
+    {
+      "id": "wine-proton-9.0-4-amd64",
+      "name": "wine-proton-9.0-4-amd64",
+      "file": "wine-proton-9.0-4-amd64.tar.xz",
+      "family": "wine-proton",
+      "size_bytes": 57854840,
+      "release_tag": "starter-pack-2026.10",
+      "download_url": "https://github.com/Thomson67/batocera-wine-runners/releases/download/starter-pack-2026.10/wine-proton-9.0-4-amd64.tar.xz",
+      "sha256": "0f72d7e176c9f5b4a98080f67e4dda3a908c80744c20452259236aa1b1b1fe83"
+    },
+    {
+      "id": "wine-proton-exp-10.0-amd64",
+      "name": "wine-proton-exp-10.0-amd64",
+      "file": "wine-proton-exp-10.0-amd64.tar.xz",
+      "family": "wine-proton",
+      "size_bytes": 69635532,
+      "release_tag": "starter-pack-2026.10",
+      "download_url": "https://github.com/Thomson67/batocera-wine-runners/releases/download/starter-pack-2026.10/wine-proton-exp-10.0-amd64.tar.xz",
+      "sha256": "b26c9a51201e003a96dbd2abe992c77d0b8d65aa261684dd56dc931c07944776"
+    },
+    {
+      "id": "wine-tkg-10.17-amd64",
+      "name": "wine-tkg-10.17-amd64",
+      "file": "wine-tkg-10.17-amd64.tar.xz",
+      "family": "wine-tkg",
+      "size_bytes": 94994116,
+      "release_tag": "starter-pack-2026.10",
+      "download_url": "https://github.com/Thomson67/batocera-wine-runners/releases/download/starter-pack-2026.10/wine-tkg-10.17-amd64.tar.xz",
+      "sha256": "c2e62da67494884d3c180e313c8312c6a941f2028b803ecf2dcca1a76f39d44c"
+    },
+    {
+      "id": "wine-tkg-11.5-amd64-wow64",
+      "name": "wine-tkg-11.5-amd64-wow64",
+      "file": "wine-tkg-11.5-amd64-wow64.tar.xz",
+      "family": "wine-tkg-wow64",
+      "size_bytes": 87318720,
+      "release_tag": "starter-pack-2026.10",
+      "download_url": "https://github.com/Thomson67/batocera-wine-runners/releases/download/starter-pack-2026.10/wine-tkg-11.5-amd64-wow64.tar.xz",
+      "sha256": "10a175c30cc179dd94b7b66cefaf8f3cba9a4a8f7038a3efce46fd9b0e31afe1"
+    },
+    {
+      "id": "wine-tkg-v41",
+      "name": "wine-tkg-v41",
+      "file": "wine-tkg-v41.tar.xz",
+      "family": "wine-tkg",
+      "size_bytes": 115365972,
+      "release_tag": "starter-pack-2026.10",
+      "download_url": "https://github.com/Thomson67/batocera-wine-runners/releases/download/starter-pack-2026.10/wine-tkg-v41.tar.xz",
+      "sha256": "11bc99cbdf006e41db84485198b209a36cba52c10c9c328959ffd48b453e37f5"
+    }
+  ]
+}
