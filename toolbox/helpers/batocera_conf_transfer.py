@@ -9,7 +9,7 @@ import sys
 import tempfile
 from pathlib import Path
 
-EXPORT_MARKER = "# THOMSONITO_WINDOWS_CONFIG_EXPORT=1"
+EXPORT_MARKER = "# ULTIMATE_WINE_TOOLBOX_WINDOWS_CONFIG_EXPORT=1"
 USER_MARKER = "# ------------ User-generated Configurations ----------- #"
 PROTECTED_HEADING = "## Enable DXVK for Wine and FPS HUD."
 WINDOWS_RE = re.compile(r'^\s*(?:windows(?:-renderer)?\.|windows\["[^"]+"\](?:-renderer)?\.)')
@@ -43,7 +43,7 @@ def cmd_export(args: argparse.Namespace) -> int:
     output = Path(args.output)
     globals_, games = active_export_lines(conf)
     lines = [
-        "# Thomsonito Batocera Wine Toolbox - Windows configuration export",
+        "# Ultimate Wine Toolbox - Windows configuration export",
         EXPORT_MARKER,
         f"# SOURCE_BATOCERA={args.batocera}",
         "# Protected stock settings windows.dxvk/windows.dxvk_hud are intentionally excluded.",
