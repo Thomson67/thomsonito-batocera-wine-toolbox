@@ -233,7 +233,9 @@ def classify(raw):
     match = global_re.match(line)
     if match:
         prefix = match.group(1).casefold()
-        base = "windows" if prefix == "windows-renderer" else prefix
+        base = prefix
+        if prefix.endswith("-renderer") and prefix[:-9] in systems:
+            base = prefix[:-9]
         if base in systems:
             return ("global", base, None)
 
