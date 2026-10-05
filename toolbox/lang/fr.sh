@@ -288,7 +288,7 @@ declare -gA I18N=(
   [batocera_conf_restore_done]="Restauration terminée.\n\nSauvegarde restaurée : %s\n\nLa configuration active juste avant la restauration a été sauvegardée ici :\n%s"
   [batocera_conf_restore_failed]="La restauration a échoué.\n\nLa configuration active avant la tentative de restauration a été sauvegardée ici :\n%s"
 
-  [batocera_conf_organize]="Regrouper les options Windows"
+  [batocera_conf_organize]="Organiser les configurations par système"
   [batocera_conf_unreadable]="Impossible de lire :\n%s"
   [batocera_conf_roms_missing]="Le dossier des jeux Windows est absent ou inaccessible :\n%s\n\nPar sécurité, aucun jeu ne sera considéré comme orphelin."
   [batocera_conf_scan_failed]="Impossible d'analyser batocera.conf."
@@ -306,6 +306,10 @@ declare -gA I18N=(
   [batocera_conf_no_windows]="Aucune option Windows active n'a été trouvée dans batocera.conf."
   [batocera_conf_organize_confirm]="Regrouper les options Windows dans batocera.conf ?\n\nOptions globales : %s ligne(s)\nOptions spécifiques aux jeux : %s ligne(s)\n\nLes options globales seront placées en premier, suivies d'une ligne vide puis des options par jeu sans ligne vide entre les jeux. Aucun réglage n'est supprimé.\n\nUne sauvegarde sera créée avant modification."
   [batocera_conf_organize_done]="Réorganisation terminée.\n\nLignes Windows regroupées : %s\nSauvegarde :\n%s"
+  [batocera_conf_organize_confirm_all]="Organiser toutes les configurations de systèmes détectées ?\n\nLes réglages actifs des systèmes et de leurs jeux seront déplacés après :\n# ------------ User-generated Configurations ----------- #\n\nChaque système aura son propre bloc : en-tête, options globales, puis options de jeux.\n\nLe bloc Batocera « Enable DXVK for Wine and FPS HUD » restera exactement à son emplacement actuel et ne sera pas déplacé.\n\nUne sauvegarde complète sera créée avant modification.\n\nContinuer ?"
+  [batocera_conf_organize_done_all]="Organisation terminée.\n\nSystèmes regroupés : %s\nLignes de configuration déplacées/regroupées : %s\nSauvegarde :\n%s"
+  [batocera_conf_marker_missing]="La ligne « # ------------ User-generated Configurations ----------- # » est introuvable.\n\nPar sécurité, aucune organisation n\'a été appliquée.\nLa sauvegarde créée avant la tentative est disponible ici :\n%s"
+  [batocera_conf_systems_missing]="Le dossier /userdata/roms est absent ou inaccessible.\n\nPar sécurité, l\'organisation par système est annulée."
 
   [toolbox_uninstall_title]="Désinstaller la Toolbox"
   [toolbox_uninstall_warning]="Cette opération supprimera la Thomsonito Batocera Wine Toolbox, son lanceur, ses hooks MangoHud/DXVK et ses fichiers internes.\n\nLes runners Wine/UMU, les bottles, les saves et les jeux seront conservés.\n\nSi /userdata/system/wine/dxvk pointe vers un bundle géré par la Toolbox, ce lien sera retiré pour laisser Batocera reprendre son DXVK par défaut.\n\nContinuer ?"
