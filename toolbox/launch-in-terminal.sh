@@ -9,7 +9,7 @@ mkdir -p "$LOG_DIR"
 # Safety net for direct launches: ensure a UTF-8 locale even when Batocera 41/42
 # starts the script from an environment using the C locale.
 if [[ "${LC_ALL:-${LANG:-}}" != *UTF-8* && "${LC_ALL:-${LANG:-}}" != *utf8* ]]; then
-    BATOCERA_LANG="$(batocera-settings-get system.language 2>/dev/null | tr -d '\\r\\n[:space:]' || true)"
+    BATOCERA_LANG="$(batocera-settings-get system.language 2>/dev/null | tr -d '\r\n[:space:]' || true)"
     BATOCERA_LANG="${BATOCERA_LANG%%.*}"
     if [ -n "$BATOCERA_LANG" ]; then
         export LANG="$BATOCERA_LANG.UTF-8"
