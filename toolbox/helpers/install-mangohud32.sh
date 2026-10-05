@@ -4,6 +4,8 @@ set -euo pipefail
 ROOT="/userdata/system/ultimate-wine-toolbox"
 RUNTIME="$ROOT/runtime/mangohud"
 LIB32="$RUNTIME/lib32/mangohud"
+LIB="$RUNTIME/lib/mangohud"
+LIB64="$RUNTIME/lib64/mangohud"
 
 VERSION="0.7.2"
 ASSET="MangoHud-0.7.2.r0.g7b80f73.tar.gz"
@@ -11,7 +13,8 @@ ASSET_SIZE="8757355"
 URL="https://github.com/flightlessmango/MangoHud/releases/download/v0.7.2/$ASSET"
 
 if [ -s "$RUNTIME/PROVENANCE.txt" ] && grep -qx "version=$VERSION" "$RUNTIME/PROVENANCE.txt" 2>/dev/null && \
-   [ -s "$LIB32/libMangoHud.so" ] && [ -s "$LIB32/libMangoHud_dlsym.so" ] && [ -s "$LIB32/libMangoHud_opengl.so" ]; then
+   [ -s "$LIB32/libMangoHud.so" ] && [ -s "$LIB32/libMangoHud_dlsym.so" ] && [ -s "$LIB32/libMangoHud_opengl.so" ] && \
+   [ -e "$LIB/libMangoHud_opengl.so" ] && [ -e "$LIB64/libMangoHud_opengl.so" ]; then
     echo "MangoHud32: runtime $VERSION already installed."
     exit 0
 fi
@@ -66,11 +69,25 @@ PY
 done
 
 rm -rf "$RUNTIME"
-mkdir -p "$LIB32"
+mkdir -p "$LIB32" "$LIB" "$LIB64"
+
+# 32-bit libraries are bundled by the Toolbox.
 cp -f "$src/libMangoHud.so" "$LIB32/libMangoHud.so"
 cp -f "$src/libMangoHud_dlsym.so" "$LIB32/libMangoHud_dlsym.so"
 cp -f "$src/libMangoHud_opengl.so" "$LIB32/libMangoHud_opengl.so"
 chmod 0644 "$LIB32/libMangoHud.so" "$LIB32/libMangoHud_dlsym.so" "$LIB32/libMangoHud_opengl.so"
+
+# Architecture-selectable layout for the dynamic linker's $LIB token.
+# On 32-bit Wine $LIB resolves to lib, while 64-bit resolves to lib64 on
+# the glibc layouts used by Batocera. Keep the 64-bit files as symlinks
+# to Batocera's native MangoHud so we do not duplicate its runtime.
+ln -s "$LIB32/libMangoHud.so" "$LIB/libMangoHud.so"
+ln -s "$LIB32/libMangoHud_dlsym.so" "$LIB/libMangoHud_dlsym.so"
+ln -s "$LIB32/libMangoHud_opengl.so" "$LIB/libMangoHud_opengl.so"
+
+ln -s /usr/lib/mangohud/libMangoHud.so "$LIB64/libMangoHud.so"
+ln -s /usr/lib/mangohud/libMangoHud_dlsym.so "$LIB64/libMangoHud_dlsym.so"
+ln -s /usr/lib/mangohud/libMangoHud_opengl.so "$LIB64/libMangoHud_opengl.so"
 
 {
     echo "version=$VERSION"
