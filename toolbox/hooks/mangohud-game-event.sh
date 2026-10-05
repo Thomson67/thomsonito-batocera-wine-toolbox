@@ -168,7 +168,7 @@ path=Path(sys.argv[1])
 enabled=sys.argv[2] == "1"
 legacy=sys.argv[3] == "1"
 managed_preload=sys.argv[4]
-managed_libpath_prefix_prefix=sys.argv[5]
+managed_libpath_prefix=sys.argv[5]
 
 try:
     text=path.read_text(encoding="utf-8", errors="replace")
@@ -200,7 +200,7 @@ def clean_payload(payload):
 
     # Remove only the library search path created by the Toolbox.
     payload=re.sub(
-        r'(^|\s)LD_LIBRARY_PATH=(?:[\'"])?' + re.escape(managed_libpath_prefix_prefix) + r'(?::(?:"?\$\{?LD_LIBRARY_PATH(?::-)?\}?"?))?(?:[\'"])?(?=\s|$)',
+        r'(^|\s)LD_LIBRARY_PATH=(?:[\'"])?' + re.escape(managed_libpath_prefix) + r'(?::(?:"?\$\{?LD_LIBRARY_PATH(?::-)?\}?"?))?(?:[\'"])?(?=\s|$)',
         ' ',
         payload
     )
