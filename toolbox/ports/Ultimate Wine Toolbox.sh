@@ -56,6 +56,7 @@ if [ ! -s "$LAUNCHER" ]; then
 fi
 
 /usr/bin/xterm \
+    +lc \
     -u8 \
     -fa "DejaVu Sans Mono" \
     -fs 10 \
