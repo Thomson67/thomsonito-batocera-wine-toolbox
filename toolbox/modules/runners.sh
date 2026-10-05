@@ -8,7 +8,7 @@ GE_REPO="GloriousEggroll/proton-ge-custom"
 
 runner_api_get() {
     local url="$1"
-    curl -fsSL --retry 2 --connect-timeout 10 --max-time 30         -H "Accept: application/vnd.github+json"         -H "User-Agent: Thomsonito-Batocera-Wine-Toolbox"         "$url"
+    curl -fsSL --retry 2 --connect-timeout 10 --max-time 30         -H "Accept: application/vnd.github+json"         -H "User-Agent: Ultimate-Wine-Toolbox"         "$url"
 }
 
 runner_cache_path() {
