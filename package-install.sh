@@ -58,20 +58,20 @@ if [ -d "$OLD_DEST" ]; then
             cp -a "$OLD_DEST/$item/." "$DEST/$item/" || migration_fail
         fi
     done
-    rm -rf -- "$OLD_DEST"
 fi
 
 if [ -d "$OLD_LOG_DIR" ]; then
     mkdir -p "$LOG_DIR" || migration_fail
     cp -a "$OLD_LOG_DIR/." "$LOG_DIR/" || migration_fail
-    rm -rf -- "$OLD_LOG_DIR"
 fi
 
 if [ -d "$OLD_BACKUP_DIR" ]; then
     mkdir -p "$BACKUP_DIR" || migration_fail
     cp -a "$OLD_BACKUP_DIR/." "$BACKUP_DIR/" || migration_fail
-    rm -rf -- "$OLD_BACKUP_DIR"
 fi
+
+# Remove legacy directories only after every migration copy above succeeded.
+rm -rf -- "$OLD_DEST" "$OLD_LOG_DIR" "$OLD_BACKUP_DIR"
 
 rm -f -- "$OLD_PORT" "$OLD_PORT.keys" "$OLD_MANGOHUD_HOOK" "$OLD_DXVK_HOOK"
 
