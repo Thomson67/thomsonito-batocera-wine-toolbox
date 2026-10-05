@@ -36,8 +36,13 @@ say() {
     exit 1
 }
 
-# Migration from the development name. Preserve user state, then remove the
-# old launcher/hooks/directories so no stale installation remains.
+migration_fail() {
+    say         "ERREUR : la migration de l'ancienne installation a échoué. L'ancienne installation a été conservée."         "ERROR: migration of the previous installation failed. The previous installation was preserved."
+    exit 1
+}
+
+# Migration from the development name. User state is copied first and the old
+# data is removed only after every copy has succeeded.
 if [ -L "$DXVK_PATH" ]; then
     old_target="$(readlink -f "$DXVK_PATH" 2>/dev/null || true)"
     case "$old_target" in
@@ -46,25 +51,25 @@ if [ -L "$DXVK_PATH" ]; then
 fi
 
 if [ -d "$OLD_DEST" ]; then
-    mkdir -p "$DEST"
+    mkdir -p "$DEST" || migration_fail
     for item in config dxvk exports; do
         if [ -d "$OLD_DEST/$item" ]; then
-            mkdir -p "$DEST/$item"
-            cp -a "$OLD_DEST/$item/." "$DEST/$item/" 2>/dev/null || true
+            mkdir -p "$DEST/$item" || migration_fail
+            cp -a "$OLD_DEST/$item/." "$DEST/$item/" || migration_fail
         fi
     done
     rm -rf -- "$OLD_DEST"
 fi
 
 if [ -d "$OLD_LOG_DIR" ]; then
-    mkdir -p "$LOG_DIR"
-    cp -a "$OLD_LOG_DIR/." "$LOG_DIR/" 2>/dev/null || true
+    mkdir -p "$LOG_DIR" || migration_fail
+    cp -a "$OLD_LOG_DIR/." "$LOG_DIR/" || migration_fail
     rm -rf -- "$OLD_LOG_DIR"
 fi
 
 if [ -d "$OLD_BACKUP_DIR" ]; then
-    mkdir -p "$BACKUP_DIR"
-    cp -a "$OLD_BACKUP_DIR/." "$BACKUP_DIR/" 2>/dev/null || true
+    mkdir -p "$BACKUP_DIR" || migration_fail
+    cp -a "$OLD_BACKUP_DIR/." "$BACKUP_DIR/" || migration_fail
     rm -rf -- "$OLD_BACKUP_DIR"
 fi
 
