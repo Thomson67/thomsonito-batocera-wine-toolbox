@@ -203,7 +203,8 @@ def clean_payload(payload):
         r'(^|\s)LD_LIBRARY_PATH=(?:[\'"])?' + re.escape(managed_libpath_prefix) + r'(?::(?:"?\$\{?LD_LIBRARY_PATH(?::-)?\}?"?))?(?:[\'"])?(?=\s|$)',
         ' ',
         payload
-    )    return re.sub(r'\\s+', ' ', payload).strip()
+    )
+    return re.sub(r'\s+', ' ', payload).strip()
 
 for line in lines:
     if line.startswith("ENV=") and not found:
@@ -213,7 +214,8 @@ for line in lines:
             # Match MangoHud's official wrapper: preload plain filenames and
             # let the dynamic linker select the matching 32/64-bit library.
             if not re.search(r'(^|\s)LD_LIBRARY_PATH=', payload):
-                payload += " LD_LIBRARY_PATH=\'" + managed_libpath_prefix + "\':\"${LD_LIBRARY_PATH:-}\""            if not re.search(r'(^|\s)LD_PRELOAD=', payload):
+                payload += " LD_LIBRARY_PATH=\'" + managed_libpath_prefix + "\':\"${LD_LIBRARY_PATH:-}\""
+            if not re.search(r'(^|\s)LD_PRELOAD=', payload):
                 payload += " LD_PRELOAD='" + managed_preload + "'"
         if payload:
             out.append("ENV="+payload)
