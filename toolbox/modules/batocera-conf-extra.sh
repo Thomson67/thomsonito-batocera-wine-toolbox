@@ -193,20 +193,20 @@ conf = Path(sys.argv[1])
 roms = Path(sys.argv[2])
 marker = "# ------------ User-generated Configurations ----------- #"
 protected_heading = "## Enable DXVK for Wine and FPS HUD."
-generated_header_re = re.compile(r'^# ===== \\[ [A-Z0-9_.+ -]+ \\] =====\\s*$')
-per_game_re = re.compile(r'^\\s*([A-Za-z0-9_-]+)\\["([^"]+)"\\](?:-renderer)?\\.')
-global_re = re.compile(r'^\\s*([A-Za-z0-9_-]+)(?:-renderer)?\\.')
+generated_header_re = re.compile(r'^# ===== \[ [A-Z0-9_.+ -]+ \] =====\s*$')
+per_game_re = re.compile(r'^\s*([A-Za-z0-9_-]+)\["([^"]+)"\](?:-renderer)?\.')
+global_re = re.compile(r'^\s*([A-Za-z0-9_-]+)(?:-renderer)?\.')
 
 with conf.open("r", encoding="utf-8", errors="surrogateescape", newline="") as fh:
     lines = fh.readlines()
 
-marker_indexes = [i for i, raw in enumerate(lines) if raw.rstrip("\\r\\n") == marker]
+marker_indexes = [i for i, raw in enumerate(lines) if raw.rstrip("\r\n") == marker]
 if not marker_indexes:
     print("ERROR:MARKER")
     raise SystemExit(20)
 marker_index = marker_indexes[0]
 
-newline = "\\r\\n" if any(raw.endswith("\\r\\n") for raw in lines) else "\\n"
+newline = "\r\n" if any(raw.endswith("\r\n") for raw in lines) else "\n"
 
 systems = set()
 try:
@@ -218,7 +218,7 @@ except OSError:
 systems.add("windows")
 
 def classify(raw):
-    line = raw.rstrip("\\r\\n")
+    line = raw.rstrip("\r\n")
     if not line or line.lstrip().startswith("#"):
         return None
 
@@ -241,14 +241,14 @@ def classify(raw):
 
 protected = set()
 for i in range(marker_index):
-    if lines[i].rstrip("\\r\\n") != protected_heading:
+    if lines[i].rstrip("\r\n") != protected_heading:
         continue
 
     protected.add(i)
     pos = i + 1
     while pos < marker_index:
         protected.add(pos)
-        if lines[pos].rstrip("\\r\\n") == "":
+        if lines[pos].rstrip("\r\n") == "":
             break
         pos += 1
 
@@ -277,7 +277,7 @@ marker_line = lines[marker_index]
 
 user_other = []
 for raw in lines[marker_index + 1:]:
-    text = raw.rstrip("\\r\\n")
+    text = raw.rstrip("\r\n")
     if generated_header_re.match(text):
         continue
 
