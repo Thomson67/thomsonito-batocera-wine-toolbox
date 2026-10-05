@@ -1,7 +1,7 @@
 #!/bin/bash
 
 BATOCERA_CONF="/userdata/system/batocera.conf"
-BATOCERA_CONF_BACKUP_DIR="/userdata/system/backups/thomsonito-wine-toolbox"
+BATOCERA_CONF_BACKUP_DIR="/userdata/system/backups/ultimate-wine-toolbox"
 
 batocera_conf_scan() {
     [ -r "$BATOCERA_CONF" ] || return 10
