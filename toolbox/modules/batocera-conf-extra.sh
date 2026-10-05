@@ -162,7 +162,7 @@ batocera_conf_restore() {
 }
 
 batocera_conf_organize() {
-    local backup result rc
+    local backup result rc systems_count lines_count
 
     [ -r "$BATOCERA_CONF" ] || {
         msgbox "$(i18n batocera_conf_title)" "$(i18n batocera_conf_unreadable "$BATOCERA_CONF")"
@@ -173,7 +173,8 @@ batocera_conf_organize() {
         return
     }
 
-    yesno_default_no "$(i18n batocera_conf_organize)" "$(i18n batocera_conf_organize_confirm_all)" || return
+    yesno_default_no "$(i18n batocera_conf_organize)" \
+        "$(i18n batocera_conf_organize_confirm_all)" || return
 
     backup="$(batocera_conf_backup)" || {
         msgbox "$(i18n batocera_conf_title)" "$(i18n batocera_conf_backup_failed)"
@@ -192,44 +193,21 @@ conf = Path(sys.argv[1])
 roms = Path(sys.argv[2])
 marker = "# ------------ User-generated Configurations ----------- #"
 protected_heading = "## Enable DXVK for Wine and FPS HUD."
-generated_header_re = re.compile(r'^# ===== \[ [A-Z0-9_.+ -]+ \] =====\s*batocera_conf_menu() {
-    while true; do
-        local choice
-        choice="$(menu_select "$(i18n batocera_conf_title)" "$(i18n batocera_conf_intro)" \
-            "1" "$(i18n batocera_conf_analyze)" \
-            "2" "$(i18n batocera_conf_clean)" \
-            "3" "$(i18n batocera_conf_clean_all)" \
-            "4" "$(i18n batocera_conf_organize)" \
-            "5" "$(i18n batocera_conf_restore)" \
-            "0" "$(i18n back)")" || return
-
-        case "$choice" in
-            1) batocera_conf_analyze ;;
-            2) batocera_conf_clean_orphans ;;
-            3) batocera_conf_clean_all_orphans ;;
-            4) batocera_conf_organize ;;
-            5) batocera_conf_restore ;;
-            0|"") return ;;
-        esac
-    done
-}
-)
-per_game_re = re.compile(r'^\s*([A-Za-z0-9_-]+)\["([^"]+)"\](?:-renderer)?\.')
-global_re = re.compile(r'^\s*([A-Za-z0-9_-]+)(?:-renderer)?\.')
+generated_header_re = re.compile(r'^# ===== \\[ [A-Z0-9_.+ -]+ \\] =====\\s*$')
+per_game_re = re.compile(r'^\\s*([A-Za-z0-9_-]+)\\["([^"]+)"\\](?:-renderer)?\\.')
+global_re = re.compile(r'^\\s*([A-Za-z0-9_-]+)(?:-renderer)?\\.')
 
 with conf.open("r", encoding="utf-8", errors="surrogateescape", newline="") as fh:
     lines = fh.readlines()
 
-marker_indexes = [i for i, raw in enumerate(lines) if raw.rstrip("\r\n") == marker]
+marker_indexes = [i for i, raw in enumerate(lines) if raw.rstrip("\\r\\n") == marker]
 if not marker_indexes:
     print("ERROR:MARKER")
     raise SystemExit(20)
 marker_index = marker_indexes[0]
 
-newline = "\r\n" if any(raw.endswith("\r\n") for raw in lines) else "\n"
+newline = "\\r\\n" if any(raw.endswith("\\r\\n") for raw in lines) else "\\n"
 
-# Detect actual Batocera systems from /userdata/roms. This keeps unrelated
-# configuration namespaces (global.*, audio.*, network.*, etc.) out of scope.
 systems = set()
 try:
     for p in roms.iterdir():
@@ -240,148 +218,150 @@ except OSError:
 systems.add("windows")
 
 def classify(raw):
-    line = raw.rstrip("\r\n")
+    line = raw.rstrip("\\r\\n")
     if not line or line.lstrip().startswith("#"):
         return None
 
-    m = per_game_re.match(line)
-    if m:
-        prefix = m.group(1).casefold()
+    match = per_game_re.match(line)
+    if match:
+        prefix = match.group(1).casefold()
         base = "windows" if prefix == "windows-renderer" else prefix
         if base in systems:
-            return ("game", base, m.group(2))
+            return ("game", base, match.group(2))
         return None
 
-    m = global_re.match(line)
-    if m:
-        prefix = m.group(1).casefold()
+    match = global_re.match(line)
+    if match:
+        prefix = match.group(1).casefold()
         base = "windows" if prefix == "windows-renderer" else prefix
         if base in systems:
             return ("global", base, None)
+
     return None
 
-# Protect the stock DXVK/FPS HUD block exactly where Batocera ships it.
 protected = set()
-for i in range(0, marker_index):
-    if lines[i].rstrip("\r\n") != protected_heading:
+for i in range(marker_index):
+    if lines[i].rstrip("\\r\\n") != protected_heading:
         continue
+
     protected.add(i)
-    j = i + 1
-    while j < marker_index:
-        text = lines[j].rstrip("\r\n")
-        if text == "":
-            protected.add(j)
+    pos = i + 1
+    while pos < marker_index:
+        protected.add(pos)
+        if lines[pos].rstrip("\\r\\n") == "":
             break
-        protected.add(j)
-        j += 1
+        pos += 1
 
 collected = {}
+
 def add_entry(kind, system, game, raw):
-    bucket = collected.setdefault(system, {"global": [], "games": {}, "game_order": []})
+    bucket = collected.setdefault(system, {"global": [], "games": {}})
     if kind == "global":
         bucket["global"].append(raw)
     else:
-        if game not in bucket["games"]:
-            bucket["games"][game] = []
-            bucket["game_order"].append(game)
-        bucket["games"][game].append(raw)
+        bucket["games"].setdefault(game, []).append(raw)
 
-# Before the user-generated marker: move only recognized active system/game
-# options, except for the protected stock DXVK block.
-prefix = []
+before = []
 for i, raw in enumerate(lines[:marker_index]):
     if i in protected:
-        prefix.append(raw)
+        before.append(raw)
         continue
-    cls = classify(raw)
-    if cls:
-        add_entry(*cls, raw)
-    else:
-        prefix.append(raw)
 
-# Keep the marker itself unchanged.
+    item = classify(raw)
+    if item:
+        add_entry(*item, raw)
+    else:
+        before.append(raw)
+
 marker_line = lines[marker_index]
 
-# In the user-generated section, retain unrelated content exactly, while
-# extracting recognized system/game settings for normalized grouping.
 user_other = []
 for raw in lines[marker_index + 1:]:
-    text = raw.rstrip("\r\n")
+    text = raw.rstrip("\\r\\n")
     if generated_header_re.match(text):
         continue
-    cls = classify(raw)
-    if cls:
-        add_entry(*cls, raw)
+
+    item = classify(raw)
+    if item:
+        add_entry(*item, raw)
     else:
         user_other.append(raw)
 
-# Trim only trailing empty lines from the unrelated user section so repeated
-# organization remains stable and does not accumulate whitespace.
 while user_other and user_other[-1].strip() == "":
     user_other.pop()
 
-out = list(prefix)
-out.append(marker_line)
+output = list(before)
+output.append(marker_line)
+
 if user_other:
-    if not marker_line.endswith(("\n", "\r\n")):
-        out[-1] += newline
-    out.extend(user_other)
-    out.append(newline)
+    output.extend(user_other)
+    output.append(newline)
 
 system_names = sorted(collected, key=str.casefold)
-for pos, system in enumerate(system_names):
-    if out and out[-1].strip() != "":
-        out.append(newline)
 
-    title = system.upper()
-    out.append(f"# ===== [ {title} ] ====={newline}")
-    out.append(newline)
+for system_index, system in enumerate(system_names):
+    if output and output[-1].strip():
+        output.append(newline)
+
+    output.append(f"# ===== [ {system.upper()} ] ====={newline}")
+    output.append(newline)
 
     bucket = collected[system]
-    out.extend(bucket["global"])
+    output.extend(bucket["global"])
 
     game_names = sorted(bucket["games"], key=str.casefold)
     if bucket["global"] and game_names:
-        out.append(newline)
+        output.append(newline)
 
     for game in game_names:
-        out.extend(bucket["games"][game])
+        output.extend(bucket["games"][game])
 
-    if pos != len(system_names) - 1:
-        out.append(newline)
+    if system_index != len(system_names) - 1:
+        output.append(newline)
 
 fd, tmp_name = tempfile.mkstemp(prefix=".batocera.conf.wt-", dir=str(conf.parent))
 try:
-    with os.fdopen(fd, "w", encoding="utf-8", errors="surrogateescape", newline="") as out_fh:
-        out_fh.writelines(out)
-        out_fh.flush()
-        os.fsync(out_fh.fileno())
+    with os.fdopen(fd, "w", encoding="utf-8", errors="surrogateescape", newline="") as out:
+        out.writelines(output)
+        out.flush()
+        os.fsync(out.fileno())
+
     shutil.copystat(conf, tmp_name)
     os.replace(tmp_name, conf)
 finally:
     if os.path.exists(tmp_name):
         os.unlink(tmp_name)
 
-print(f"OK:{len(system_names)}:{sum(len(v[\'global\']) + sum(len(x) for x in v[\'games\'].values()) for v in collected.values())}")
+line_count = sum(
+    len(bucket["global"])
+    + sum(len(game_lines) for game_lines in bucket["games"].values())
+    for bucket in collected.values()
+)
+print(f"OK:{len(system_names)}:{line_count}")
 PY
 )"
     rc=$?
 
     if [ "$rc" -eq 20 ] || [ "$result" = "ERROR:MARKER" ]; then
-        msgbox "$(i18n batocera_conf_organize)" "$(i18n batocera_conf_marker_missing "$backup")"
-        return
-    fi
-    if [ "$rc" -ne 0 ]; then
-        msgbox "$(i18n batocera_conf_organize)" "$(i18n batocera_conf_modify_failed "$backup")"
+        msgbox "$(i18n batocera_conf_organize)" \
+            "$(i18n batocera_conf_marker_missing "$backup")"
         return
     fi
 
-    local systems_count lines_count
+    if [ "$rc" -ne 0 ]; then
+        msgbox "$(i18n batocera_conf_organize)" \
+            "$(i18n batocera_conf_modify_failed "$backup")"
+        return
+    fi
+
     systems_count="$(printf '%s' "$result" | awk -F: '{print $2}')"
     lines_count="$(printf '%s' "$result" | awk -F: '{print $3}')"
+
     msgbox "$(i18n batocera_conf_organize)" \
-        "$(i18n batocera_conf_organize_done_all "${systems_count:-0}" "${lines_count:-0}" "$backup")"
+        "$(i18n batocera_conf_organize_done_all \
+            "${systems_count:-0}" "${lines_count:-0}" "$backup")"
 }
+
 # Override the submenu defined by batocera-conf.sh with the extended one.
 batocera_conf_menu() {
     while true; do
