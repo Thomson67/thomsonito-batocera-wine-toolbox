@@ -9,7 +9,7 @@ LEGACY_LAYER_FILE="$LEGACY_LAYER_DIR/MangoHud.ultimate-wine-toolbox.json"
 X86_LAYER_FILE="$LEGACY_LAYER_DIR/MangoHud.ultimate-wine-toolbox.x86.json"
 MANGOHUD_RUNTIME="$ROOT/runtime/mangohud"
 MANGOHUD32_LIB="$MANGOHUD_RUNTIME/lib32/mangohud/libMangoHud.so"
-MANGOHUD_PRELOAD="$MANGOHUD_RUNTIME/\$LIB/mangohud/libMangoHud_opengl.so"
+MANGOHUD_PRELOAD="/usr/lib/mangohud/libMangoHud_opengl.so:$MANGOHUD_RUNTIME/lib32/mangohud/libMangoHud_opengl.so"
 LOG_DIR="/userdata/system/logs/ultimate-wine-toolbox"
 HOOK_LOG="$LOG_DIR/mangohud-hook.log"
 
@@ -182,7 +182,7 @@ def clean_payload(payload):
     # Remove only the LD_PRELOAD value managed by this Toolbox. Never touch a
     # different/custom LD_PRELOAD supplied by the user.
     payload=re.sub(
-        r'(^|\s)LD_PRELOAD=(?:[\'\"])?(?:/usr/\$LIB/mangohud/libMangoHud_opengl\.so|/userdata/system/ultimate-wine-toolbox/runtime/mangohud/\$LIB/mangohud/libMangoHud_opengl\.so)(?:[\'\"])?(?=\s|$)',
+        r'(^|\\s)LD_PRELOAD=(?:[\\\'"])?' + re.escape(managed_preload) + r'(?:[\\\'"])?(?=\\s|$)',
         ' ',
         payload
     )
