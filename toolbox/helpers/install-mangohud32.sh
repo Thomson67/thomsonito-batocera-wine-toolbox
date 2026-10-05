@@ -10,6 +10,12 @@ ASSET="MangoHud-0.7.2.r0.g7b80f73.tar.gz"
 ASSET_SIZE="8757355"
 URL="https://github.com/flightlessmango/MangoHud/releases/download/v0.7.2/$ASSET"
 
+if [ -s "$RUNTIME/PROVENANCE.txt" ] && grep -qx "version=$VERSION" "$RUNTIME/PROVENANCE.txt" 2>/dev/null && \
+   [ -s "$LIB32/libMangoHud.so" ] && [ -s "$LIB32/libMangoHud_dlsym.so" ] && [ -s "$LIB32/libMangoHud_opengl.so" ]; then
+    echo "MangoHud32: runtime $VERSION already installed."
+    exit 0
+fi
+
 TMP="$(mktemp -d /tmp/uwt-mangohud32.XXXXXX)"
 trap 'rm -rf "$TMP"' EXIT
 
