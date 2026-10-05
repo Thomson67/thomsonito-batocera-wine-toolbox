@@ -80,12 +80,17 @@ ensure_x86_vulkan_layer() {
 EOF
 }
 
-ensure_toolbox_x86_64_vulkan_layer() {
+ensure_legacy_vulkan_layer() {
+    is_legacy_mangohud_batocera || return 0
     [ -r "$MANGOHUD64_LIB" ] || return 0
-    mkdir -p "$LEGACY_LAYER_DIR" 2>/dev/null || return 0
 
-    # Always generate the Toolbox-owned x86_64 manifest. This keeps the Wine
-    # Toolbox on its bundled MangoHud version instead of Batocera's package.
+    # Batocera 41/42 ship MangoHud but omit its Vulkan implicit-layer manifest.
+    # Do not add a duplicate if another manifest already exposes the same layer.
+    if [ -d "$LEGACY_LAYER_DIR" ] &&        grep -Rslq '"VK_LAYER_MANGOHUD_overlay_x86_64"' "$LEGACY_LAYER_DIR" 2>/dev/null; then
+        return 0
+    fi
+
+    mkdir -p "$LEGACY_LAYER_DIR" 2>/dev/null || return 0
     cat > "$LEGACY_LAYER_FILE" <<EOF
 {
     "file_format_version": "1.0.0",
@@ -95,7 +100,7 @@ ensure_toolbox_x86_64_vulkan_layer() {
         "api_version": "1.3.0",
         "library_path": "$MANGOHUD64_LIB",
         "implementation_version": "1",
-        "description": "Vulkan Hud Overlay 64-bit (Ultimate Wine Toolbox)",
+        "description": "Vulkan Hud Overlay (Ultimate Wine Toolbox compatibility)",
         "functions": {
             "vkGetInstanceProcAddr": "overlay_GetInstanceProcAddr",
             "vkGetDeviceProcAddr": "overlay_GetDeviceProcAddr"
@@ -141,14 +146,15 @@ fi
 
 if is_legacy_mangohud_batocera; then
     legacy_mangohud=1
-fi
-
-if [ "$desired" = "1" ]; then
-    ensure_toolbox_x86_64_vulkan_layer
-    if [ -s "$LEGACY_LAYER_FILE" ]; then
-        hook_log "x86_64_vulkan_layer=ready path=$LEGACY_LAYER_FILE"
-    else
-        hook_log "x86_64_vulkan_layer=unavailable"
+    if [ "$desired" = "1" ]; then
+        ensure_legacy_vulkan_layer
+        if [ -s "$LEGACY_LAYER_FILE" ]; then
+            hook_log "legacy_vulkan_layer=created path=$LEGACY_LAYER_FILE"
+        elif grep -Rslq '"VK_LAYER_MANGOHUD_overlay_x86_64"' "$LEGACY_LAYER_DIR" 2>/dev/null; then
+            hook_log "legacy_vulkan_layer=already_present"
+        else
+            hook_log "legacy_vulkan_layer=missing"
+        fi
     fi
 fi
 
@@ -201,12 +207,7 @@ def clean_payload(payload):
         ' ',
         payload
     )
-    payload=re.sub(
-        r'(^|\\s)PRESSURE_VESSEL_FILESYSTEMS_RO=(?:[\\'"])?' + re.escape(managed_pv_ro) +
-        r'(?::"?\\$\\{PRESSURE_VESSEL_FILESYSTEMS_RO:-\\}"?)?(?:[\\'"])?(?=\\s|$)',
-        ' ',
-        payload
-    )
+    payload=re.sub(r'(^|\s)PRESSURE_VESSEL_FILESYSTEMS_RO=[^\s]+', ' ', payload)
     return re.sub(r'\s+', ' ', payload).strip()
 
 for line in lines:
@@ -218,8 +219,7 @@ for line in lines:
             # let the dynamic linker select the matching 32/64-bit library.
             if not re.search(r'(^|\s)LD_LIBRARY_PATH=', payload):
                 payload += " LD_LIBRARY_PATH=\'" + managed_libpath_prefix + "\':\"${LD_LIBRARY_PATH:-}\""
-    payload += " PRESSURE_VESSEL_FILESYSTEMS_RO=\'" + managed_pv_ro + "\':\"${PRESSURE_VESSEL_FILESYSTEMS_RO:-}\""
-            if not re.search(r\'(^|\\s)PRESSURE_VESSEL_FILESYSTEMS_RO=\', payload):
+            if not re.search(r'(^|\s)PRESSURE_VESSEL_FILESYSTEMS_RO=', payload):
                 payload += " PRESSURE_VESSEL_FILESYSTEMS_RO=\'" + managed_pv_ro + "\':\"${PRESSURE_VESSEL_FILESYSTEMS_RO:-}\""
             if not re.search(r'(^|\s)LD_PRELOAD=', payload):
                 payload += " LD_PRELOAD='" + managed_preload + "'"
@@ -232,6 +232,7 @@ for line in lines:
 if enabled and not found:
     payload="MANGOHUD=1"
     payload += " LD_LIBRARY_PATH=\'" + managed_libpath_prefix + "\':\"${LD_LIBRARY_PATH:-}\""
+    payload += " PRESSURE_VESSEL_FILESYSTEMS_RO=\'" + managed_pv_ro + "\':\"${PRESSURE_VESSEL_FILESYSTEMS_RO:-}\""
     payload += " LD_PRELOAD='" + managed_preload + "'"
     insert_at=0
     for i,line in enumerate(out):
