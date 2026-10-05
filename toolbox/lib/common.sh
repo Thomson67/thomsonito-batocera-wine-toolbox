@@ -1,9 +1,9 @@
 #!/bin/bash
 
-WT_ROOT="${WT_ROOT:-/userdata/system/thomsonito-wine-toolbox/toolbox}"
+WT_ROOT="${WT_ROOT:-/userdata/system/ultimate-wine-toolbox/toolbox}"
 WT_HOME="${WT_ROOT%/toolbox}"
 WT_VERSION_FILE="$WT_HOME/VERSION"
-WT_TITLE="Thomsonito Batocera Wine Toolbox"
+WT_TITLE="Ultimate Wine Toolbox"
 WT_CONFIG="$WT_HOME/config"
 WT_LANGUAGE_FILE="$WT_CONFIG/language"
 WT_LANGUAGE=""
