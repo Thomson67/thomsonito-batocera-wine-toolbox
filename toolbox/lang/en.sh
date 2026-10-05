@@ -1,6 +1,6 @@
 #!/bin/bash
 declare -gA I18N=(
-  [app_subtitle]="A toolbox to simplify Wine management on Batocera • By Thomsonito"
+  [app_subtitle]="The ultimate Wine toolbox for Batocera • By Thomsonito"
   [back]="Back"
   [exit]="Exit"
   [yes]="Yes"
@@ -363,5 +363,6 @@ declare -gA I18N=(
   [update_install_failed]="The update installation failed. A rollback was attempted.\n\nBackup location:\n%s"
   [update_success]="Update completed successfully.\n\nInstalled release: %s\n\nThe Toolbox will now restart."
 
+  [settings_language]="Language"
   [settings_title]="Settings"
 )
