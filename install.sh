@@ -24,7 +24,7 @@ say() {
   exit 1
 }
 
-for cmd in curl tar; do
+for cmd in curl tar python3; do
   command -v "$cmd" >/dev/null 2>&1 || {
     say "ERREUR : $cmd est introuvable." "ERROR: $cmd is missing."
     exit 1
