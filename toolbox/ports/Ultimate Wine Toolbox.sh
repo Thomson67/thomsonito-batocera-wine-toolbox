@@ -7,18 +7,30 @@ LAUNCHER="/userdata/system/ultimate-wine-toolbox/toolbox/launch-in-terminal.sh"
 mkdir -p "$LOG_DIR"
 export DISPLAY="${DISPLAY:-:0}"
 
-# Batocera 41/42 may launch Ports with a non-UTF-8 locale. Reuse Batocera's
-# configured system language so dialog/xterm render accents and other UTF-8
-# characters correctly.
-BATOCERA_LANG="$(batocera-settings-get system.language 2>/dev/null | tr -d '\r\n[:space:]' || true)"
-BATOCERA_LANG="${BATOCERA_LANG%%.*}"
-if [ -n "$BATOCERA_LANG" ]; then
-    export LANG="$BATOCERA_LANG.UTF-8"
-    export LC_ALL="$BATOCERA_LANG.UTF-8"
-elif [[ "${LC_ALL:-${LANG:-}}" != *UTF-8* && "${LC_ALL:-${LANG:-}}" != *utf8* ]]; then
-    export LANG="C.UTF-8"
-    export LC_ALL="C.UTF-8"
-fi
+# Batocera 41/42 may launch Ports with a non-UTF-8 locale.
+select_utf8_locale() {
+    local syslang candidate available
+    syslang="$(batocera-settings-get system.language 2>/dev/null | tr -d '\r\n[:space:]' || true)"
+    syslang="${syslang%%.*}"
+
+    available="$(locale -a 2>/dev/null || true)"
+    for candidate in "$syslang.UTF-8" "$syslang.utf8" "C.UTF-8" "C.utf8" "en_US.UTF-8" "en_US.utf8"; do
+        [ -n "$candidate" ] || continue
+        if printf '%s\n' "$available" | grep -Fxqi "$candidate"; then
+            printf '%s' "$candidate"
+            return 0
+        fi
+    done
+
+    # Last fallback: keep UTF-8 semantics requested by xterm even on very
+    # minimal builds where locale -a is incomplete.
+    printf '%s' "C.UTF-8"
+}
+
+WT_UTF8_LOCALE="$(select_utf8_locale)"
+export LANG="$WT_UTF8_LOCALE"
+export LC_ALL="$WT_UTF8_LOCALE"
+export LANGUAGE="$WT_UTF8_LOCALE"
 
 {
     echo
@@ -43,7 +55,7 @@ if [ ! -s "$LAUNCHER" ]; then
     exit 1
 fi
 
-/usr/bin/xterm     -u8     -fa "DejaVu Sans Mono"     -fs 10     -title "Ultimate Wine Toolbox"     -geometry 120x36     -e /bin/bash "$LAUNCHER"     >>"$BOOT_LOG" 2>&1
+/usr/bin/xterm     -u8 1     -fa "DejaVu Sans Mono"     -fs 10     -title "Ultimate Wine Toolbox"     -geometry 120x36     -e /bin/bash "$LAUNCHER"     >>"$BOOT_LOG" 2>&1
 
 rc=$?
 echo "xterm_exit_code=$rc" >>"$BOOT_LOG"
