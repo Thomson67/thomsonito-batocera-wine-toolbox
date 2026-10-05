@@ -168,7 +168,7 @@ path=Path(sys.argv[1])
 enabled=sys.argv[2] == "1"
 legacy=sys.argv[3] == "1"
 managed_preload=sys.argv[4]
-managed_libpath_prefix=sys.argv[5]
+managed_libpath_prefix_prefix=sys.argv[5]
 
 try:
     text=path.read_text(encoding="utf-8", errors="replace")
@@ -200,7 +200,7 @@ def clean_payload(payload):
 
     # Remove only the library search path created by the Toolbox.
     payload=re.sub(
-        r'(^|\s)LD_LIBRARY_PATH=(?:[\'"])?' + re.escape(managed_libpath_prefix) + r'(?::(?:"?\$\{?LD_LIBRARY_PATH(?::-)?\}?"?))?(?:[\'"])?(?=\s|$)',
+        r'(^|\s)LD_LIBRARY_PATH=(?:[\'"])?' + re.escape(managed_libpath_prefix_prefix) + r'(?::(?:"?\$\{?LD_LIBRARY_PATH(?::-)?\}?"?))?(?:[\'"])?(?=\s|$)',
         ' ',
         payload
     )
@@ -214,7 +214,7 @@ for line in lines:
             # Match MangoHud's official wrapper: preload plain filenames and
             # let the dynamic linker select the matching 32/64-bit library.
             if not re.search(r'(^|\s)LD_LIBRARY_PATH=', payload):
-                payload += " LD_LIBRARY_PATH='" + managed_libpath + "'"
+                payload += " LD_LIBRARY_PATH='" + managed_libpath_prefix + "'"
             if not re.search(r'(^|\s)LD_PRELOAD=', payload):
                 payload += " LD_PRELOAD='" + managed_preload + "'"
         if payload:
@@ -225,7 +225,7 @@ for line in lines:
 
 if enabled and not found:
     payload="MANGOHUD=1 MANGOHUD_DLSYM=1"
-    payload += " LD_LIBRARY_PATH='" + managed_libpath + "'"
+    payload += " LD_LIBRARY_PATH='" + managed_libpath_prefix + "'"
     payload += " LD_PRELOAD='" + managed_preload + "'"
     insert_at=0
     for i,line in enumerate(out):
