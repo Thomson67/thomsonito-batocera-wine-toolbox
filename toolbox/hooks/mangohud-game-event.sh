@@ -25,11 +25,14 @@ hook_log "event=$event system=$system rom=$rom"
 
 batocera_major() {
     local raw=""
-    if [ -r /etc/os-release ]; then
-        # os-release is shell-compatible and provided by Batocera.
+    if command -v batocera-version >/dev/null 2>&1; then
+        raw="$(batocera-version 2>/dev/null | head -n1)"
+    elif [ -r /usr/share/batocera/batocera.version ]; then
+        raw="$(head -n1 /usr/share/batocera/batocera.version 2>/dev/null)"
+    elif [ -r /etc/os-release ]; then
         # shellcheck disable=SC1091
         . /etc/os-release
-        raw="${VERSION_ID:-${PRETTY_NAME:-}}"
+        raw="${PRETTY_NAME:-${VERSION_ID:-}}"
     fi
     printf '%s\n' "$raw" | grep -oE '[0-9]+' | head -n1
 }
@@ -196,8 +199,16 @@ case "${rom,,}" in
     *.wsquashfs)
         [ -f "$rom" ] || exit 0
         romname="$(basename "$rom")"
-        runner="$(get_runner "$romname")"
-        upper="/userdata/system/wine-bottles/windows/$runner/$romname.wine"
+
+        if [ "$legacy_mangohud" = "1" ]; then
+            # Batocera 41/42 use the game basename directly as the OverlayFS
+            # upperdir, with no runner subdirectory and no .wine suffix.
+            upper="/userdata/system/wine-bottles/windows/$romname"
+        else
+            runner="$(get_runner "$romname")"
+            upper="/userdata/system/wine-bottles/windows/$runner/$romname.wine"
+        fi
+
         autorun="$upper/autorun.cmd"
         if [ ! -f "$autorun" ]; then
             tmp="$(mktemp /tmp/wt-mangohud-autorun.XXXXXX)" || exit 0
@@ -207,7 +218,13 @@ case "${rom,,}" in
             fi
             rm -f "$tmp"
         fi
-        [ -f "$autorun" ] && rewrite_autorun "$autorun" "$desired" "$legacy_mangohud" || true
+
+        if [ -f "$autorun" ]; then
+            rewrite_autorun "$autorun" "$desired" "$legacy_mangohud" || true
+            hook_log "autorun=$autorun legacy=$legacy_mangohud rewritten=1"
+        else
+            hook_log "autorun=$autorun legacy=$legacy_mangohud rewritten=0"
+        fi
         ;;
     *.wtgz)
         romname="$(basename "$rom")"
