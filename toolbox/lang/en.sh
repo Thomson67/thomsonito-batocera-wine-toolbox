@@ -1,6 +1,6 @@
 #!/bin/bash
 declare -gA I18N=(
-  [app_subtitle]="Wine • Proton • UMU • Batocera"
+  [app_subtitle]="Wine • Proton • UMU • By Thomsonito"
   [back]="Back"
   [exit]="Exit"
   [yes]="Yes"
@@ -16,7 +16,7 @@ declare -gA I18N=(
   [language_changed_body]="The interface language is now English."
 
   [menu_umu]="UMU Runner Toolbox"
-  [menu_starter]="Thomsonito Runner Starter Pack"
+  [menu_starter]="Wine Runner Starter Pack"
   [menu_runners]="Wine Runner Manager"
   [menu_graphics]="Graphics & Performance"
   [menu_maintenance]="Maintenance & Diagnostics"
@@ -37,7 +37,7 @@ declare -gA I18N=(
   [umu_runner_installing]="Installing UMU runner: %s"
   [umu_runner_failed]="Failed to install UMU runner: %s"
 
-  [starter_title]="Thomsonito Runner Starter Pack"
+  [starter_title]="Wine Runner Starter Pack"
   [starter_intro]="The Starter Pack installs a curated selection of classic Wine and UMU runners spanning several generations to maximize game compatibility. You can install the entire missing pack or select only specific runners. Existing runners are never overwritten."
   [starter_summary]="Starter Pack %s:\nClassic Wine runners: %s total / %s installed / %s missing\nUMU runners: %s total / %s installed / %s missing\nEstimated temporary requirement: %s\nAvailable share space: %s"
   [starter_install]="Install missing Starter Pack components"
@@ -292,7 +292,7 @@ declare -gA I18N=(
   [batocera_conf_import_none]="No Windows export was found in:\n%s"
   [batocera_conf_import_choose]="Available exports: %s\n\nChoose the file to import."
   [batocera_conf_import_invalid]="The selected file is missing, unreadable or invalid."
-  [batocera_conf_import_bad_format]="This file is not a Windows export created by Thomsonito Batocera Wine Toolbox."
+  [batocera_conf_import_bad_format]="This file is not a Windows export created by Ultimate Wine Toolbox."
   [batocera_conf_import_unsafe]="Import refused: the file contains a line that is not an allowed Windows configuration, or attempts to modify windows.dxvk / windows.dxvk_hud."
   [batocera_conf_import_confirm]="Import this export?\n\nFile: %s\nGlobal options in export: %s\nConfigured games in export: %s\nPer-game options in export: %s\n\nNew options to add: %s\nOptions already present and kept: %s\n\nImport is ADDITIVE: Windows configurations already present on this machine are preserved. If the same key already exists, the local value takes priority and the imported line is skipped. Other systems and protected windows.dxvk / windows.dxvk_hud remain unchanged.\n\nA complete batocera.conf backup will be created before modification.\n\nContinue?"
   [batocera_conf_import_done]="Import completed.\n\nNew options added: %s\nExisting options preserved: %s\n\nBackup of the previous batocera.conf:\n%s"
@@ -329,7 +329,7 @@ declare -gA I18N=(
   [batocera_conf_systems_missing]="/userdata/roms is missing or inaccessible.\n\nFor safety, system organization was cancelled."
 
   [toolbox_uninstall_title]="Uninstall Toolbox"
-  [toolbox_uninstall_warning]="This operation removes the Thomsonito Batocera Wine Toolbox, its launcher, MangoHud/DXVK hooks and internal files.\n\nWine/UMU runners, bottles, saves and games are preserved.\n\nIf /userdata/system/wine/dxvk points to a Toolbox-managed bundle, that link is removed so Batocera can use its default DXVK again.\n\nContinue?"
+  [toolbox_uninstall_warning]="This operation removes Ultimate Wine Toolbox, its launcher, MangoHud/DXVK hooks and internal files.\n\nWine/UMU runners, bottles, saves and games are preserved.\n\nIf /userdata/system/wine/dxvk points to a Toolbox-managed bundle, that link is removed so Batocera can use its default DXVK again.\n\nContinue?"
   [toolbox_uninstall_confirm]="FINAL CONFIRMATION\n\nUninstall the Toolbox now?\n\nNo is selected by default."
   [toolbox_uninstall_missing]="The Toolbox uninstall.sh script could not be found."
   [toolbox_uninstall_done]="The Toolbox was removed.\n\nWine/UMU runners, bottles, saves and games were preserved."
