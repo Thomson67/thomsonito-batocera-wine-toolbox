@@ -1,6 +1,6 @@
 #!/bin/bash
 
-ROOT="/userdata/system/thomsonito-wine-toolbox"
+ROOT="/userdata/system/ultimate-wine-toolbox"
 CONFIG_DIR="$ROOT/config"
 GLOBAL_FILE="$CONFIG_DIR/mangohud-global"
 OVERRIDE_FILE="$CONFIG_DIR/mangohud-games.tsv"
