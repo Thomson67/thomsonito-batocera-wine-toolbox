@@ -11,7 +11,6 @@ MANGOHUD_RUNTIME="$ROOT/runtime/mangohud"
 MANGOHUD32_LIB="$MANGOHUD_RUNTIME/lib32/mangohud/libMangoHud.so"
 MANGOHUD_PRELOAD="libMangoHud_dlsym.so:libMangoHud_opengl.so"
 MANGOHUD_LIBPATH_PREFIX="/usr/lib/mangohud:$MANGOHUD_RUNTIME/lib32/mangohud"
-MANGOHUD_PV_RO="$MANGOHUD_RUNTIME"
 LOG_DIR="/userdata/system/logs/ultimate-wine-toolbox"
 HOOK_LOG="$LOG_DIR/mangohud-hook.log"
 
@@ -161,7 +160,7 @@ rewrite_autorun() {
     local file="$1" state="$2" legacy="$3"
     [ -f "$file" ] || return 1
 
-    python3 - "$file" "$state" "$legacy" "$MANGOHUD_PRELOAD" "$MANGOHUD_LIBPATH_PREFIX" "$MANGOHUD_PV_RO" <<'PY'
+    python3 - "$file" "$state" "$legacy" "$MANGOHUD_PRELOAD" "$MANGOHUD_LIBPATH_PREFIX" <<'PY'
 import re, sys
 from pathlib import Path
 
@@ -170,7 +169,6 @@ enabled=sys.argv[2] == "1"
 legacy=sys.argv[3] == "1"
 managed_preload=sys.argv[4]
 managed_libpath_prefix=sys.argv[5]
-managed_pv_ro=sys.argv[6]
 
 try:
     text=path.read_text(encoding="utf-8", errors="replace")
@@ -205,9 +203,7 @@ def clean_payload(payload):
         r'(^|\s)LD_LIBRARY_PATH=(?:[\'"])?' + re.escape(managed_libpath_prefix) + r'(?::(?:"?\$\{?LD_LIBRARY_PATH(?::-)?\}?"?))?(?:[\'"])?(?=\s|$)',
         ' ',
         payload
-    )
-    payload=re.sub(r'(^|\\s)PRESSURE_VESSEL_FILESYSTEMS_RO=(?:[\\\'"])?' + re.escape(managed_pv_ro) + r'(?::"?\\$\\{PRESSURE_VESSEL_FILESYSTEMS_RO:-\\}"?)?(?:[\\\'"])?(?=\\s|$)', ' ', payload)
-    return re.sub(r'\\s+', ' ', payload).strip()
+    )    return re.sub(r'\\s+', ' ', payload).strip()
 
 for line in lines:
     if line.startswith("ENV=") and not found:
@@ -217,10 +213,7 @@ for line in lines:
             # Match MangoHud's official wrapper: preload plain filenames and
             # let the dynamic linker select the matching 32/64-bit library.
             if not re.search(r'(^|\s)LD_LIBRARY_PATH=', payload):
-                payload += " LD_LIBRARY_PATH=\'" + managed_libpath_prefix + "\':\"${LD_LIBRARY_PATH:-}\""
-            if not re.search(r'(^|\\s)PRESSURE_VESSEL_FILESYSTEMS_RO=', payload):
-                payload += " PRESSURE_VESSEL_FILESYSTEMS_RO=\'" + managed_pv_ro + "\':\"${PRESSURE_VESSEL_FILESYSTEMS_RO:-}\""
-            if not re.search(r'(^|\s)LD_PRELOAD=', payload):
+                payload += " LD_LIBRARY_PATH=\'" + managed_libpath_prefix + "\':\"${LD_LIBRARY_PATH:-}\""            if not re.search(r'(^|\s)LD_PRELOAD=', payload):
                 payload += " LD_PRELOAD='" + managed_preload + "'"
         if payload:
             out.append("ENV="+payload)
