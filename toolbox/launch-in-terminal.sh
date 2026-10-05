@@ -54,6 +54,13 @@ export WT_SESSION_LOG="$LOG"
     echo "LANG=${LANG:-<unset>}"
     echo "LC_ALL=${LC_ALL:-<unset>}"
     echo "main=$MAIN"
+    echo "XTERM_VERSION=${XTERM_VERSION:-<unset>}"
+    echo "XTERM_LOCALE=${XTERM_LOCALE:-<unset>}"
+    echo "COLORTERM=${COLORTERM:-<unset>}"
+    echo "SHELL=${SHELL:-<unset>}"
+    echo "luit=$(command -v luit 2>/dev/null || true)"
+    echo "locale_charmap=$(locale charmap 2>/dev/null || true)"
+    echo "stty_iutf8=$(stty -a 2>/dev/null | tr ';' '\n' | grep -E '(^|[[:space:]])-?iutf8([[:space:]]|$)' | head -n1 | xargs 2>/dev/null || true)"
 } >>"$LOG" 2>&1
 
 if [ ! -s "$MAIN" ]; then
