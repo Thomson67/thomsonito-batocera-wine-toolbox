@@ -1,67 +1,75 @@
-# Thomsonito Batocera Wine Toolbox
+# Ultimate Wine Toolbox
 
-Early development build of the umbrella Wine / Proton / UMU toolbox for Batocera.
+Wine / Proton / UMU toolbox designed for Batocera.
 
-## v0.1.0-dev2
+Created by **Thomsonito**.
 
-Already implemented:
+## Features
 
-- modular Bash architecture
-- French / English key-based localization from the start
-- persistent language selector
-- UMU Runner Toolbox detection, launch and stable installation
-- Starter Pack status (installed / missing)
-- classic Wine Starter Pack installation:
-  - downloads only missing runners
-  - SHA-256 verification
-  - safe staging
-  - existing runners are never overwritten
-  - conservative free-space preflight
-- UMU Starter Pack baseline delegated to UMU Runner Toolbox via `--install-runner`
-- Batocera Ports launcher
-- placeholders for Runner Manager, Graphics/Performance and Maintenance
+- French / English interface
+- UMU Runner Toolbox integration
+- Wine runner Starter Pack
+- individual Wine runner management
+- MangoHud management
+- DXVK / VKD3D bundle management
+- Wine bottle maintenance
+- runner and DXVK/VKD3D diagnostics
+- .wine / .wsquashfs squash and unsquash tools
+- Windows game removal
+- safe `batocera.conf` analysis, cleanup, organization and restore
+- additive Windows configuration export / import between Batocera machines
+- automatic backups before destructive `batocera.conf` operations
+- native Batocera Ports launcher and Pad2Key support
 
-### Starter Pack UMU baseline
+## Installation
 
-- GE-Proton9-27-UMU
-- GE-Proton10-10-UMU
-- GE-Proton10-25-UMU
-- proton-EM-10.0-37-HDR-UMU
-
-### Install
+Run as root:
 
 ```bash
-chmod +x install.sh
-./install.sh
+cd /tmp
+curl -fsSL https://raw.githubusercontent.com/Thomson67/ultimate-wine-toolbox/test/install.sh | bash
 ```
 
-Direct launch:
+Installed files are stored under:
+
+```text
+/userdata/system/ultimate-wine-toolbox
+```
+
+Launch from:
+
+```text
+Ports -> Ultimate Wine Toolbox
+```
+
+## Logs
+
+Port startup log:
 
 ```bash
-/userdata/system/thomsonito-wine-toolbox/toolbox/thomsonito-wine-toolbox.sh
+cat /userdata/system/logs/ultimate-wine-toolbox/port-launch.log
 ```
 
-## Startup logs
-
-If the Port does not open, inspect:
+Latest Toolbox session log:
 
 ```bash
-cat /userdata/system/logs/thomsonito-wine-toolbox/port-launch.log
+cat /userdata/system/logs/ultimate-wine-toolbox/latest.log
 ```
 
-If xterm opens but the Toolbox exits, inspect:
+## Windows configuration transfer
 
-```bash
-cat /userdata/system/logs/thomsonito-wine-toolbox/latest.log
+Windows configuration exports are stored under:
+
+```text
+/userdata/system/ultimate-wine-toolbox/exports/windows-config
 ```
 
-## v0.1.0-dev5
+Imports are additive: existing Windows settings on the target machine are kept. If an imported key already exists locally, the local value has priority.
 
-- fixed Batocera xterm startup by using an available Xft font (`DejaVu Sans Mono`)
-- restored the intended Port -> xterm -> terminal launcher -> Toolbox startup chain
-- added native Batocera Pad2Key/evmapy support using a matching `.sh.keys` file
-- controller mapping kept aligned with UMU Runner Toolbox for compatibility
-- removed the erroneous leading `\\` line from scripts
-- stopped piping the interactive `dialog` UI through `tee`
-- added explicit terminal clearing around `dialog` transitions to reduce screen offset/artifacts
-- installer now synchronizes both the Ports launcher and its Pad2Key mapping
+The stock Batocera settings `windows.dxvk` and `windows.dxvk_hud` are intentionally excluded from exports and imports.
+
+## Legacy development-name migration
+
+Installing Ultimate Wine Toolbox over an older development build automatically migrates the useful Toolbox state to the new paths and removes the old launcher, hooks and runtime directories.
+
+Wine/UMU runners, games, saves and bottles are not removed by this migration.
