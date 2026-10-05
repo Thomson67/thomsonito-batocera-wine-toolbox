@@ -1,9 +1,9 @@
 #!/bin/bash
 set -u
 
-ROOT="/userdata/system/thomsonito-wine-toolbox/toolbox"
-MAIN="$ROOT/thomsonito-wine-toolbox.sh"
-LOG_DIR="/userdata/system/logs/thomsonito-wine-toolbox"
+ROOT="/userdata/system/ultimate-wine-toolbox/toolbox"
+MAIN="$ROOT/ultimate-wine-toolbox.sh"
+LOG_DIR="/userdata/system/logs/ultimate-wine-toolbox"
 mkdir -p "$LOG_DIR"
 
 # Keep only the 20 most recent Toolbox session logs.
@@ -20,7 +20,7 @@ ln -sfn "$(basename "$LOG")" "$LOG_DIR/latest.log" 2>/dev/null || true
 export WT_SESSION_LOG="$LOG"
 
 {
-    echo "===== Thomsonito Batocera Wine Toolbox ====="
+    echo "===== Ultimate Wine Toolbox ====="
     echo "date=$(date '+%Y-%m-%d %H:%M:%S %z')"
     echo "user=$(id -un 2>/dev/null || true) uid=$(id -u 2>/dev/null || true)"
     echo "pwd=$(pwd)"
