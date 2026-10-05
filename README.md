@@ -1,6 +1,8 @@
 # Ultimate Wine Toolbox
 
-Wine / Proton / UMU toolbox designed for Batocera.
+[English](README.md) | [Français](README.fr.md)
+
+**Ultimate Wine Toolbox** is a Wine / Proton / UMU toolbox designed for Batocera.
 
 Created by **Thomsonito**.
 
@@ -8,13 +10,15 @@ Created by **Thomsonito**.
 
 - French / English interface
 - UMU Runner Toolbox integration
-- Wine runner Starter Pack
-- individual Wine runner management
-- MangoHud management
+- Wine Runner Starter Pack
+- classic Wine runner management
+- GE-Proton legacy support for Batocera
+- MangoHud global and per-game management
 - DXVK / VKD3D bundle management
-- Wine bottle maintenance
-- runner and DXVK/VKD3D diagnostics
-- .wine / .wsquashfs squash and unsquash tools
+- global and per-game DXVK selection
+- Wine bottle maintenance and orphan detection
+- runner and DXVK / VKD3D diagnostics
+- `.wine` / `.wsquashfs` squash and unsquash tools
 - Windows game removal
 - safe `batocera.conf` analysis, cleanup, organization and restore
 - additive Windows configuration export / import between Batocera machines
@@ -23,10 +27,9 @@ Created by **Thomsonito**.
 
 ## Installation
 
-Run as root:
+Run as `root` on Batocera:
 
 ```bash
-cd /tmp
 curl -fsSL https://raw.githubusercontent.com/Thomson67/ultimate-wine-toolbox/main/install.sh | bash
 ```
 
@@ -42,6 +45,30 @@ Launch from:
 Ports -> Ultimate Wine Toolbox
 ```
 
+## Safety
+
+Ultimate Wine Toolbox is designed to remain conservative when modifying Batocera data:
+
+- existing runners are not overwritten automatically
+- destructive operations require confirmation
+- `batocera.conf` is backed up before modification
+- stock Batocera `windows.dxvk` and `windows.dxvk_hud` settings are protected
+- external/custom DXVK installations are not removed automatically
+- symbolic links are not followed during game deletion
+- legacy development-build migration preserves user state before removing old paths
+
+## Windows configuration transfer
+
+Windows configuration exports are stored under:
+
+```text
+/userdata/system/ultimate-wine-toolbox/exports/windows-config
+```
+
+Imports are additive: existing Windows settings on the target machine are kept. If an imported key already exists locally, the local value has priority.
+
+The stock Batocera settings `windows.dxvk` and `windows.dxvk_hud` are intentionally excluded from exports and imports.
+
 ## Logs
 
 Port startup log:
@@ -56,20 +83,14 @@ Latest Toolbox session log:
 cat /userdata/system/logs/ultimate-wine-toolbox/latest.log
 ```
 
-## Windows configuration transfer
+## Releases
 
-Windows configuration exports are stored under:
+Stable releases are published in the GitHub **Releases** section:
 
-```text
-/userdata/system/ultimate-wine-toolbox/exports/windows-config
-```
-
-Imports are additive: existing Windows settings on the target machine are kept. If an imported key already exists locally, the local value has priority.
-
-The stock Batocera settings `windows.dxvk` and `windows.dxvk_hud` are intentionally excluded from exports and imports.
+https://github.com/Thomson67/ultimate-wine-toolbox/releases
 
 ## Legacy development-name migration
 
-Installing Ultimate Wine Toolbox over an older development build automatically migrates the useful Toolbox state to the new paths and removes the old launcher, hooks and runtime directories.
+Installing Ultimate Wine Toolbox over an older development build automatically migrates the useful Toolbox state to the new paths and removes the old launcher, hooks and runtime directories only after the migration succeeds.
 
-Wine/UMU runners, games, saves and bottles are not removed by this migration.
+Wine/UMU runners, games, saves and bottles are preserved.
