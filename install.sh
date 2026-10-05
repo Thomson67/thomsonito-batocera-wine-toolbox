@@ -7,7 +7,7 @@ REPO="Thomson67/thomsonito-batocera-wine-toolbox"
 BRANCH="test"
 ARCHIVE_URL="https://github.com/$REPO/archive/refs/heads/$BRANCH.tar.gz"
 
-TMP="$(mktemp -d /tmp/thomsonito-wine-toolbox.XXXXXX)"
+TMP="$(mktemp -d /tmp/ultimate-wine-toolbox.XXXXXX)"
 trap 'rm -rf "$TMP"' EXIT
 
 case "${LC_ALL:-${LANG:-}}" in
@@ -40,14 +40,14 @@ tar -tzf "$TMP/test.tar.gz" >/dev/null || {
 }
 
 tar -xzf "$TMP/test.tar.gz" -C "$TMP"
-ROOT="$TMP/thomsonito-batocera-wine-toolbox-test"
+ROOT="$(find "$TMP" -mindepth 1 -maxdepth 1 -type d -name '*-test' -print -quit)"
 
 [ -s "$ROOT/package-install.sh" ] || {
   say "ERREUR : package-install.sh est absent de la branche test."       "ERROR: package-install.sh is missing from the test branch."
   exit 1
 }
 
-for f in "$ROOT/package-install.sh" "$ROOT/uninstall.sh" "$ROOT/toolbox/thomsonito-wine-toolbox.sh" "$ROOT/toolbox/lib/common.sh" "$ROOT/toolbox/modules/starter-pack.sh" "$ROOT/toolbox/modules/batocera-conf.sh" "$ROOT/toolbox/modules/batocera-conf-extra.sh" "$ROOT/toolbox/modules/batocera-conf-transfer.sh"; do
+for f in "$ROOT/package-install.sh" "$ROOT/uninstall.sh" "$ROOT/toolbox/ultimate-wine-toolbox.sh" "$ROOT/toolbox/lib/common.sh" "$ROOT/toolbox/modules/starter-pack.sh" "$ROOT/toolbox/modules/batocera-conf.sh" "$ROOT/toolbox/modules/batocera-conf-extra.sh" "$ROOT/toolbox/modules/batocera-conf-transfer.sh"; do
   /bin/bash -n "$f" || {
     say "ERREUR : erreur de syntaxe dans $f" "ERROR: syntax error in $f"
     exit 1
