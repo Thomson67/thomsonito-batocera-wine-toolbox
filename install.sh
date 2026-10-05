@@ -54,6 +54,16 @@ for f in "$ROOT/package-install.sh" "$ROOT/uninstall.sh" "$ROOT/toolbox/thomsoni
   }
 done
 
+[ -s "$ROOT/toolbox/helpers/batocera_conf_transfer.py" ] || {
+  say "ERREUR : helper batocera_conf_transfer.py absent." "ERROR: batocera_conf_transfer.py helper is missing."
+  exit 1
+}
+
+python3 -m py_compile "$ROOT/toolbox/helpers/batocera_conf_transfer.py" || {
+  say "ERREUR : erreur de syntaxe dans batocera_conf_transfer.py" "ERROR: syntax error in batocera_conf_transfer.py"
+  exit 1
+}
+
 chmod +x "$ROOT/package-install.sh"
 say "Installation de la version test..." "Installing test version..."
 exec "$ROOT/package-install.sh"
