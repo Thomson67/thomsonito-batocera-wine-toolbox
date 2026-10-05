@@ -86,13 +86,13 @@ chmod +x "$DEST/toolbox/ultimate-wine-toolbox.sh"
 chmod +x "$DEST/toolbox/launch-in-terminal.sh"
 chmod +x "$DEST/toolbox/modules/"*.sh "$DEST/toolbox/lib/"*.sh "$DEST/toolbox/hooks/"*.sh "$DEST/toolbox/helpers/"*.sh 2>/dev/null || true
 
-# Install the official MangoHud 0.7.2 32-bit runtime required by old 32-bit
-# Wine/DXVK/OpenGL games. Failure is non-fatal so the Toolbox and native
-# 64-bit MangoHud remain usable even if GitHub is temporarily unavailable.
-if [ -x "$DEST/toolbox/helpers/install-mangohud32.sh" ]; then
-    if ! "$DEST/toolbox/helpers/install-mangohud32.sh"; then
-        say "AVERTISSEMENT : le runtime MangoHud 32 bits n'a pas pu être installé. Le support 64 bits reste disponible." \
-            "WARNING: the MangoHud 32-bit runtime could not be installed. 64-bit support remains available."
+# Install the official MangoHud runtime bundled by the Toolbox for both
+# 32-bit and 64-bit Wine/Proton/UMU games. Failure is non-fatal so the
+# Toolbox itself remains usable even if GitHub is temporarily unavailable.
+if [ -x "$DEST/toolbox/helpers/install-mangohud-runtime.sh" ]; then
+    if ! "$DEST/toolbox/helpers/install-mangohud-runtime.sh"; then
+        say "AVERTISSEMENT : le runtime MangoHud n'a pas pu être installé. Les fonctions MangoHud de la Toolbox peuvent être indisponibles." \
+            "WARNING: the MangoHud runtime could not be installed. Toolbox MangoHud features may be unavailable."
     fi
 fi
 
