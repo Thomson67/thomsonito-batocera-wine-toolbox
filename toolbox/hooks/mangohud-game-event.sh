@@ -18,8 +18,10 @@ rom="${5:-}"
 batocera_major() {
     local raw=""
     if [ -r /etc/os-release ]; then
-        raw="$(sed -n 's/^VERSION_ID=["'\'']*\([^"'\'']*\)["'\'']*$/\1/p' /etc/os-release | head -n1)"
-        [ -n "$raw" ] || raw="$(sed -n 's/^PRETTY_NAME=["'\'']*\([^"'\'']*\)["'\'']*$/\1/p' /etc/os-release | head -n1)"
+        # os-release is shell-compatible and provided by Batocera.
+        # shellcheck disable=SC1091
+        . /etc/os-release
+        raw="${VERSION_ID:-${PRETTY_NAME:-}}"
     fi
     printf '%s\n' "$raw" | grep -oE '[0-9]+' | head -n1
 }
