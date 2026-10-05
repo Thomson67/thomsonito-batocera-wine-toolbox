@@ -4,7 +4,6 @@ set -euo pipefail
 ROOT="/userdata/system/ultimate-wine-toolbox"
 RUNTIME="$ROOT/runtime/mangohud"
 LIB32="$RUNTIME/lib32/mangohud"
-LIB64_LINK_DIR="$RUNTIME/lib"
 
 VERSION="0.7.2"
 ASSET="MangoHud-0.7.2.r0.g7b80f73.tar.gz"
@@ -61,15 +60,11 @@ PY
 done
 
 rm -rf "$RUNTIME"
-mkdir -p "$LIB32" "$LIB64_LINK_DIR"
-install -m 0644 "$src/libMangoHud.so" "$LIB32/libMangoHud.so"
-install -m 0644 "$src/libMangoHud_dlsym.so" "$LIB32/libMangoHud_dlsym.so"
-install -m 0644 "$src/libMangoHud_opengl.so" "$LIB32/libMangoHud_opengl.so"
-
-# The native MangoHud wrapper on Batocera resolves /usr/$LIB/mangohud.
-# Reproduce that layout below /userdata: 64-bit requests use Batocera's
-# libraries through this symlink, while 32-bit requests use our bundled libs.
-ln -s /usr/lib/mangohud "$LIB64_LINK_DIR/mangohud"
+mkdir -p "$LIB32"
+cp -f "$src/libMangoHud.so" "$LIB32/libMangoHud.so"
+cp -f "$src/libMangoHud_dlsym.so" "$LIB32/libMangoHud_dlsym.so"
+cp -f "$src/libMangoHud_opengl.so" "$LIB32/libMangoHud_opengl.so"
+chmod 0644 "$LIB32/libMangoHud.so" "$LIB32/libMangoHud_dlsym.so" "$LIB32/libMangoHud_opengl.so"
 
 {
     echo "version=$VERSION"
