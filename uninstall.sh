@@ -8,6 +8,8 @@ MANGOHUD_HOOK="/userdata/system/scripts/ultimate-wine-toolbox-mangohud.sh"
 DXVK_HOOK="/userdata/system/scripts/ultimate-wine-toolbox-dxvk.sh"
 DXVK_PATH="/userdata/system/wine/dxvk"
 DXVK_BUNDLES="$DEST/dxvk/bundles"
+MANGOHUD_LEGACY_LAYER="/usr/share/vulkan/implicit_layer.d/MangoHud.ultimate-wine-toolbox.json"
+MANGOHUD_X86_LAYER="/usr/share/vulkan/implicit_layer.d/MangoHud.ultimate-wine-toolbox.x86.json"
 
 # Legacy development-name artifacts are removed as well.
 OLD_DEST="/userdata/system/thomsonito-wine-toolbox"
@@ -34,6 +36,7 @@ fi
 
 rm -rf "$DEST" "$OLD_DEST"
 rm -f "$PORT" "$KEYS" "$MANGOHUD_HOOK" "$DXVK_HOOK"
+rm -f "$MANGOHUD_LEGACY_LAYER" "$MANGOHUD_X86_LAYER"
 rm -f "$OLD_PORT" "$OLD_PORT.keys" "$OLD_MANGOHUD_HOOK" "$OLD_DXVK_HOOK"
 
 say "Ultimate Wine Toolbox supprimée. Les runners Wine/UMU installés ont été conservés." \

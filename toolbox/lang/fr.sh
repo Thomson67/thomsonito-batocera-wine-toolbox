@@ -104,7 +104,7 @@ declare -gA I18N=(
   [enabled]="Activé"
   [disabled]="Désactivé"
   [mangohud_title]="MangoHud"
-  [mangohud_intro]="MangoHud est déjà intégré à Batocera. La Toolbox utilise le mécanisme natif ENV=MANGOHUD=1 de batocera-wine, sans installer de paquet supplémentaire. Le réglage global s'applique aux jeux Windows compatibles avec autorun.cmd ; un réglage par jeu peut le remplacer."
+  [mangohud_intro]="La Toolbox fournit son propre runtime MangoHud récent en 32 et 64 bits afin d'assurer une compatibilité cohérente avec Wine, Proton et UMU, y compris OpenGL. Le réglage global s'applique aux jeux Windows compatibles avec autorun.cmd ; un réglage par jeu peut le remplacer."
   [mangohud_global_status]="État global MangoHud : %s"
   [mangohud_enable_global]="Activer MangoHud globalement"
   [mangohud_disable_global]="Désactiver MangoHud globalement"

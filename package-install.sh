@@ -84,7 +84,17 @@ cp -a "$SRC/uninstall.sh" "$DEST/uninstall.sh"
 chmod +x "$DEST/uninstall.sh"
 chmod +x "$DEST/toolbox/ultimate-wine-toolbox.sh"
 chmod +x "$DEST/toolbox/launch-in-terminal.sh"
-chmod +x "$DEST/toolbox/modules/"*.sh "$DEST/toolbox/lib/"*.sh "$DEST/toolbox/hooks/"*.sh 2>/dev/null || true
+chmod +x "$DEST/toolbox/modules/"*.sh "$DEST/toolbox/lib/"*.sh "$DEST/toolbox/hooks/"*.sh "$DEST/toolbox/helpers/"*.sh 2>/dev/null || true
+
+# Install the official MangoHud runtime bundled by the Toolbox for both
+# 32-bit and 64-bit Wine/Proton/UMU games. Failure is non-fatal so the
+# Toolbox itself remains usable even if GitHub is temporarily unavailable.
+if [ -x "$DEST/toolbox/helpers/install-mangohud-runtime.sh" ]; then
+    if ! "$DEST/toolbox/helpers/install-mangohud-runtime.sh"; then
+        say "AVERTISSEMENT : le runtime MangoHud n'a pas pu être installé. Les fonctions MangoHud de la Toolbox peuvent être indisponibles." \
+            "WARNING: the MangoHud runtime could not be installed. Toolbox MangoHud features may be unavailable."
+    fi
+fi
 
 if [ ! -s "$DEST/toolbox/ports/$PORT_NAME" ]; then
     say "ERREUR : lanceur Ports absent du package." "ERROR: Ports launcher missing from package."

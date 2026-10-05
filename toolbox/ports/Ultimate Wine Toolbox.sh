@@ -7,6 +7,31 @@ LAUNCHER="/userdata/system/ultimate-wine-toolbox/toolbox/launch-in-terminal.sh"
 mkdir -p "$LOG_DIR"
 export DISPLAY="${DISPLAY:-:0}"
 
+# xterm decides its character encoding when the terminal process starts.
+# EmulationStation/Ports may launch us without the UTF-8 locale later selected
+# by launch-in-terminal.sh, so initialize a known UTF-8 locale before xterm.
+select_utf8_locale() {
+    local syslang candidate available
+    syslang="$(batocera-settings-get system.language 2>/dev/null | tr -d '\r\n[:space:]' || true)"
+    syslang="${syslang%%.*}"
+    available="$(locale -a 2>/dev/null || true)"
+
+    for candidate in "$syslang.UTF-8" "$syslang.utf8" "C.UTF-8" "C.utf8" "en_US.UTF-8" "en_US.utf8"; do
+        [ -n "$candidate" ] || continue
+        if printf '%s\n' "$available" | grep -Fxqi "$candidate"; then
+            printf '%s' "$candidate"
+            return 0
+        fi
+    done
+
+    printf '%s' "C.UTF-8"
+}
+
+WT_UTF8_LOCALE="$(select_utf8_locale)"
+export LANG="$WT_UTF8_LOCALE"
+export LC_ALL="$WT_UTF8_LOCALE"
+export LANGUAGE="$WT_UTF8_LOCALE"
+
 {
     echo
     echo "===== $(date '+%Y-%m-%d %H:%M:%S %z') ====="
@@ -14,6 +39,8 @@ export DISPLAY="${DISPLAY:-:0}"
     echo "uid=$(id -u 2>/dev/null || true)"
     echo "DISPLAY=$DISPLAY"
     echo "TERM=${TERM:-<unset>}"
+    echo "LANG=${LANG:-<unset>}"
+    echo "LC_ALL=${LC_ALL:-<unset>}"
     echo "xterm=$(command -v xterm 2>/dev/null || true)"
     echo "launcher=$LAUNCHER"
 } >>"$BOOT_LOG" 2>&1
@@ -29,6 +56,8 @@ if [ ! -s "$LAUNCHER" ]; then
 fi
 
 /usr/bin/xterm \
+    +lc \
+    -u8 \
     -fa "DejaVu Sans Mono" \
     -fs 10 \
     -title "Ultimate Wine Toolbox" \

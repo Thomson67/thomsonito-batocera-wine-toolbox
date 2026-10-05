@@ -6,6 +6,31 @@ MAIN="$ROOT/ultimate-wine-toolbox.sh"
 LOG_DIR="/userdata/system/logs/ultimate-wine-toolbox"
 mkdir -p "$LOG_DIR"
 
+# Safety net for direct launches: force a UTF-8 locale known to exist.
+select_utf8_locale() {
+    local syslang candidate available
+    syslang="$(batocera-settings-get system.language 2>/dev/null | tr -d '\r\n[:space:]' || true)"
+    syslang="${syslang%%.*}"
+
+    available="$(locale -a 2>/dev/null || true)"
+    for candidate in "$syslang.UTF-8" "$syslang.utf8" "C.UTF-8" "C.utf8" "en_US.UTF-8" "en_US.utf8"; do
+        [ -n "$candidate" ] || continue
+        if printf '%s\n' "$available" | grep -Fxqi "$candidate"; then
+            printf '%s' "$candidate"
+            return 0
+        fi
+    done
+
+    # Last fallback: keep UTF-8 semantics requested by xterm even on very
+    # minimal builds where locale -a is incomplete.
+    printf '%s' "C.UTF-8"
+}
+
+WT_UTF8_LOCALE="$(select_utf8_locale)"
+export LANG="$WT_UTF8_LOCALE"
+export LC_ALL="$WT_UTF8_LOCALE"
+export LANGUAGE="$WT_UTF8_LOCALE"
+
 # Keep only the 20 most recent Toolbox session logs.
 ls -1t "$LOG_DIR"/toolbox-*.log 2>/dev/null | tail -n +21 | while IFS= read -r oldlog; do
     [ -n "$oldlog" ] && rm -f -- "$oldlog"
@@ -26,6 +51,8 @@ export WT_SESSION_LOG="$LOG"
     echo "pwd=$(pwd)"
     echo "DISPLAY=${DISPLAY:-<unset>}"
     echo "TERM=${TERM:-<unset>}"
+    echo "LANG=${LANG:-<unset>}"
+    echo "LC_ALL=${LC_ALL:-<unset>}"
     echo "main=$MAIN"
 } >>"$LOG" 2>&1
 
