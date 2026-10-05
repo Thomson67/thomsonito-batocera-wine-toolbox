@@ -347,5 +347,21 @@ declare -gA I18N=(
   [cleanup_logs_done]="Log cleanup completed.\n\nPreviously occupied space: %s"
   [cleanup_temp_done]="Cache and temporary-file cleanup completed.\n\nPreviously occupied space: %s"
 
+  [update_title]="Ultimate Wine Toolbox update"
+  [update_check_action]="Check for Toolbox updates"
+  [update_available]="A new stable release is available.\n\nInstalled: %s\nAvailable: %s\n\nDownload, verify and install it now?"
+  [update_none]="Ultimate Wine Toolbox is already up to date.\n\nInstalled version: %s"
+  [update_check_failed]="Unable to check the latest GitHub release right now."
+  [update_dev_build]="Automatic stable updates are disabled for development builds.\n\nCurrent version: %s"
+  [update_missing_tool]="Required update tool is missing: %s"
+  [update_download_failed]="Unable to download release %s."
+  [update_checksum_missing]="The SHA-256 checksum asset is missing for release %s.\n\nUpdate cancelled."
+  [update_checksum_failed]="SHA-256 verification failed.\n\nUpdate cancelled."
+  [update_extract_failed]="Unable to extract the downloaded update package."
+  [update_package_invalid]="The downloaded release package is invalid or does not match its release version."
+  [update_backup_failed]="Unable to back up the current Toolbox.\n\nUpdate cancelled."
+  [update_install_failed]="The update installation failed. A rollback was attempted.\n\nBackup location:\n%s"
+  [update_success]="Update completed successfully.\n\nInstalled release: %s\n\nThe Toolbox will now restart."
+
   [settings_title]="Settings"
 )
