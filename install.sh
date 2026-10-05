@@ -3,7 +3,7 @@ set -euo pipefail
 
 cd /tmp 2>/dev/null || true
 
-REPO="Thomson67/thomsonito-batocera-wine-toolbox"
+REPO="Thomson67/ultimate-wine-toolbox"
 BRANCH="test"
 ARCHIVE_URL="https://github.com/$REPO/archive/refs/heads/$BRANCH.tar.gz"
 
@@ -35,15 +35,15 @@ say "Téléchargement de la branche test..." "Downloading test branch..."
 curl -fL --retry 3 --connect-timeout 15 "$ARCHIVE_URL" -o "$TMP/test.tar.gz"
 
 tar -tzf "$TMP/test.tar.gz" >/dev/null || {
-  say "ERREUR : l'archive GitHub téléchargée est invalide."       "ERROR: downloaded GitHub archive is invalid."
+  say "ERREUR : l'archive GitHub téléchargée est invalide." "ERROR: downloaded GitHub archive is invalid."
   exit 1
 }
 
 tar -xzf "$TMP/test.tar.gz" -C "$TMP"
 ROOT="$(find "$TMP" -mindepth 1 -maxdepth 1 -type d -name '*-test' -print -quit)"
 
-[ -s "$ROOT/package-install.sh" ] || {
-  say "ERREUR : package-install.sh est absent de la branche test."       "ERROR: package-install.sh is missing from the test branch."
+[ -n "$ROOT" ] && [ -s "$ROOT/package-install.sh" ] || {
+  say "ERREUR : package-install.sh est absent de la branche test." "ERROR: package-install.sh is missing from the test branch."
   exit 1
 }
 
