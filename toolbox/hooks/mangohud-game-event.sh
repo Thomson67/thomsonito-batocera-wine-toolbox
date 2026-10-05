@@ -6,6 +6,13 @@ GLOBAL_FILE="$CONFIG_DIR/mangohud-global"
 OVERRIDE_FILE="$CONFIG_DIR/mangohud-games.tsv"
 LEGACY_LAYER_DIR="/usr/share/vulkan/implicit_layer.d"
 LEGACY_LAYER_FILE="$LEGACY_LAYER_DIR/MangoHud.ultimate-wine-toolbox.json"
+LOG_DIR="/userdata/system/logs/ultimate-wine-toolbox"
+HOOK_LOG="$LOG_DIR/mangohud-hook.log"
+
+hook_log() {
+    mkdir -p "$LOG_DIR" 2>/dev/null || true
+    printf '[%s] %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$*" >> "$HOOK_LOG" 2>/dev/null || true
+}
 
 event="${1:-}"
 system="${2:-}"
@@ -14,6 +21,7 @@ rom="${5:-}"
 [ "$event" = "gameStart" ] || exit 0
 [ "$system" = "windows" ] || exit 0
 [ -n "$rom" ] || exit 0
+hook_log "event=$event system=$system rom=$rom"
 
 batocera_major() {
     local raw=""
@@ -85,9 +93,20 @@ case "$override" in
 esac
 
 legacy_mangohud=0
+detected_major="$(batocera_major)"
+hook_log "batocera_major=${detected_major:-unknown} global=$global_state override=${override:-inherit} desired=$desired"
 if is_legacy_mangohud_batocera; then
     legacy_mangohud=1
-    [ "$desired" = "1" ] && ensure_legacy_vulkan_layer
+    if [ "$desired" = "1" ]; then
+        ensure_legacy_vulkan_layer
+        if [ -s "$LEGACY_LAYER_FILE" ]; then
+            hook_log "legacy_vulkan_layer=created path=$LEGACY_LAYER_FILE"
+        elif grep -Rslq '"VK_LAYER_MANGOHUD_overlay_x86_64"' "$LEGACY_LAYER_DIR" 2>/dev/null; then
+            hook_log "legacy_vulkan_layer=already_present"
+        else
+            hook_log "legacy_vulkan_layer=missing"
+        fi
+    fi
 fi
 
 rewrite_autorun() {
