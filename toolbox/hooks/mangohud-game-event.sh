@@ -9,7 +9,7 @@ LEGACY_LAYER_FILE="$LEGACY_LAYER_DIR/MangoHud.ultimate-wine-toolbox.json"
 X86_LAYER_FILE="$LEGACY_LAYER_DIR/MangoHud.ultimate-wine-toolbox.x86.json"
 MANGOHUD_RUNTIME="$ROOT/runtime/mangohud"
 MANGOHUD32_LIB="$MANGOHUD_RUNTIME/lib32/mangohud/libMangoHud.so"
-MANGOHUD_PRELOAD="/usr/lib/mangohud/libMangoHud_dlsym.so:/usr/lib/mangohud/libMangoHud_opengl.so:$MANGOHUD_RUNTIME/lib32/mangohud/libMangoHud_dlsym.so:$MANGOHUD_RUNTIME/lib32/mangohud/libMangoHud_opengl.so"
+MANGOHUD_PRELOAD="$MANGOHUD_RUNTIME/\$LIB/mangohud/libMangoHud_dlsym.so:$MANGOHUD_RUNTIME/\$LIB/mangohud/libMangoHud_opengl.so"
 LOG_DIR="/userdata/system/logs/ultimate-wine-toolbox"
 HOOK_LOG="$LOG_DIR/mangohud-hook.log"
 
