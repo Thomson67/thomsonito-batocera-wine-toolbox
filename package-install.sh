@@ -2,14 +2,28 @@
 set -euo pipefail
 
 SRC="$(cd "$(dirname "$0")" && pwd)"
-DEST="/userdata/system/thomsonito-wine-toolbox"
+DEST="/userdata/system/ultimate-wine-toolbox"
+OLD_DEST="/userdata/system/thomsonito-wine-toolbox"
+
 PORTS="/userdata/roms/ports"
-PORT_NAME="Thomsonito Batocera Wine Toolbox.sh"
+PORT_NAME="Ultimate Wine Toolbox.sh"
 PORT="$PORTS/$PORT_NAME"
 KEYS="$PORTS/$PORT_NAME.keys"
+OLD_PORT="$PORTS/Thomsonito Batocera Wine Toolbox.sh"
+
 SCRIPTS="/userdata/system/scripts"
-MANGOHUD_HOOK="$SCRIPTS/thomsonito-wine-toolbox-mangohud.sh"
-DXVK_HOOK="$SCRIPTS/thomsonito-wine-toolbox-dxvk.sh"
+MANGOHUD_HOOK="$SCRIPTS/ultimate-wine-toolbox-mangohud.sh"
+DXVK_HOOK="$SCRIPTS/ultimate-wine-toolbox-dxvk.sh"
+OLD_MANGOHUD_HOOK="$SCRIPTS/thomsonito-wine-toolbox-mangohud.sh"
+OLD_DXVK_HOOK="$SCRIPTS/thomsonito-wine-toolbox-dxvk.sh"
+
+LOG_DIR="/userdata/system/logs/ultimate-wine-toolbox"
+OLD_LOG_DIR="/userdata/system/logs/thomsonito-wine-toolbox"
+BACKUP_DIR="/userdata/system/backups/ultimate-wine-toolbox"
+OLD_BACKUP_DIR="/userdata/system/backups/thomsonito-wine-toolbox"
+
+DXVK_PATH="/userdata/system/wine/dxvk"
+OLD_DXVK_BUNDLE=""
 
 case "${LC_ALL:-${LANG:-}}" in fr*|fr_*) L=fr ;; *) L=en ;; esac
 
@@ -22,14 +36,48 @@ say() {
     exit 1
 }
 
-mkdir -p "$DEST" "$PORTS" "$SCRIPTS"
+# Migration from the development name. Preserve user state, then remove the
+# old launcher/hooks/directories so no stale installation remains.
+if [ -L "$DXVK_PATH" ]; then
+    old_target="$(readlink -f "$DXVK_PATH" 2>/dev/null || true)"
+    case "$old_target" in
+        "$OLD_DEST"/dxvk/bundles/*) OLD_DXVK_BUNDLE="$(basename "$old_target")" ;;
+    esac
+fi
+
+if [ -d "$OLD_DEST" ]; then
+    mkdir -p "$DEST"
+    for item in config dxvk exports; do
+        if [ -d "$OLD_DEST/$item" ]; then
+            mkdir -p "$DEST/$item"
+            cp -a "$OLD_DEST/$item/." "$DEST/$item/" 2>/dev/null || true
+        fi
+    done
+    rm -rf -- "$OLD_DEST"
+fi
+
+if [ -d "$OLD_LOG_DIR" ]; then
+    mkdir -p "$LOG_DIR"
+    cp -a "$OLD_LOG_DIR/." "$LOG_DIR/" 2>/dev/null || true
+    rm -rf -- "$OLD_LOG_DIR"
+fi
+
+if [ -d "$OLD_BACKUP_DIR" ]; then
+    mkdir -p "$BACKUP_DIR"
+    cp -a "$OLD_BACKUP_DIR/." "$BACKUP_DIR/" 2>/dev/null || true
+    rm -rf -- "$OLD_BACKUP_DIR"
+fi
+
+rm -f -- "$OLD_PORT" "$OLD_PORT.keys" "$OLD_MANGOHUD_HOOK" "$OLD_DXVK_HOOK"
+
+mkdir -p "$DEST" "$PORTS" "$SCRIPTS" "$LOG_DIR" "$BACKUP_DIR"
 rm -rf "$DEST/toolbox"
 cp -a "$SRC/toolbox" "$DEST/toolbox"
 cp -a "$SRC/VERSION" "$DEST/VERSION"
 cp -a "$SRC/uninstall.sh" "$DEST/uninstall.sh"
 
 chmod +x "$DEST/uninstall.sh"
-chmod +x "$DEST/toolbox/thomsonito-wine-toolbox.sh"
+chmod +x "$DEST/toolbox/ultimate-wine-toolbox.sh"
 chmod +x "$DEST/toolbox/launch-in-terminal.sh"
 chmod +x "$DEST/toolbox/modules/"*.sh "$DEST/toolbox/lib/"*.sh "$DEST/toolbox/hooks/"*.sh 2>/dev/null || true
 
@@ -40,7 +88,6 @@ fi
 cp -f "$DEST/toolbox/ports/$PORT_NAME" "$PORT"
 chmod +x "$PORT"
 
-# Native Batocera Pad2Key/evmapy mapping. The filename must match the Port exactly.
 if [ ! -s "$DEST/toolbox/ports/$PORT_NAME.keys" ]; then
     say "ERREUR : mapping Pad2Key absent du package." "ERROR: Pad2Key mapping missing from package."
     exit 1
@@ -57,13 +104,14 @@ if [ -s "$DEST/toolbox/hooks/dxvk-game-event.sh" ]; then
     chmod +x "$DXVK_HOOK"
 fi
 
-# Refresh the Ports list when the helper exists; harmless on older Batocera builds.
+if [ -n "$OLD_DXVK_BUNDLE" ] && [ -d "$DEST/dxvk/bundles/$OLD_DXVK_BUNDLE" ]; then
+    rm -f -- "$DXVK_PATH"
+    ln -s "$DEST/dxvk/bundles/$OLD_DXVK_BUNDLE" "$DXVK_PATH"
+fi
+
 command -v batocera-es-swissknife >/dev/null 2>&1 && batocera-es-swissknife --update-gamelists >/dev/null 2>&1 || true
 
 echo
-say "Thomsonito Batocera Wine Toolbox installée." \
-    "Thomsonito Batocera Wine Toolbox installed."
-say "Pad2Key natif Batocera installé." \
-    "Native Batocera Pad2Key installed."
-say "Lancement : Ports -> Thomsonito Batocera Wine Toolbox" \
-    "Launch: Ports -> Thomsonito Batocera Wine Toolbox"
+say "Ultimate Wine Toolbox installée." "Ultimate Wine Toolbox installed."
+say "Pad2Key natif Batocera installé." "Native Batocera Pad2Key installed."
+say "Lancement : Ports -> Ultimate Wine Toolbox" "Launch: Ports -> Ultimate Wine Toolbox"
