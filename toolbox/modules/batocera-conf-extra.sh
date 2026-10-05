@@ -196,6 +196,7 @@ protected_heading = "## Enable DXVK for Wine and FPS HUD."
 generated_header_re = re.compile(r'^# ===== \[ [A-Z0-9_.+ -]+ \] =====\s*$')
 per_game_re = re.compile(r'^\s*([A-Za-z0-9_-]+)\["([^"]+)"\](?:-renderer)?\.')
 global_re = re.compile(r'^\s*([A-Za-z0-9_-]+)(?:-renderer)?\.')
+protected_key_re = re.compile(r'^\s*windows\.dxvk(?:_hud)?=')
 
 with conf.open("r", encoding="utf-8", errors="surrogateescape", newline="") as fh:
     lines = fh.readlines()
@@ -242,10 +243,12 @@ def classify(raw):
     return None
 
 protected = set()
+protected_heading_index = None
 for i in range(marker_index):
     if lines[i].rstrip("\r\n") != protected_heading:
         continue
 
+    protected_heading_index = i
     protected.add(i)
     pos = i + 1
     while pos < marker_index:
@@ -253,6 +256,16 @@ for i in range(marker_index):
         if lines[pos].rstrip("\r\n") == "":
             break
         pos += 1
+    break
+
+# Keep the two active stock DXVK settings in Batocera's original DXVK block.
+# This also repairs files organized by an earlier Toolbox build that moved
+# these lines below the user-generated marker.
+stock_dxvk_lines = []
+if protected_heading_index is not None:
+    for raw in lines:
+        if protected_key_re.match(raw.rstrip("\r\n")):
+            stock_dxvk_lines.append(raw)
 
 collected = {}
 
@@ -265,6 +278,16 @@ def add_entry(kind, system, game, raw):
 
 before = []
 for i, raw in enumerate(lines[:marker_index]):
+    text = raw.rstrip("\r\n")
+
+    if i == protected_heading_index:
+        before.append(raw)
+        before.extend(stock_dxvk_lines)
+        continue
+
+    if protected_heading_index is not None and protected_key_re.match(text):
+        continue
+
     if i in protected:
         before.append(raw)
         continue
@@ -281,6 +304,8 @@ user_other = []
 for raw in lines[marker_index + 1:]:
     text = raw.rstrip("\r\n")
     if generated_header_re.match(text):
+        continue
+    if protected_heading_index is not None and protected_key_re.match(text):
         continue
 
     item = classify(raw)
