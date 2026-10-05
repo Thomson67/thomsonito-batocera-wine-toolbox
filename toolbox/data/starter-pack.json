@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "name": "Thomsonito Runner Starter Pack",
+  "name": "Wine Runner Starter Pack",
   "version": "2026.10",
   "description": "Recommended classic Wine runners for Batocera plus a small UMU baseline delegated to UMU Runner Toolbox.",
   "classic_runner_ids": [
