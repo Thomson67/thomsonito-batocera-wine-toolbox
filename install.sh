@@ -4,7 +4,7 @@ set -euo pipefail
 cd /tmp 2>/dev/null || true
 
 REPO="Thomson67/ultimate-wine-toolbox"
-BRANCH="test"
+BRANCH="main"
 ARCHIVE_URL="https://github.com/$REPO/archive/refs/heads/$BRANCH.tar.gz"
 
 TMP="$(mktemp -d /tmp/ultimate-wine-toolbox.XXXXXX)"
@@ -31,19 +31,19 @@ for cmd in curl tar python3; do
   }
 done
 
-say "Téléchargement de la branche test..." "Downloading test branch..."
-curl -fL --retry 3 --connect-timeout 15 "$ARCHIVE_URL" -o "$TMP/test.tar.gz"
+say "Téléchargement de la version stable..." "Downloading stable version..."
+curl -fL --retry 3 --connect-timeout 15 "$ARCHIVE_URL" -o "$TMP/stable.tar.gz"
 
-tar -tzf "$TMP/test.tar.gz" >/dev/null || {
+tar -tzf "$TMP/stable.tar.gz" >/dev/null || {
   say "ERREUR : l'archive GitHub téléchargée est invalide." "ERROR: downloaded GitHub archive is invalid."
   exit 1
 }
 
-tar -xzf "$TMP/test.tar.gz" -C "$TMP"
-ROOT="$(find "$TMP" -mindepth 1 -maxdepth 1 -type d -name '*-test' -print -quit)"
+tar -xzf "$TMP/stable.tar.gz" -C "$TMP"
+ROOT="$(find "$TMP" -mindepth 1 -maxdepth 1 -type d -name '*-main' -print -quit)"
 
 [ -n "$ROOT" ] && [ -s "$ROOT/package-install.sh" ] || {
-  say "ERREUR : package-install.sh est absent de la branche test." "ERROR: package-install.sh is missing from the test branch."
+  say "ERREUR : package-install.sh est absent de la branche stable." "ERROR: package-install.sh is missing from the stable branch."
   exit 1
 }
 
@@ -65,5 +65,5 @@ python3 -m py_compile "$ROOT/toolbox/helpers/batocera_conf_transfer.py" || {
 }
 
 chmod +x "$ROOT/package-install.sh"
-say "Installation de la version test..." "Installing test version..."
+say "Installation de la version stable..." "Installing stable version..."
 exec "$ROOT/package-install.sh"
