@@ -9,8 +9,8 @@ LEGACY_LAYER_FILE="$LEGACY_LAYER_DIR/MangoHud.ultimate-wine-toolbox.json"
 X86_LAYER_FILE="$LEGACY_LAYER_DIR/MangoHud.ultimate-wine-toolbox.x86.json"
 MANGOHUD_RUNTIME="$ROOT/runtime/mangohud"
 MANGOHUD32_LIB="$MANGOHUD_RUNTIME/lib32/mangohud/libMangoHud.so"
-MANGOHUD_PRELOAD="libMangoHud_dlsym.so:libMangoHud_opengl.so"
-MANGOHUD_LIBPATH_PREFIX="/usr/lib/mangohud:$MANGOHUD_RUNTIME/lib32/mangohud"
+MANGOHUD_PRELOAD="libMangoHud_shim.so"
+MANGOHUD_LIBPATH_PREFIX="$MANGOHUD_RUNTIME/lib64/mangohud:$MANGOHUD_RUNTIME/lib32/mangohud"
 LOG_DIR="/userdata/system/logs/ultimate-wine-toolbox"
 HOOK_LOG="$LOG_DIR/mangohud-hook.log"
 
@@ -210,7 +210,7 @@ for line in lines:
     if line.startswith("ENV=") and not found:
         payload=clean_payload(line[4:])
         if enabled:
-            payload=(payload + " " if payload else "") + "MANGOHUD=1 MANGOHUD_DLSYM=1"
+            payload=(payload + " " if payload else "") + "MANGOHUD=1"
             # Match MangoHud's official wrapper: preload plain filenames and
             # let the dynamic linker select the matching 32/64-bit library.
             if not re.search(r'(^|\s)LD_LIBRARY_PATH=', payload):
@@ -224,7 +224,7 @@ for line in lines:
         out.append(line)
 
 if enabled and not found:
-    payload="MANGOHUD=1 MANGOHUD_DLSYM=1"
+    payload="MANGOHUD=1"
     payload += " LD_LIBRARY_PATH=\'" + managed_libpath_prefix + "\':\"${LD_LIBRARY_PATH:-}\""
     payload += " LD_PRELOAD='" + managed_preload + "'"
     insert_at=0
