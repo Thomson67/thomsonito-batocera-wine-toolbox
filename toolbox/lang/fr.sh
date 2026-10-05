@@ -82,6 +82,7 @@ declare -gA I18N=(
   [runner_fetch_failed]="Impossible de récupérer la liste des releases depuis GitHub."
   [runner_install_confirm]="Installer cette version ?\n\nRelease : %s\nArchive : %s\nTéléchargement : %s\nDestination : %s"
   [runner_downloading]="Téléchargement de %s..."
+  [runner_download_failed]="Échec du téléchargement de %s."
   [runner_verifying]="Vérification de l'intégrité..."
   [runner_checksum_failed]="La vérification d'intégrité a échoué pour %s."
   [runner_extracting]="Extraction de %s..."
