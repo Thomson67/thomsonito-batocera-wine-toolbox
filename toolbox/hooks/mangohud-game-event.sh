@@ -6,6 +6,10 @@ GLOBAL_FILE="$CONFIG_DIR/mangohud-global"
 OVERRIDE_FILE="$CONFIG_DIR/mangohud-games.tsv"
 LEGACY_LAYER_DIR="/usr/share/vulkan/implicit_layer.d"
 LEGACY_LAYER_FILE="$LEGACY_LAYER_DIR/MangoHud.ultimate-wine-toolbox.json"
+X86_LAYER_FILE="$LEGACY_LAYER_DIR/MangoHud.ultimate-wine-toolbox.x86.json"
+MANGOHUD_RUNTIME="$ROOT/runtime/mangohud"
+MANGOHUD32_LIB="$MANGOHUD_RUNTIME/lib32/mangohud/libMangoHud.so"
+MANGOHUD_PRELOAD="$MANGOHUD_RUNTIME/\$LIB/mangohud/libMangoHud_opengl.so"
 LOG_DIR="/userdata/system/logs/ultimate-wine-toolbox"
 HOOK_LOG="$LOG_DIR/mangohud-hook.log"
 
@@ -42,6 +46,35 @@ is_legacy_mangohud_batocera() {
         41|42) return 0 ;;
         *) return 1 ;;
     esac
+}
+
+ensure_x86_vulkan_layer() {
+    [ -r "$MANGOHUD32_LIB" ] || return 0
+    mkdir -p "$LEGACY_LAYER_DIR" 2>/dev/null || return 0
+
+    cat > "$X86_LAYER_FILE" <<EOF
+{
+    "file_format_version": "1.0.0",
+    "layer": {
+        "name": "VK_LAYER_MANGOHUD_overlay_x86",
+        "type": "GLOBAL",
+        "api_version": "1.3.0",
+        "library_path": "$MANGOHUD32_LIB",
+        "implementation_version": "1",
+        "description": "Vulkan Hud Overlay 32-bit (Ultimate Wine Toolbox)",
+        "functions": {
+            "vkGetInstanceProcAddr": "overlay_GetInstanceProcAddr",
+            "vkGetDeviceProcAddr": "overlay_GetDeviceProcAddr"
+        },
+        "enable_environment": {
+            "MANGOHUD": "1"
+        },
+        "disable_environment": {
+            "DISABLE_MANGOHUD": "1"
+        }
+    }
+}
+EOF
 }
 
 ensure_legacy_vulkan_layer() {
@@ -98,6 +131,16 @@ esac
 legacy_mangohud=0
 detected_major="$(batocera_major)"
 hook_log "batocera_major=${detected_major:-unknown} global=$global_state override=${override:-inherit} desired=$desired"
+
+if [ "$desired" = "1" ]; then
+    ensure_x86_vulkan_layer
+    if [ -s "$X86_LAYER_FILE" ]; then
+        hook_log "x86_vulkan_layer=ready path=$X86_LAYER_FILE"
+    else
+        hook_log "x86_vulkan_layer=unavailable"
+    fi
+fi
+
 if is_legacy_mangohud_batocera; then
     legacy_mangohud=1
     if [ "$desired" = "1" ]; then
@@ -116,14 +159,14 @@ rewrite_autorun() {
     local file="$1" state="$2" legacy="$3"
     [ -f "$file" ] || return 1
 
-    python3 - "$file" "$state" "$legacy" <<'PY'
+    python3 - "$file" "$state" "$legacy" "$MANGOHUD_PRELOAD" <<'PY'
 import re, sys
 from pathlib import Path
 
 path=Path(sys.argv[1])
 enabled=sys.argv[2] == "1"
 legacy=sys.argv[3] == "1"
-managed_preload="/usr/$LIB/mangohud/libMangoHud_opengl.so"
+managed_preload=sys.argv[4]
 
 try:
     text=path.read_text(encoding="utf-8", errors="replace")
@@ -150,9 +193,9 @@ for line in lines:
         payload=clean_payload(line[4:])
         if enabled:
             payload=(payload + " " if payload else "") + "MANGOHUD=1"
-            # Batocera 41/42 need the OpenGL preload used by their native
-            # /usr/bin/mangohud wrapper. Preserve any user-supplied LD_PRELOAD.
-            if legacy and not re.search(r'(^|\s)LD_PRELOAD=', payload):
+            # Use one architecture-aware preload path for both native 64-bit
+            # MangoHud and the Toolbox-provided 32-bit runtime.
+            if not re.search(r'(^|\s)LD_PRELOAD=', payload):
                 payload += " LD_PRELOAD='" + managed_preload + "'"
         if payload:
             out.append("ENV="+payload)
@@ -162,8 +205,7 @@ for line in lines:
 
 if enabled and not found:
     payload="MANGOHUD=1"
-    if legacy:
-        payload += " LD_PRELOAD='" + managed_preload + "'"
+    payload += " LD_PRELOAD='" + managed_preload + "'"
     insert_at=0
     for i,line in enumerate(out):
         if line.startswith(("DIR=","CMD=","LANG=","SAVEDIR=","SAVEFILES=")):
