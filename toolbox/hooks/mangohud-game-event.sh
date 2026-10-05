@@ -10,7 +10,7 @@ X86_LAYER_FILE="$LEGACY_LAYER_DIR/MangoHud.ultimate-wine-toolbox.x86.json"
 MANGOHUD_RUNTIME="$ROOT/runtime/mangohud"
 MANGOHUD32_LIB="$MANGOHUD_RUNTIME/lib32/mangohud/libMangoHud.so"
 MANGOHUD_PRELOAD="libMangoHud_dlsym.so:libMangoHud_opengl.so"
-MANGOHUD_LIBPATH="/usr/lib/mangohud:$MANGOHUD_RUNTIME/lib32/mangohud"
+MANGOHUD_LIBPATH_PREFIX="/usr/lib/mangohud:$MANGOHUD_RUNTIME/lib32/mangohud"
 LOG_DIR="/userdata/system/logs/ultimate-wine-toolbox"
 HOOK_LOG="$LOG_DIR/mangohud-hook.log"
 
@@ -160,7 +160,7 @@ rewrite_autorun() {
     local file="$1" state="$2" legacy="$3"
     [ -f "$file" ] || return 1
 
-    python3 - "$file" "$state" "$legacy" "$MANGOHUD_PRELOAD" "$MANGOHUD_LIBPATH" <<'PY'
+    python3 - "$file" "$state" "$legacy" "$MANGOHUD_PRELOAD" "$MANGOHUD_LIBPATH_PREFIX" <<'PY'
 import re, sys
 from pathlib import Path
 
@@ -168,7 +168,7 @@ path=Path(sys.argv[1])
 enabled=sys.argv[2] == "1"
 legacy=sys.argv[3] == "1"
 managed_preload=sys.argv[4]
-managed_libpath=sys.argv[5]
+managed_libpath_prefix=sys.argv[5]
 
 try:
     text=path.read_text(encoding="utf-8", errors="replace")
@@ -200,7 +200,7 @@ def clean_payload(payload):
 
     # Remove only the library search path created by the Toolbox.
     payload=re.sub(
-        r'(^|\s)LD_LIBRARY_PATH=(?:[\'"])?' + re.escape(managed_libpath) + r'(?:[\'"])?(?=\s|$)',
+        r'(^|\s)LD_LIBRARY_PATH=(?:[\'"])?' + re.escape(managed_libpath_prefix) + r'(?::(?:"?\$\{?LD_LIBRARY_PATH(?::-)?\}?"?))?(?:[\'"])?(?=\s|$)',
         ' ',
         payload
     )
