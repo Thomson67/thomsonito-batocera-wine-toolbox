@@ -7,7 +7,7 @@ LOG_DIR="/userdata/system/logs/ultimate-wine-toolbox"
 mkdir -p "$LOG_DIR"
 
 # Keep only the 20 most recent Toolbox session logs.
-ls -1t "$LOG_DIR"/toolbox-*.log 2>/dev/null | tail -n +20 | while IFS= read -r oldlog; do
+ls -1t "$LOG_DIR"/toolbox-*.log 2>/dev/null | tail -n +21 | while IFS= read -r oldlog; do
     [ -n "$oldlog" ] && rm -f -- "$oldlog"
 done
 
