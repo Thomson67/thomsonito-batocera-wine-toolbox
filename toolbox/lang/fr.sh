@@ -1,6 +1,6 @@
 #!/bin/bash
 declare -gA I18N=(
-  [app_subtitle]="Wine • Proton • UMU • Batocera"
+  [app_subtitle]="Wine • Proton • UMU • Par Thomsonito"
   [back]="Retour"
   [exit]="Quitter"
   [yes]="Oui"
@@ -16,7 +16,7 @@ declare -gA I18N=(
   [language_changed_body]="L'interface est maintenant en français."
 
   [menu_umu]="UMU Runner Toolbox"
-  [menu_starter]="Thomsonito Runner Starter Pack"
+  [menu_starter]="Wine Runner Starter Pack"
   [menu_runners]="Gestionnaire de runners Wine"
   [menu_graphics]="Graphismes & performances"
   [menu_maintenance]="Maintenance & diagnostics"
@@ -37,7 +37,7 @@ declare -gA I18N=(
   [umu_runner_installing]="Installation du runner UMU : %s"
   [umu_runner_failed]="Échec de l'installation du runner UMU : %s"
 
-  [starter_title]="Thomsonito Runner Starter Pack"
+  [starter_title]="Wine Runner Starter Pack"
   [starter_intro]="Le Starter Pack installe une sélection de runners Wine classiques et UMU couvrant plusieurs générations pour maximiser la compatibilité des jeux. Vous pouvez installer tout le pack manquant ou choisir uniquement certains runners. Les runners déjà présents ne sont pas remplacés."
   [starter_summary]="Starter Pack %s :\nRunners Wine classiques : %s au total / %s installés / %s manquants\nRunners UMU : %s au total / %s installés / %s manquants\nEstimation temporaire nécessaire : %s\nEspace disponible sur share : %s"
   [starter_install]="Installer les composants manquants du Starter Pack"
@@ -292,7 +292,7 @@ declare -gA I18N=(
   [batocera_conf_import_none]="Aucun export Windows n\'a été trouvé dans :\n%s"
   [batocera_conf_import_choose]="Exports disponibles : %s\n\nChoisissez le fichier à importer."
   [batocera_conf_import_invalid]="Le fichier sélectionné est absent, illisible ou invalide."
-  [batocera_conf_import_bad_format]="Ce fichier n\'est pas un export Windows créé par la Thomsonito Batocera Wine Toolbox."
+  [batocera_conf_import_bad_format]="Ce fichier n\'est pas un export Windows créé par Ultimate Wine Toolbox."
   [batocera_conf_import_unsafe]="Import refusé : le fichier contient une ligne qui n\'est pas une configuration Windows autorisée, ou tente de modifier windows.dxvk / windows.dxvk_hud."
   [batocera_conf_import_confirm]="Importer cet export ?\n\nFichier : %s\nOptions globales dans l\'export : %s\nJeux configurés dans l\'export : %s\nOptions par jeu dans l\'export : %s\n\nNouvelles options qui seront ajoutées : %s\nOptions déjà présentes qui seront conservées : %s\n\nL\'import est ADDITIF : les configurations Windows déjà présentes sur cette machine sont conservées. Si une même clé existe déjà, la valeur locale est prioritaire et la ligne importée est ignorée. Les autres systèmes et windows.dxvk / windows.dxvk_hud restent inchangés.\n\nUne sauvegarde complète de batocera.conf sera créée avant modification.\n\nContinuer ?"
   [batocera_conf_import_done]="Import terminé.\n\nNouvelles options ajoutées : %s\nOptions déjà présentes conservées : %s\n\nSauvegarde du batocera.conf précédent :\n%s"
@@ -329,7 +329,7 @@ declare -gA I18N=(
   [batocera_conf_systems_missing]="Le dossier /userdata/roms est absent ou inaccessible.\n\nPar sécurité, l'organisation par système est annulée."
 
   [toolbox_uninstall_title]="Désinstaller la Toolbox"
-  [toolbox_uninstall_warning]="Cette opération supprimera la Thomsonito Batocera Wine Toolbox, son lanceur, ses hooks MangoHud/DXVK et ses fichiers internes.\n\nLes runners Wine/UMU, les bottles, les saves et les jeux seront conservés.\n\nSi /userdata/system/wine/dxvk pointe vers un bundle géré par la Toolbox, ce lien sera retiré pour laisser Batocera reprendre son DXVK par défaut.\n\nContinuer ?"
+  [toolbox_uninstall_warning]="Cette opération supprimera Ultimate Wine Toolbox, son lanceur, ses hooks MangoHud/DXVK et ses fichiers internes.\n\nLes runners Wine/UMU, les bottles, les saves et les jeux seront conservés.\n\nSi /userdata/system/wine/dxvk pointe vers un bundle géré par la Toolbox, ce lien sera retiré pour laisser Batocera reprendre son DXVK par défaut.\n\nContinuer ?"
   [toolbox_uninstall_confirm]="CONFIRMATION FINALE\n\nDésinstaller maintenant la Toolbox ?\n\nNon est sélectionné par défaut."
   [toolbox_uninstall_missing]="Le script uninstall.sh de la Toolbox est introuvable."
   [toolbox_uninstall_done]="La Toolbox a été supprimée.\n\nLes runners Wine/UMU, bottles, saves et jeux ont été conservés."
