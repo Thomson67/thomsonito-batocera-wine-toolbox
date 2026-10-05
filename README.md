@@ -27,7 +27,7 @@ Run as root:
 
 ```bash
 cd /tmp
-curl -fsSL https://raw.githubusercontent.com/Thomson67/ultimate-wine-toolbox/test/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/Thomson67/ultimate-wine-toolbox/main/install.sh | bash
 ```
 
 Installed files are stored under:
