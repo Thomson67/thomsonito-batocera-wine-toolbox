@@ -262,11 +262,28 @@ wsq_create_new() {
         msgbox "$(i18n wsq_create_title)" "$(i18n wsq_source_invalid "$source")"
         return
     }
+
+    source="$(readlink -f -- "$source" 2>/dev/null || printf '%s' "$source")"
+    local windows_root
+    windows_root="$(readlink -f -- "$WSQ_WINDOWS_DIR" 2>/dev/null || printf '%s' "$WSQ_WINDOWS_DIR")"
+
+    if [ "$source" = "$windows_root" ]; then
+        msgbox "$(i18n wsq_create_title)" "$(i18n wsq_source_root_forbidden "$source")"
+        return
+    fi
+
     case "$(basename "$source")" in
-        *.wine|*.wsquashfs) 
+        *.wine|*.wsquashfs)
             msgbox "$(i18n wsq_create_title)" "$(i18n wsq_source_invalid "$source")"
             return ;;
     esac
+
+    if find "$source" -mindepth 1 -maxdepth 1 \
+        \( -type d \( -iname '*.wine' -o -iname '*.pc' \) -o -type f -iname '*.wsquashfs' \) \
+        -print -quit 2>/dev/null | grep -q .; then
+        msgbox "$(i18n wsq_create_title)" "$(i18n wsq_source_contains_games "$source")"
+        return
+    fi
 
     template="$(wsq_select_template)" || return
     raw_name="$(basename "$source")"
