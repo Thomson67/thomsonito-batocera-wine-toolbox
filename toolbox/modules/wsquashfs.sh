@@ -265,6 +265,12 @@ print(backup)
 PY
 }
 
+wsq_finalize_runner_config() {
+    local game_name="$1" runner="$2"
+    local final_rom="${game_name}.wsquashfs"
+    wsq_set_runner_config "$final_rom" "$runner"
+}
+
 wsq_save_state() {
     local prefix="$1" game_name="$2" snapshot="$3" exe_rel="$4" runner="$5"
     mkdir -p "$WSQ_STATE_DIR"
@@ -541,6 +547,11 @@ wsq_resume_build() {
             return
         fi
         if maintenance_squash_wine "$prefix" "$archive"; then
+            wsq_finalize_runner_config "$game_name" "$runner" || {
+                msgbox "$(i18n wsq_create_title)" "$(i18n wsq_runner_finalize_failed "$archive")"
+                return
+            }
+
             if yesno_default_no "$(i18n squash_delete_source_title)" \
                 "$(i18n squash_delete_source_confirm "$(basename "$prefix")")"; then
                 maintenance_delete_wine_dir_symlink_safe "$prefix" || true
