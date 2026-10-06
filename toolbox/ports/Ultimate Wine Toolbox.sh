@@ -133,6 +133,73 @@ launch_game_via_es() {
     return 1
 }
 
+get_running_game_http_code() {
+    if command -v curl >/dev/null 2>&1; then
+        curl -sS --max-time 2 -o /dev/null -w '%{http_code}' \
+            http://127.0.0.1:1234/runningGame 2>/dev/null || true
+        return 0
+    fi
+
+    if command -v wget >/dev/null 2>&1; then
+        local body
+        body="$(wget -q -T 2 -O - http://127.0.0.1:1234/runningGame 2>/dev/null || true)"
+        if printf '%s' "$body" | grep -q 'NO GAME RUNNING'; then
+            printf '201'
+        elif [ -n "$body" ]; then
+            printf '200'
+        fi
+        return 0
+    fi
+
+    return 1
+}
+
+wait_for_game_start() {
+    local attempt=0 code=""
+    while [ "$attempt" -lt 480 ]; do
+        attempt=$((attempt + 1))
+        code="$(get_running_game_http_code)"
+        if [ "$code" = "200" ]; then
+            echo "game_started_after_attempt=$attempt" >>"$BOOT_LOG"
+            return 0
+        fi
+        sleep 0.25
+    done
+
+    echo "ERROR: game did not enter running state before timeout." >>"$BOOT_LOG"
+    return 1
+}
+
+wait_for_game_stop() {
+    local code=""
+    while true; do
+        code="$(get_running_game_http_code)"
+        if [ "$code" = "201" ]; then
+            echo "game_stopped_time=$(date '+%Y-%m-%d %H:%M:%S %z')" >>"$BOOT_LOG"
+            return 0
+        fi
+        sleep 0.5
+    done
+}
+
+resume_wsquashfs_toolbox() {
+    echo "wsq_auto_resume=1" >>"$BOOT_LOG"
+
+    WT_AUTO_RESUME_WSQ=1 /usr/bin/xterm \
+        +lc \
+        -u8 \
+        -fa "DejaVu Sans Mono" \
+        -fs 10 \
+        -title "Ultimate Wine Toolbox" \
+        -geometry 120x36 \
+        -e /bin/bash "$LAUNCHER" \
+        >>"$BOOT_LOG" 2>&1
+
+    local resume_rc=$?
+    echo "wsq_auto_resume_exit_code=$resume_rc" >>"$BOOT_LOG"
+    return "$resume_rc"
+}
+
 launch_rom=""
 if [ -f "$LAUNCH_REQUEST" ]; then
     IFS= read -r launch_rom < "$LAUNCH_REQUEST" || true
@@ -158,7 +225,11 @@ if [ -f "$RESTART_REQUEST" ]; then
         if [ "$restart_rc" -eq 0 ] && [ -n "$launch_rom" ]; then
             if wait_for_es_restart "$old_es_pid" && wait_for_es_api; then
                 launch_game_via_es "$launch_rom"
-                echo "es_launch_exit_code=$?" >>"$BOOT_LOG"
+                launch_rc=$?
+                echo "es_launch_exit_code=$launch_rc" >>"$BOOT_LOG"
+                if [ "$launch_rc" -eq 0 ] && wait_for_game_start && wait_for_game_stop; then
+                    resume_wsquashfs_toolbox || true
+                fi
             else
                 echo "ERROR: automatic game launch skipped because restarted ES is unavailable." >>"$BOOT_LOG"
             fi
@@ -169,7 +240,11 @@ if [ -f "$RESTART_REQUEST" ]; then
 elif [ -n "$launch_rom" ]; then
     if wait_for_es_api; then
         launch_game_via_es "$launch_rom"
-        echo "es_launch_exit_code=$?" >>"$BOOT_LOG"
+        launch_rc=$?
+        echo "es_launch_exit_code=$launch_rc" >>"$BOOT_LOG"
+        if [ "$launch_rc" -eq 0 ] && wait_for_game_start && wait_for_game_stop; then
+            resume_wsquashfs_toolbox || true
+        fi
     fi
 fi
 
