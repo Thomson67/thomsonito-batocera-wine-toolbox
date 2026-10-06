@@ -333,7 +333,7 @@ wsq_select_executable() {
 }
 
 wsq_write_autorun() {
-    local prefix="$1" exe_rel="$2" savedir="${3:-}"
+    local prefix="$1" exe_rel="$2" savedir="${3:-}" savefiles="${4:-}"
     local exe_dir exe_name tmp
     exe_dir="$(dirname "$exe_rel")"
     exe_name="$(basename "$exe_rel")"
@@ -342,6 +342,7 @@ wsq_write_autorun() {
     tmp="$prefix/autorun.cmd.uwt-tmp"
     {
         [ -n "$savedir" ] && printf 'SAVEDIR=%s/\n' "${savedir%/}"
+        [ -n "$savefiles" ] && printf 'SAVEFILES=%s\n' "$savefiles"
         printf 'DIR=%s\n' "$exe_dir"
         printf 'CMD="%s"\n' "$exe_name"
     } > "$tmp"
@@ -587,26 +588,138 @@ wsq_create_new() {
     exit 0
 }
 
+wsq_cancel_pending() {
+    rm -f -- "$snapshot" "$WSQ_STATE_FILE" "$WSQ_STATE_DIR/wsq-launch-result"
+    msgbox "$(i18n wsq_resume_title)" "$(i18n wsq_prefix_kept "$prefix")"
+}
+
+wsq_retry_pending() {
+    wsq_request_game_launch "$prefix" || return 1
+    wsq_restart_emulationstation_deferred || return 1
+    exit 0
+}
+
+wsq_browse_save() {
+    local current="." path choice validated
+    local -a dirs=() items=()
+    while true; do
+        dirs=()
+        items=("select" "$(i18n wsq_browser_select)")
+        [ "$current" = "." ] || items+=("up" "$(i18n wsq_browser_up)")
+        while IFS= read -r path; do
+            dirs+=("$path")
+            items+=("${#dirs[@]}" "$(basename "$path")/")
+        done < <(python3 "$WSQ_HELPER" directories "$prefix" "$current" 2>/dev/null)
+        choice="$(menu_select "$(i18n wsq_browser_title)" \
+            "$(i18n wsq_browser_prompt "$current")" "${items[@]}")" || return 1
+        case "$choice" in
+            select)
+                validated="$(python3 "$WSQ_HELPER" validate-save "$prefix" "$current" "$exe_rel" 2>/dev/null)" || {
+                    msgbox "$(i18n wsq_browser_title)" "$(i18n wsq_browser_invalid)"
+                    continue
+                }
+                WSQ_SELECTED_SAVE="$validated"
+                WSQ_SAVE_KIND="directory"
+                return 0 ;;
+            up)
+                current="$(dirname "$current")" ;;
+            *)
+                case "$choice" in ''|*[!0-9]*) continue ;; esac
+                [ "$choice" -ge 1 ] && [ "$choice" -le "${#dirs[@]}" ] || continue
+                current="${dirs[$((choice-1))]}" ;;
+        esac
+    done
+}
+
+wsq_registry_save() {
+    local key score choice preview
+    local -a items=() keys=()
+    while IFS=$'\t' read -r score key; do
+        [ -n "$key" ] || continue
+        keys+=("$key")
+        items+=("${#keys[@]}" "[$score] $key")
+    done < <(python3 "$WSQ_HELPER" registry "$prefix" "$snapshot" 2>/dev/null)
+    if [ "${#keys[@]}" -eq 0 ]; then
+        msgbox "$(i18n wsq_registry_title)" "$(i18n wsq_registry_none)"
+        return 1
+    fi
+    choice="$(menu_select "$(i18n wsq_registry_title)" \
+        "$(i18n wsq_registry_prompt)" "${items[@]}")" || return 1
+    case "$choice" in ''|*[!0-9]*) return 1 ;; esac
+    [ "$choice" -ge 1 ] && [ "$choice" -le "${#keys[@]}" ] || return 1
+    preview="$(python3 "$WSQ_HELPER" registry-view "$prefix" "${keys[$((choice-1))]}" 2>/dev/null)" || return 1
+    msgbox "$(i18n wsq_registry_title)" "$preview" || return 1
+    yesno_default_no "$(i18n wsq_registry_title)" \
+        "$(i18n wsq_registry_confirm "${keys[$((choice-1))]}")" || return 1
+    WSQ_SAVE_KIND="registry"
+    WSQ_SELECTED_SAVE="."
+}
+
 wsq_select_save_candidate() {
     local prefix="$1" snapshot="$2"
     WSQ_SELECTED_SAVE=""
+    WSQ_SAVE_KIND="directory"
     local -a items=()
-    local rows="" score count rel reason idx=1 choice
+    local rows="" score count rel reason idx=1 choice validated
     while IFS=$'\t' read -r score count rel reason; do
         [ -n "$rel" ] || continue
-        items+=("$idx" "[$score] $rel  ($count)")
-        rows+="$rel"$'\n'
+        validated="$(python3 "$WSQ_HELPER" validate-save "$prefix" "$rel" "$exe_rel" 2>/dev/null)" || continue
+        items+=("$idx" "[$score] $validated  ($count)")
+        rows+="$validated"$'\n'
         idx=$((idx+1))
     done < <(python3 "$WSQ_HELPER" diff "$prefix" "$snapshot")
 
-    if [ "${#items[@]}" -eq 0 ]; then
-        msgbox "$(i18n wsq_resume_title)" "$(i18n wsq_no_save_candidates)"
-        return 1
+    if [ "${#items[@]}" -gt 0 ]; then
+        choice="$(menu_select "$(i18n wsq_save_title)" "$(i18n wsq_save_prompt)" "${items[@]}")" || return 1
+        WSQ_SELECTED_SAVE="$(sed -n "${choice}p" <<< "$rows")"
+        [ -n "$WSQ_SELECTED_SAVE" ]
+        return $?
     fi
 
-    choice="$(menu_select "$(i18n wsq_save_title)" "$(i18n wsq_save_prompt)" "${items[@]}")" || return 1
-    WSQ_SELECTED_SAVE="$(sed -n "${choice}p" <<< "$rows")"
-    [ -n "$WSQ_SELECTED_SAVE" ]
+    while true; do
+        choice="$(menu_select "$(i18n wsq_save_title)" "$(i18n wsq_no_save_choices)" \
+            "retry" "$(i18n wsq_no_save_retry)" \
+            "registry" "$(i18n wsq_registry_title)" \
+            "browse" "$(i18n wsq_browser_title)" \
+            "cancel" "$(i18n wsq_launch_cancel)")" || return 1
+        case "$choice" in
+            retry) wsq_retry_pending; return 1 ;;
+            registry) wsq_registry_save && return 0 ;;
+            browse) wsq_browse_save && return 0 ;;
+            cancel) wsq_cancel_pending; return 1 ;;
+        esac
+    done
+}
+
+wsq_copy_registry_save() {
+    local dest="$WSQ_SAVE_ROOT/$game_name"
+    # Read before touching the destination: user.reg may already point there.
+    local tmp
+    tmp="$(mktemp "$WSQ_STATE_DIR/user-reg.XXXXXX")" || return 1
+    if ! cp -L -- "$prefix/user.reg" "$tmp"; then
+        rm -f -- "$tmp"
+        return 1
+    fi
+    wsq_save_destination_prepare "$dest"
+    local rc=$?
+    if [ "$rc" -ne 0 ]; then
+        rm -f -- "$tmp"
+        return "$rc"
+    fi
+    if ! cp -- "$tmp" "$dest/user.reg"; then
+        rm -f -- "$tmp"
+        return 1
+    fi
+    # The archive needs a working registry, never a symlink to this machine.
+    if [ -L "$prefix/user.reg" ]; then
+        cp -- "$tmp" "$prefix/.uwt-user.reg-$$" &&
+            mv -f -- "$prefix/.uwt-user.reg-$$" "$prefix/user.reg" || {
+                rm -f -- "$tmp" "$prefix/.uwt-user.reg-$$"
+                return 1
+            }
+    fi
+    rm -f -- "$tmp"
+    return 0
 }
 
 wsq_save_destination_prepare() {
@@ -615,7 +728,7 @@ wsq_save_destination_prepare() {
 
     if [ ! -e "$dest" ]; then
         mkdir -p "$dest"
-        return 0
+        return $?
     fi
 
     [ -d "$dest" ] && [ ! -L "$dest" ] || return 4
@@ -670,9 +783,9 @@ wsq_move_save_data() {
 
     [ -d "$save_abs" ] || return 2
 
-    if ! wsq_save_destination_prepare "$dest"; then
-        return $?
-    fi
+    wsq_save_destination_prepare "$dest"
+    local prepare_rc=$?
+    [ "$prepare_rc" -eq 0 ] || return "$prepare_rc"
 
     shopt -s dotglob nullglob
     for item in "$save_abs"/*; do
@@ -857,7 +970,7 @@ wsq_review_launch() {
 }
 
 wsq_resume_build() {
-    local prefix game_name snapshot exe_rel runner save_rel dest archive
+    local prefix game_name snapshot exe_rel runner save_rel dest archive save_kind
     [ -s "$WSQ_STATE_FILE" ] || {
         msgbox "$(i18n wsq_resume_title)" "$(i18n wsq_no_pending)"
         return
@@ -878,11 +991,16 @@ wsq_resume_build() {
 
     wsq_select_save_candidate "$prefix" "$snapshot" || return
     save_rel="$WSQ_SELECTED_SAVE"
+    save_kind="$WSQ_SAVE_KIND"
 
-    yesno_default_no "$(i18n wsq_save_title)" \
-        "$(i18n wsq_save_confirm "$save_rel" "$WSQ_SAVE_ROOT/$game_name")" || return
-
-    wsq_move_save_data "$prefix" "$save_rel" "$game_name"
+    if [ "$save_kind" = registry ]; then
+        WSQ_LAST_SAVE_BACKUP=""
+        wsq_copy_registry_save
+    else
+        yesno_default_no "$(i18n wsq_save_title)" \
+            "$(i18n wsq_save_confirm "$save_rel" "$WSQ_SAVE_ROOT/$game_name")" || return
+        wsq_move_save_data "$prefix" "$save_rel" "$game_name"
+    fi
     local move_rc=$?
     if [ "$move_rc" -ne 0 ]; then
         if [ "$move_rc" -eq 10 ]; then
@@ -892,7 +1010,11 @@ wsq_resume_build() {
         return
     fi
 
-    wsq_write_autorun "$prefix" "$exe_rel" "$save_rel"
+    if [ "$save_kind" = registry ]; then
+        wsq_write_autorun "$prefix" "$exe_rel" "." "user.reg"
+    else
+        wsq_write_autorun "$prefix" "$exe_rel" "$save_rel"
+    fi
 
     if [ -n "${WSQ_LAST_SAVE_BACKUP:-}" ]; then
         msgbox "$(i18n wsq_save_title)" "$(i18n wsq_save_backup_done "$WSQ_LAST_SAVE_BACKUP")"
@@ -900,7 +1022,13 @@ wsq_resume_build() {
 
     rm -f -- "$snapshot" "$WSQ_STATE_FILE"
 
-    if yesno "$(i18n wsq_create_title)" "$(i18n wsq_build_now)"; then
+    local build_prompt
+    if [ "$save_kind" = registry ]; then
+        build_prompt="$(i18n wsq_registry_build_now)"
+    else
+        build_prompt="$(i18n wsq_build_now)"
+    fi
+    if yesno "$(i18n wsq_create_title)" "$build_prompt"; then
         archive="${prefix%.wine}.wsquashfs"
         wsq_prepare_existing_archive "$archive"
         local archive_rc=$?
@@ -921,8 +1049,11 @@ wsq_resume_build() {
             esac
             return
         fi
-        wsq_cleanup_internal_savedir "$prefix" "$save_rel"
-        local cleanup_rc=$?
+        local cleanup_rc=0
+        if [ "$save_kind" != registry ]; then
+            wsq_cleanup_internal_savedir "$prefix" "$save_rel"
+            cleanup_rc=$?
+        fi
         if [ "$cleanup_rc" -ne 0 ]; then
             if [ "$cleanup_rc" -eq 2 ]; then
                 msgbox "$(i18n wsq_create_title)" "$(i18n wsq_savedir_not_empty "$prefix/$save_rel")"

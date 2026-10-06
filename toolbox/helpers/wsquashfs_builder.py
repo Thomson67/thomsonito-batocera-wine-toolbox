@@ -35,6 +35,91 @@ NEGATIVE_PATH = (
 )
 
 
+def registry_sections(prefix: Path):
+    """Compare values, ignoring Wine's section timestamps and volatile headers."""
+    sections = {}
+    key = None
+    try:
+        text = (prefix / "user.reg").read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return sections
+    for line in text.splitlines():
+        if line.startswith("[") and "]" in line:
+            key = line[1:line.rindex("]")]
+            sections[key] = []
+        elif key is not None and line.strip() and not line.startswith(("#", ";")):
+            sections[key].append(line)
+    return {key: "\n".join(values) for key, values in sections.items()}
+
+
+def safe_save_dir(prefix: Path, rel: str, exe: str = ""):
+    root = prefix.resolve()
+    path = (root / rel).resolve()
+    path.relative_to(root)
+    if not path.is_dir() or path == root:
+        raise ValueError("not an internal save directory")
+    parts = path.relative_to(root).parts
+    if any(x in ("windows", "dosdevices") for x in (p.casefold() for p in parts)):
+        raise ValueError("system directory")
+    if len(parts) == 1 and parts[0].casefold() == "drive_c":
+        raise ValueError("drive root")
+    if len(parts) <= 3 and tuple(p.casefold() for p in parts[:2]) == ("drive_c", "users"):
+        raise ValueError("user profile root")
+    if tuple(p.casefold() for p in parts[:2]) == ("drive_c", "users"):
+        if len(parts) == 4 and parts[3].casefold() in ("appdata", "documents", "saved games"):
+            raise ValueError("shared profile directory")
+        if len(parts) == 5 and parts[3].casefold() == "appdata" and parts[4].casefold() in ("local", "locallow", "roaming"):
+            raise ValueError("shared application directory")
+    if exe and (root / exe).resolve().is_relative_to(path):
+        raise ValueError("directory contains the game executable")
+    return path.relative_to(root).as_posix()
+
+
+def cmd_directories(args):
+    root = Path(args.prefix).resolve()
+    current = (root / args.relative).resolve()
+    current.relative_to(root)
+    for child in sorted(current.iterdir(), key=lambda p: p.name.casefold()):
+        try:
+            if not child.is_dir() or not child.resolve().is_relative_to(root):
+                continue
+            rel = child.relative_to(root).as_posix()
+            if any(c in rel for c in ("\t", "\n", "\r")):
+                continue
+            print(rel)
+        except OSError:
+            continue
+
+
+def cmd_validate_save(args):
+    print(safe_save_dir(Path(args.prefix), args.relative, args.exe))
+
+
+def cmd_registry(args):
+    before = json.loads(Path(args.before).read_text(encoding="utf-8"))
+    old = before.get("__registry__", {})
+    rows = []
+    for key, values in registry_sections(Path(args.prefix)).items():
+        low = key.casefold().replace("\\\\", "\\")
+        if not low.startswith("software\\") or low.startswith(("software\\wine", "software\\microsoft", "software\\classes")):
+            continue
+        if any(c in key for c in ("\t", "\n", "\r")):
+            continue
+        changed = "__registry__" in before and old.get(key) != values
+        score = 50 if changed else 0
+        if any(word in (low + " " + values.casefold()) for word in POSITIVE_PATH + ("progress", "level", "unlock", "checkpoint")):
+            score += 40
+        if score or values:
+            rows.append((score, key))
+    for score, key in sorted(rows, key=lambda row: (-row[0], row[1].casefold())):
+        print(f"{score}\t{key}")
+
+
+def cmd_registry_view(args):
+    values = registry_sections(Path(args.prefix)).get(args.key, "")
+    print(f"[{args.key}]\n{values[:6000]}")
+
+
 def clean_game_name(name: str) -> str:
     name = re.sub(r"(?i)\bbuild\b[.\s]*\d*", " ", name)
     name = re.sub(r"(?i)\bv?\d+(?:\.\d+){1,}\b", " ", name)
@@ -145,6 +230,7 @@ def snapshot(prefix: Path):
                         out[p.relative_to(prefix).as_posix()] = state
         except OSError:
             pass
+    out["__registry__"] = registry_sections(prefix)
     return out
 
 
@@ -176,6 +262,8 @@ def score_save_dir(rel_dir: str, changed_files):
 def diff_snapshots(prefix: Path, before, after):
     changed = []
     for rel, state in after.items():
+        if rel == "__registry__":
+            continue
         if before.get(rel) != state:
             changed.append(rel)
 
@@ -235,6 +323,27 @@ def main():
     p = sub.add_parser("clean-name")
     p.add_argument("name")
     p.set_defaults(func=cmd_clean_name)
+
+    p = sub.add_parser("directories")
+    p.add_argument("prefix")
+    p.add_argument("relative")
+    p.set_defaults(func=cmd_directories)
+
+    p = sub.add_parser("validate-save")
+    p.add_argument("prefix")
+    p.add_argument("relative")
+    p.add_argument("exe", nargs="?", default="")
+    p.set_defaults(func=cmd_validate_save)
+
+    p = sub.add_parser("registry")
+    p.add_argument("prefix")
+    p.add_argument("before")
+    p.set_defaults(func=cmd_registry)
+
+    p = sub.add_parser("registry-view")
+    p.add_argument("prefix")
+    p.add_argument("key")
+    p.set_defaults(func=cmd_registry_view)
 
     args = parser.parse_args()
     args.func(args)
