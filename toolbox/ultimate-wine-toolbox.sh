@@ -59,6 +59,8 @@ $(i18n menu_umu): $(umu_toolbox_status)" \
 if [ "${WT_AUTO_RESUME_WSQ:-0}" = "1" ]; then
     unset WT_AUTO_RESUME_WSQ
     wsq_resume_build
+    wsq_rc=$?
+    [ "$wsq_rc" -eq 20 ] && exit 0
 fi
 
 main_menu
