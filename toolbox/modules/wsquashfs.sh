@@ -394,7 +394,6 @@ wsq_create_new() {
     fi
 
     wsq_save_state "$target" "$game_name" "$snapshot" "$exe_rel" "$runner"
-    wsq_refresh_emulationstation_games || true
 
     msgbox "$(i18n wsq_create_title)" \
         "$(i18n wsq_test_ready "$target" "$rom_name" "$backup")"
@@ -555,7 +554,6 @@ wsq_resume_build() {
                 "$(i18n squash_delete_source_confirm "$(basename "$prefix")")"; then
                 maintenance_delete_wine_dir_symlink_safe "$prefix" || true
             fi
-            wsq_refresh_emulationstation_games || true
             msgbox "$(i18n wsq_create_title)" "$(i18n wsq_build_done "$archive" "$WSQ_SAVE_ROOT/$game_name")"
             wsq_restart_emulationstation_deferred || true
             exit 0
