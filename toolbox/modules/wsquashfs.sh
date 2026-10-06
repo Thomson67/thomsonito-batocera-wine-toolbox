@@ -44,6 +44,7 @@ wsq_select_source_game() {
 }
 
 WSQ_PREFIX_CATALOG_URL="https://raw.githubusercontent.com/Thomson67/batocera-wine-runners/main/prefixes.json"
+WSQ_SELECTED_TEMPLATE=""
 
 wsq_default_template_metadata() {
     local catalog_tmp
@@ -150,10 +151,12 @@ wsq_install_default_template() {
     case "$free_bytes" in ''|*[!0-9]*) free_bytes=0 ;; esac
     free_human="$(human_bytes "$free_bytes")"
 
-    if ! yesno_default_no "$(i18n wsq_templates_download_title)" \
-        "$(i18n wsq_templates_download_prompt "$name" "$version" "$size_human" "$WSQ_TEMPLATES_DIR" "$free_human")"; then
-        return 1
-    fi
+    local download_choice
+    download_choice="$(menu_select "$(i18n wsq_templates_download_title)" \
+        "$(i18n wsq_templates_download_prompt "$name" "$version" "$size_human" "$WSQ_TEMPLATES_DIR" "$free_human")" \
+        "1" "$(i18n yes)" \
+        "0" "$(i18n no)")" || return 1
+    [ "$download_choice" = "1" ] || return 1
 
     if [ "$free_bytes" -gt 0 ] && [ "$free_bytes" -lt "$size" ]; then
         wsq_template_terminal_notice "$(i18n wsq_template_no_space "$size_human" "$free_human")"
@@ -169,11 +172,15 @@ wsq_install_default_template() {
     tmp="$dest.download-$$"
     rm -f -- "$tmp"
 
-    clear
-    printf '==== %s ====\n\n' "$(i18n wsq_templates_download_title)"
-    printf '%b\n\n' "$(i18n wsq_template_downloading "$name" "$size_human")"
+    if [ -w /dev/tty ]; then
+        wt_clear_tty
+        {
+            printf '==== %s ====\n\n' "$(i18n wsq_templates_download_title)"
+            printf '%b\n\n' "$(i18n wsq_template_downloading "$name" "$size_human")"
+        } > /dev/tty
+    fi
 
-    if ! download_file "$url" "$tmp"; then
+    if ! download_file "$url" "$tmp" 2>/dev/tty; then
         rm -f -- "$tmp"
         wsq_template_terminal_notice "$(i18n wsq_template_download_failed)"
         return 1
@@ -207,6 +214,8 @@ wsq_select_template() {
     local -a items=()
     local rows="" path idx=1 choice
 
+    WSQ_SELECTED_TEMPLATE=""
+
     while IFS= read -r path; do
         [ -n "$path" ] || continue
         items+=("$idx" "$(basename "$path")")
@@ -215,9 +224,7 @@ wsq_select_template() {
     done < <(wsq_list_templates)
 
     if [ "${#items[@]}" -eq 0 ]; then
-        if ! wsq_install_default_template; then
-            return 1
-        fi
+        wsq_install_default_template || return 1
 
         items=()
         rows=""
@@ -236,7 +243,8 @@ wsq_select_template() {
     fi
 
     choice="$(menu_select "$(i18n wsq_templates_title)" "$(i18n wsq_templates_prompt)" "${items[@]}")" || return 1
-    sed -n "${choice}p" <<< "$rows"
+    WSQ_SELECTED_TEMPLATE="$(sed -n "${choice}p" <<< "$rows")"
+    [ -n "$WSQ_SELECTED_TEMPLATE" ]
 }
 
 wsq_clean_name() {
@@ -532,7 +540,8 @@ wsq_create_new() {
             return
         fi
 
-        template="$(wsq_select_template)" || return
+        wsq_select_template || return
+        template="$WSQ_SELECTED_TEMPLATE"
         raw_name="$(basename "$source")"
         raw_name="${raw_name%.pc}"
         game_name="$(wsq_clean_name "$raw_name")"
