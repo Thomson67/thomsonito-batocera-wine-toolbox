@@ -7,7 +7,6 @@ WSQ_STATE_FILE="$WSQ_STATE_DIR/wsquashfs-builder.json"
 WSQ_HELPER="$WT_ROOT/helpers/wsquashfs_builder.py"
 WSQ_SAVE_ROOT="/userdata/saves/windows"
 WSQ_CONF="/userdata/system/batocera.conf"
-WSQ_BACKUP_DIR="/userdata/system/backups/ultimate-wine-toolbox"
 
 wsq_list_templates() {
     [ -d "$WSQ_TEMPLATES_DIR" ] || return 0
@@ -396,22 +395,14 @@ wsq_select_runner() {
 
 wsq_set_runner_config() {
     local rom_name="$1" runner="$2"
-    mkdir -p "$WSQ_BACKUP_DIR"
-    python3 - "$WSQ_CONF" "$WSQ_BACKUP_DIR" "$rom_name" "$runner" <<'PY'
-import datetime
+    python3 - "$WSQ_CONF" "$rom_name" "$runner" <<'PY'
 import os
-import re
-import shutil
 import sys
 
-conf, backup_dir, rom_name, runner = sys.argv[1:5]
+conf, rom_name, runner = sys.argv[1:4]
 os.makedirs(os.path.dirname(conf), exist_ok=True)
 if not os.path.exists(conf):
     open(conf, "a", encoding="utf-8").close()
-
-stamp=datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
-backup=os.path.join(backup_dir, f"batocera.conf.wsquashfs-{stamp}.bak")
-shutil.copy2(conf, backup)
 
 safe_name=rom_name.replace("=", "").replace("#", "")
 canonical_prefix = f'windows["{safe_name}"].wine-runner='
@@ -436,7 +427,6 @@ tmp=conf+".uwt-wsq"
 with open(tmp, "w", encoding="utf-8", errors="surrogateescape") as f:
     f.writelines(lines)
 os.replace(tmp, conf)
-print(backup)
 PY
 }
 
@@ -500,7 +490,7 @@ wsq_request_game_launch() {
 }
 
 wsq_create_new() {
-    local source template raw_name game_name target exe_rel runner snapshot backup rom_name
+    local source template raw_name game_name target exe_rel runner snapshot rom_name
     command -v unsquashfs >/dev/null 2>&1 || {
         msgbox "$(i18n wsq_create_title)" "$(i18n squash_tools_missing)"
         return
@@ -574,7 +564,7 @@ wsq_create_new() {
     }
 
     rom_name="$(basename "$target")"
-    backup="$(wsq_set_runner_config "$rom_name" "$runner")" || {
+    wsq_set_runner_config "$rom_name" "$runner" || {
         msgbox "$(i18n wsq_create_title)" "$(i18n wsq_runner_config_failed)"
         return
     }
@@ -589,7 +579,7 @@ wsq_create_new() {
     wsq_save_state "$target" "$game_name" "$snapshot" "$exe_rel" "$runner"
 
     msgbox "$(i18n wsq_create_title)" \
-        "$(i18n wsq_test_ready "$target" "$rom_name" "$backup")"
+        "$(i18n wsq_test_ready "$target" "$rom_name")"
 
     wsq_request_game_launch "$target" || true
     wsq_restart_emulationstation_deferred || true
