@@ -181,6 +181,7 @@ wsq_install_default_template() {
 wsq_select_template() {
     local -a items=()
     local rows="" path idx=1 choice
+
     while IFS= read -r path; do
         [ -n "$path" ] || continue
         items+=("$idx" "$(basename "$path")")
@@ -200,7 +201,16 @@ wsq_select_template() {
         while IFS= read -r path; do
             [ -n "$path" ] || continue
             items+=("$idx" "$(basename "$path")")
-            rows+="$path"
+            rows+="$path"$'\n'
+            idx=$((idx+1))
+        done < <(wsq_list_templates)
+
+        [ "${#items[@]}" -gt 0 ] || {
+            msgbox "$(i18n wsq_templates_title)" "$(i18n wsq_templates_none "$WSQ_TEMPLATES_DIR")"
+            return 1
+        }
+    fi
+
     choice="$(menu_select "$(i18n wsq_templates_title)" "$(i18n wsq_templates_prompt)" "${items[@]}")" || return 1
     sed -n "${choice}p" <<< "$rows"
 }
