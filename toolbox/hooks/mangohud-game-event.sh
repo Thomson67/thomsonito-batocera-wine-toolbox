@@ -25,7 +25,10 @@ event="${1:-}"
 system="${2:-}"
 rom="${5:-}"
 
-[ "$event" = "gameStart" ] || exit 0
+case "$event" in
+    gameStart|gameStop) ;;
+    *) exit 0 ;;
+esac
 [ "$system" = "windows" ] || exit 0
 [ -n "$rom" ] || exit 0
 hook_log "event=$event system=$system rom=$rom"
@@ -125,15 +128,22 @@ if [ -s "$OVERRIDE_FILE" ]; then
     override="$(awk -F '\t' -v p="$rom" '$2==p {v=$1} END{print v}' "$OVERRIDE_FILE")"
 fi
 
-case "$override" in
-    on) desired=1 ;;
-    off) desired=0 ;;
-    *) desired="$global_state" ;;
-esac
+if [ "$event" = "gameStop" ]; then
+    # MangoHud ENV entries are runtime-only. Always remove the entries managed
+    # by Ultimate when the game exits so .wine/.pc prefixes remain clean and a
+    # later WSquashFS build cannot embed MangoHud runtime settings.
+    desired=0
+else
+    case "$override" in
+        on) desired=1 ;;
+        off) desired=0 ;;
+        *) desired="$global_state" ;;
+    esac
+fi
 
 legacy_mangohud=0
 detected_major="$(batocera_major)"
-hook_log "batocera_major=${detected_major:-unknown} global=$global_state override=${override:-inherit} desired=$desired"
+hook_log "batocera_major=${detected_major:-unknown} global=$global_state override=${override:-inherit} desired=$desired event=$event"
 
 if [ "$desired" = "1" ]; then
     ensure_x86_vulkan_layer
