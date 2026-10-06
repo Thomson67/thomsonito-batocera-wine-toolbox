@@ -216,7 +216,7 @@ monitor_wsq_launch() {
         result="start_unconfirmed"
     else
         wait_for_game_stop
-        if [ "$((SECONDS - GAME_STARTED_AT))" -lt 15 ]; then
+        if [ "$((SECONDS - GAME_STARTED_AT))" -lt 30 ]; then
             result="short"
         else
             result="normal"
