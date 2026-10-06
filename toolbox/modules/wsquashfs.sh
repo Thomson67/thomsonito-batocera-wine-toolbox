@@ -434,7 +434,10 @@ PY
 wsq_finalize_runner_config() {
     local game_name="$1" runner="$2"
     local final_rom="${game_name}.wsquashfs"
-    wsq_set_runner_config "$final_rom" "$runner"
+    wsq_set_runner_config "$final_rom" "$runner" || return 1
+    if [ -n "${3:-}" ]; then
+        python3 "$WT_ROOT/helpers/wsquashfs_options.py" copy "$WSQ_CONF" "$(basename "$3")" "$final_rom"
+    fi
 }
 
 wsq_save_state() {
@@ -1038,52 +1041,110 @@ wsq_post_build_menu() {
     esac
 }
 
-wsq_review_launch() {
-    local result="" choice new_runner
-    if [ -f "$WSQ_STATE_DIR/wsq-launch-result" ]; then
-        IFS= read -r result < "$WSQ_STATE_DIR/wsq-launch-result" || true
-    fi
-    case "$result" in
-        ""|normal) return 0 ;;
-        short|launch_failed|start_unconfirmed|es_unavailable) ;;
-        *) return 1 ;;
-    esac
+wsq_game_option() {
+    python3 "$WT_ROOT/helpers/wsquashfs_options.py" "$1" "$WSQ_CONF" \
+        "$(basename "$prefix")" "$2" "${@:3}"
+}
 
-    local -a choices=()
-    if [ "$result" = short ]; then
-        choices+=("continue" "$(i18n wsq_launch_continue)")
-    fi
-    choices+=("runner" "$(i18n wsq_launch_runner)"
-              "retry" "$(i18n wsq_launch_retry)"
-              "cancel" "$(i18n wsq_launch_cancel)")
-    choice="$(menu_select "$(i18n wsq_launch_title)" \
-        "$(i18n "wsq_launch_$result")\n\n$(i18n wsq_launch_context "$runner")" \
-        "${choices[@]}")" || return 1
+wsq_game_options_menu() {
+    local key value label choice
+    local -a items=()
+    while true; do
+        items=()
+        for key in enable_hidraw dxvk fps_limit force_large_adress virtual_desktop; do
+            value="$(wsq_game_option get "$key")" || return 1
+            case "$value" in
+                1) label="$(i18n enabled)" ;;
+                0) label="$(i18n disabled)" ;;
+                *) label="$(i18n wsq_option_inherit)" ;;
+            esac
+            items+=("$key" "$(i18n "wsq_option_$key") : $label")
+        done
+        items+=("relaunch" "$(i18n wsq_options_relaunch)" "back" "$(i18n back)")
+        choice="$(menu_select "$(i18n wsq_options_title)" "$(i18n wsq_options_prompt)" "${items[@]}")" || return 1
+        case "$choice" in
+            relaunch) wsq_retry_pending; return 1 ;;
+            back) return 0 ;;
+            enable_hidraw|dxvk|fps_limit|force_large_adress|virtual_desktop)
+                value="$(menu_select "$(i18n "wsq_option_$choice")" "$(i18n wsq_option_prompt)"                     "1" "$(i18n enabled)" "0" "$(i18n disabled)"                     "inherit" "$(i18n wsq_option_inherit)")" || continue
+                case "$value" in 0|1|inherit) ;; *) continue ;; esac
+                wsq_game_option set "$choice" "$value" || {
+                    msgbox "$(i18n wsq_options_title)" "$(i18n wsq_runner_config_failed)"
+                    return 1
+                } ;;
+        esac
+    done
+}
 
-    case "$choice" in
-        continue)
-            rm -f -- "$WSQ_STATE_DIR/wsq-launch-result"
-            return 0 ;;
-        runner|retry)
-            if [ "$choice" = runner ]; then
-                new_runner="$(wsq_select_runner)" || return 1
+wsq_launch_failure_menu() {
+    local choice new_runner
+    while true; do
+        choice="$(menu_select "$(i18n wsq_launch_title)" "$1"             "runner" "$(i18n wsq_launch_runner)"             "retry" "$(i18n wsq_launch_retry)"             "options" "$(i18n wsq_options_title)"             "cancel" "$(i18n wsq_launch_cancel)")" || return 1
+        case "$choice" in
+            runner)
+                new_runner="$(wsq_select_runner)" || continue
                 wsq_set_runner_config "$(basename "$prefix")" "$new_runner" || {
                     msgbox "$(i18n wsq_launch_title)" "$(i18n wsq_runner_config_failed)"
                     return 1
                 }
                 runner="$new_runner"
-            fi
-            wsq_save_state "$prefix" "$game_name" "$snapshot" "$exe_rel" "$runner" || return 1
-            wsq_request_game_launch "$prefix" || return 1
-            wsq_restart_emulationstation_deferred || return 1
-            exit 0 ;;
-        cancel)
-            # Keep the prepared game and its save data; cancel only the builder.
-            rm -f -- "$snapshot" "$WSQ_STATE_FILE" "$WSQ_STATE_DIR/wsq-launch-result"
-            msgbox "$(i18n wsq_launch_title)" "$(i18n wsq_prefix_kept "$prefix")"
+                wsq_save_state "$prefix" "$game_name" "$snapshot" "$exe_rel" "$runner" || return 1
+                wsq_retry_pending
+                return 1 ;;
+            retry) wsq_retry_pending; return 1 ;;
+            options) wsq_game_options_menu || return 1 ;;
+            cancel) wsq_cancel_pending; return 1 ;;
+        esac
+    done
+}
+
+wsq_review_launch() {
+    local result="" choice body
+    if [ -f "$WSQ_STATE_DIR/wsq-launch-result" ]; then
+        IFS= read -r result < "$WSQ_STATE_DIR/wsq-launch-result" || true
+    fi
+    case "$result" in
+        launch_failed|start_unconfirmed|es_unavailable)
+            wsq_launch_failure_menu "$(i18n "wsq_launch_$result")"
             return 1 ;;
+        ""|normal|short) ;;
+        *) return 1 ;;
     esac
-    return 1
+
+    body="$(i18n wsq_game_worked "$runner")"
+    [ "$result" != short ] || body="$(i18n wsq_launch_short)"$'\n\n'"$body"
+    while true; do
+        choice="$(menu_select "$(i18n wsq_launch_title)" "$body"             "yes" "$(i18n wsq_game_yes)"             "no" "$(i18n wsq_game_no)"             "options" "$(i18n wsq_options_title)"             "cancel" "$(i18n wsq_launch_cancel)")" || return 1
+        case "$choice" in
+            yes) break ;;
+            no) wsq_launch_failure_menu "$(i18n wsq_game_failed)"; return 1 ;;
+            options) wsq_game_options_menu || return 1 ;;
+            cancel) wsq_cancel_pending; return 1 ;;
+        esac
+    done
+
+    while true; do
+        choice="$(menu_select "$(i18n wsq_controller_title)" "$(i18n wsq_controller_prompt)"             "yes" "$(i18n wsq_controller_yes)"             "no" "$(i18n wsq_controller_no)"             "options" "$(i18n wsq_options_title)"             "cancel" "$(i18n wsq_launch_cancel)")" || return 1
+        case "$choice" in
+            yes)
+                rm -f -- "$WSQ_STATE_DIR/wsq-launch-result"
+                return 0 ;;
+            no)
+                choice="$(menu_select "$(i18n wsq_controller_title)" "$(i18n wsq_hidraw_prompt)"                     "hidraw" "$(i18n wsq_hidraw_retry)"                     "options" "$(i18n wsq_options_title)"                     "back" "$(i18n back)")" || continue
+                case "$choice" in
+                    hidraw)
+                        wsq_game_option set enable_hidraw 1 || {
+                            msgbox "$(i18n wsq_controller_title)" "$(i18n wsq_runner_config_failed)"
+                            return 1
+                        }
+                        wsq_retry_pending
+                        return 1 ;;
+                    options) wsq_game_options_menu || return 1 ;;
+                esac ;;
+            options) wsq_game_options_menu || return 1 ;;
+            cancel) wsq_cancel_pending; return 1 ;;
+        esac
+    done
 }
 
 wsq_resume_build() {
@@ -1188,7 +1249,7 @@ wsq_resume_build() {
         fi
 
         if maintenance_squash_wine "$prefix" "$archive"; then
-            wsq_finalize_runner_config "$game_name" "$runner" || {
+            wsq_finalize_runner_config "$game_name" "$runner" "$prefix" || {
                 msgbox "$(i18n wsq_create_title)" "$(i18n wsq_runner_finalize_failed "$archive")"
                 return
             }
