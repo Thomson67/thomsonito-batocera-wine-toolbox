@@ -302,23 +302,8 @@ wsq_refresh_emulationstation_games() {
 }
 
 wsq_restart_emulationstation_deferred() {
-    command -v batocera-es-swissknife >/dev/null 2>&1 || return 1
-
-    # The Toolbox runs from an ES-launched terminal. A plain background
-    # subshell may die with that terminal before the delayed restart fires.
-    # Detach it with nohup so the sequence is reliably:
-    # Toolbox exits -> short delay -> ES restarts and reloads batocera.conf.
-    if command -v nohup >/dev/null 2>&1; then
-        nohup sh -c 'sleep 2; batocera-es-swissknife --restart' \
-            >/tmp/uwt-es-restart.log 2>&1 </dev/null &
-    else
-        (
-            trap '' HUP
-            sleep 2
-            batocera-es-swissknife --restart
-        ) >/tmp/uwt-es-restart.log 2>&1 </dev/null &
-    fi
-
+    mkdir -p "$WSQ_STATE_DIR"
+    : > "$WSQ_STATE_DIR/restart-es.request"
     return 0
 }
 
