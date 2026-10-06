@@ -229,27 +229,14 @@ backup=os.path.join(backup_dir, f"batocera.conf.wsquashfs-{stamp}.bak")
 shutil.copy2(conf, backup)
 
 safe_name=rom_name.replace("=", "").replace("#", "")
-stem_name=safe_name
-for ext in (".wsquashfs", ".wine", ".pc"):
-    if stem_name.casefold().endswith(ext):
-        stem_name=stem_name[:-len(ext)]
-        break
-
 canonical_prefix = f'windows["{safe_name}"].wine-runner='
-prefixes = {
-    f'windows["{stem_name}"].wine-runner=',
-    f'windows["{stem_name}.pc"].wine-runner=',
-    f'windows["{stem_name}.wine"].wine-runner=',
-    f'windows["{stem_name}.wsquashfs"].wine-runner=',
-    canonical_prefix,
-}
 
 with open(conf, "r", encoding="utf-8", errors="surrogateescape") as f:
     lines=f.readlines()
 
 def keep_line(line):
     stripped=line.lstrip()
-    return not any(stripped.startswith(prefix) for prefix in prefixes)
+    return not stripped.startswith(canonical_prefix)
 
 lines=[line for line in lines if keep_line(line)]
 
