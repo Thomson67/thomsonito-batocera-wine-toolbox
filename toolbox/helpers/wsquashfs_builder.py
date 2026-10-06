@@ -53,13 +53,22 @@ def registry_sections(prefix: Path):
     return {key: "\n".join(values) for key, values in sections.items()}
 
 
-def safe_save_dir(prefix: Path, rel: str, exe: str = ""):
+def safe_save_dir(prefix: Path, rel: str, exe: str = "", save_root: Path = Path("/userdata/saves/windows")):
     root = prefix.resolve()
-    path = (root / rel).resolve()
-    path.relative_to(root)
-    if not path.is_dir() or path == root:
+    lexical = Path(os.path.abspath(root / rel))
+    lexical.relative_to(root)
+    path = lexical.resolve()
+    if not path.is_relative_to(root):
+        # Batocera may already have redirected this exact SAVEDIR to its saves.
+        # Accept only a leaf link with an internal parent and a dedicated target.
+        external_root = save_root.resolve()
+        if (not lexical.is_symlink() or not lexical.parent.resolve().is_relative_to(root)
+                or not path.is_relative_to(external_root) or path == external_root):
+            raise ValueError("not an internal directory or a Batocera save-directory link")
+    if not path.is_dir() or lexical == root:
         raise ValueError("not an internal save directory")
-    parts = path.relative_to(root).parts
+    internal = lexical.parent.resolve() / lexical.name
+    parts = internal.relative_to(root).parts
     if any(x in ("windows", "dosdevices") for x in (p.casefold() for p in parts)):
         raise ValueError("system directory")
     if len(parts) == 1 and parts[0].casefold() == "drive_c":
@@ -73,17 +82,24 @@ def safe_save_dir(prefix: Path, rel: str, exe: str = ""):
             raise ValueError("shared application directory")
     if exe and (root / exe).resolve().is_relative_to(path):
         raise ValueError("directory contains the game executable")
-    return path.relative_to(root).as_posix()
+    return internal.relative_to(root).as_posix()
 
 
 def cmd_directories(args):
     root = Path(args.prefix).resolve()
     current = (root / args.relative).resolve()
-    current.relative_to(root)
+    if not current.is_relative_to(root):
+        safe_save_dir(Path(args.prefix), args.relative, save_root=Path(args.save_root))
+        return
     for child in sorted(current.iterdir(), key=lambda p: p.name.casefold()):
         try:
-            if not child.is_dir() or not child.resolve().is_relative_to(root):
+            if not child.is_dir():
                 continue
+            if not child.resolve().is_relative_to(root):
+                try:
+                    safe_save_dir(root, str(child), save_root=Path(args.save_root))
+                except ValueError:
+                    continue
             rel = child.relative_to(root).as_posix()
             if any(c in rel for c in ("\t", "\n", "\r")):
                 continue
@@ -93,7 +109,7 @@ def cmd_directories(args):
 
 
 def cmd_validate_save(args):
-    print(safe_save_dir(Path(args.prefix), args.relative, args.exe))
+    print(safe_save_dir(Path(args.prefix), args.relative, args.exe, Path(args.save_root)))
 
 
 def cmd_registry(args):
@@ -125,8 +141,11 @@ def cmd_inspect(args):
     """Bounded read-only listing; never follow links outside the prefix."""
     root = Path(args.prefix).resolve()
     current = (root / args.relative).resolve()
-    current.relative_to(root)
-    print(current.relative_to(root).as_posix() + "/\n")
+    if not current.is_relative_to(root):
+        relative = safe_save_dir(Path(args.prefix), args.relative, save_root=Path(args.save_root))
+    else:
+        relative = current.relative_to(root).as_posix()
+    print(relative + "/\n")
     count = 0
 
     def visit(folder, depth):
@@ -367,12 +386,14 @@ def main():
     p = sub.add_parser("directories")
     p.add_argument("prefix")
     p.add_argument("relative")
+    p.add_argument("--save-root", default="/userdata/saves/windows")
     p.set_defaults(func=cmd_directories)
 
     p = sub.add_parser("validate-save")
     p.add_argument("prefix")
     p.add_argument("relative")
     p.add_argument("exe", nargs="?", default="")
+    p.add_argument("--save-root", default="/userdata/saves/windows")
     p.set_defaults(func=cmd_validate_save)
 
     p = sub.add_parser("registry")
@@ -388,6 +409,7 @@ def main():
     p = sub.add_parser("inspect")
     p.add_argument("prefix")
     p.add_argument("relative")
+    p.add_argument("--save-root", default="/userdata/saves/windows")
     p.set_defaults(func=cmd_inspect)
 
     args = parser.parse_args()

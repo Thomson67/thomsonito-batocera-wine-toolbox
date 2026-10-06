@@ -603,7 +603,7 @@ wsq_inspect_folder() {
     local folder="$1" listing rc
     listing="$(mktemp /tmp/uwt-save-inspect.XXXXXX)" || return 1
     printf '%b\n\n' "$(i18n wsq_inspect_header)" > "$listing"
-    if ! python3 "$WSQ_HELPER" inspect "$prefix" "$folder" >> "$listing" 2>&1; then
+    if ! python3 "$WSQ_HELPER" inspect "$prefix" "$folder" --save-root "$WSQ_SAVE_ROOT" >> "$listing" 2>&1; then
         rm -f -- "$listing"
         msgbox "$(i18n wsq_inspect_title)" "$(i18n wsq_browser_invalid)"
         return 1
@@ -665,7 +665,7 @@ wsq_browse_save() {
                 wsq_browse_save_terminal
                 return $? ;;
         esac
-        validated="$(python3 "$WSQ_HELPER" validate-save "$prefix" "$selected" "$exe_rel" 2>/dev/null)" || {
+        validated="$(python3 "$WSQ_HELPER" validate-save "$prefix" "$selected" "$exe_rel" --save-root "$WSQ_SAVE_ROOT" 2>/dev/null)" || {
             msgbox "$(i18n wsq_browser_title)" "$(i18n wsq_browser_invalid)"
             continue
         }
@@ -686,13 +686,13 @@ wsq_browse_save_terminal() {
         while IFS= read -r path; do
             dirs+=("$path")
             items+=("${#dirs[@]}" "$(basename "$path")/")
-        done < <(python3 "$WSQ_HELPER" directories "$prefix" "$current" 2>/dev/null)
+        done < <(python3 "$WSQ_HELPER" directories "$prefix" "$current" --save-root "$WSQ_SAVE_ROOT" 2>/dev/null)
         choice="$(menu_select "$(i18n wsq_browser_title)" \
             "$(i18n wsq_browser_prompt "$current")" "${items[@]}")" || return 1
         case "$choice" in
             inspect) wsq_inspect_folder "$current" || true ;;
             select)
-                validated="$(python3 "$WSQ_HELPER" validate-save "$prefix" "$current" "$exe_rel" 2>/dev/null)" || {
+                validated="$(python3 "$WSQ_HELPER" validate-save "$prefix" "$current" "$exe_rel" --save-root "$WSQ_SAVE_ROOT" 2>/dev/null)" || {
                     msgbox "$(i18n wsq_browser_title)" "$(i18n wsq_browser_invalid)"
                     continue
                 }
@@ -741,7 +741,7 @@ wsq_select_save_candidate() {
     local rows="" score count rel reason idx=1 choice validated
     while IFS=$'\t' read -r score count rel reason; do
         [ -n "$rel" ] || continue
-        validated="$(python3 "$WSQ_HELPER" validate-save "$prefix" "$rel" "$exe_rel" 2>/dev/null)" || continue
+        validated="$(python3 "$WSQ_HELPER" validate-save "$prefix" "$rel" "$exe_rel" --save-root "$WSQ_SAVE_ROOT" 2>/dev/null)" || continue
         items+=("$idx" "[$score] $validated  ($count)")
         rows+="$validated"$'\n'
         idx=$((idx+1))
@@ -879,13 +879,34 @@ wsq_move_save_data() {
 
     [ -d "$save_abs" ] || return 2
 
+    local source_real dest_real prefix_real
+    source_real="$(readlink -f -- "$save_abs")" || return 2
+    dest_real="$(readlink -m -- "$dest")" || return 2
+    prefix_real="$(readlink -f -- "$prefix")" || return 2
+    if [ "$source_real" = "$dest_real" ]; then
+        wt_log "WSquashFS: save data already at destination: $dest"
+        return 0
+    fi
+    case "$source_real" in
+        "$dest_real"/*) return 9 ;;
+    esac
+    case "$dest_real" in
+        "$source_real"/*) return 9 ;;
+    esac
+
     wsq_save_destination_prepare "$dest"
     local prepare_rc=$?
     [ "$prepare_rc" -eq 0 ] || return "$prepare_rc"
 
     shopt -s dotglob nullglob
     for item in "$save_abs"/*; do
-        if ! mv -- "$item" "$dest/"; then
+        if [[ "$source_real" != "$prefix_real/"* ]]; then
+            # A pre-existing Batocera save link must not empty its external target.
+            if ! cp -a -- "$item" "$dest/"; then
+                shopt -u dotglob nullglob
+                return 9
+            fi
+        elif ! mv -- "$item" "$dest/"; then
             shopt -u dotglob nullglob
             return 9
         fi
@@ -1104,6 +1125,13 @@ wsq_resume_build() {
         fi
         msgbox "$(i18n wsq_save_title)" "$(i18n wsq_save_move_failed "$WSQ_SAVE_ROOT/$game_name")"
         return
+    fi
+
+    if [ "$save_kind" != registry ]; then
+        wsq_cleanup_internal_savedir "$prefix" "$save_rel" || {
+            msgbox "$(i18n wsq_create_title)" "$(i18n wsq_savedir_cleanup_failed "$prefix/$save_rel")"
+            return
+        }
     fi
 
     if [ "$save_kind" = registry ]; then
