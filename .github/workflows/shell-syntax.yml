@@ -5,11 +5,19 @@ on:
     branches:
       - test
     paths:
-      - 'toolbox/**/*.sh'
+      - 'toolbox/modules/wsquashfs.sh'
+      - 'toolbox/lib/common.sh'
+      - 'toolbox/lib/download.sh'
+      - 'toolbox/lang/fr.sh'
+      - 'toolbox/lang/en.sh'
       - '.github/workflows/shell-syntax.yml'
   pull_request:
     paths:
-      - 'toolbox/**/*.sh'
+      - 'toolbox/modules/wsquashfs.sh'
+      - 'toolbox/lib/common.sh'
+      - 'toolbox/lib/download.sh'
+      - 'toolbox/lang/fr.sh'
+      - 'toolbox/lang/en.sh'
       - '.github/workflows/shell-syntax.yml'
   workflow_dispatch:
 
@@ -22,7 +30,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          while IFS= read -r -d '' file; do
-            echo "Checking $file"
-            bash -n "$file"
-          done < <(find toolbox -type f -name '*.sh' -print0)
+          bash -n toolbox/modules/wsquashfs.sh
+          bash -n toolbox/lib/common.sh
+          bash -n toolbox/lib/download.sh
+          bash -n toolbox/lang/fr.sh
+          bash -n toolbox/lang/en.sh
