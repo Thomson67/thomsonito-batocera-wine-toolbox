@@ -67,4 +67,21 @@ fi
 
 rc=$?
 echo "xterm_exit_code=$rc" >>"$BOOT_LOG"
+
+RESTART_REQUEST="/userdata/system/ultimate-wine-toolbox/state/restart-es.request"
+if [ -f "$RESTART_REQUEST" ]; then
+    rm -f -- "$RESTART_REQUEST"
+    {
+        echo "es_restart_requested=1"
+        echo "es_restart_time=$(date '+%Y-%m-%d %H:%M:%S %z')"
+    } >>"$BOOT_LOG"
+
+    if command -v batocera-es-swissknife >/dev/null 2>&1; then
+        batocera-es-swissknife --restart >>"$BOOT_LOG" 2>&1
+        echo "es_restart_exit_code=$?" >>"$BOOT_LOG"
+    else
+        echo "ERROR: batocera-es-swissknife not found; ES restart skipped." >>"$BOOT_LOG"
+    fi
+fi
+
 exit "$rc"
