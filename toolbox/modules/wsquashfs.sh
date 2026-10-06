@@ -237,8 +237,11 @@ for ext in (".wsquashfs", ".wine", ".pc"):
 
 canonical_prefix = f'windows["{safe_name}"].wine-runner='
 prefixes = {
-    canonical_prefix,
     f'windows["{stem_name}"].wine-runner=',
+    f'windows["{stem_name}.pc"].wine-runner=',
+    f'windows["{stem_name}.wine"].wine-runner=',
+    f'windows["{stem_name}.wsquashfs"].wine-runner=',
+    canonical_prefix,
 }
 
 with open(conf, "r", encoding="utf-8", errors="surrogateescape") as f:
@@ -309,6 +312,19 @@ wsq_refresh_emulationstation_games() {
 
     wt_log "WSquashFS: unable to request EmulationStation gamelist reload via $url"
     return 1
+}
+
+wsq_restart_emulationstation_deferred() {
+    command -v batocera-es-swissknife >/dev/null 2>&1 || return 1
+
+    # Restart ES only after the Toolbox process has had time to exit. This
+    # reloads advanced-system/game settings from batocera.conf, unlike the
+    # /reloadgames API which only refreshes the game list.
+    (
+        sleep 2
+        batocera-es-swissknife --restart >/dev/null 2>&1
+    ) >/dev/null 2>&1 &
+    return 0
 }
 
 wsq_create_new() {
@@ -402,6 +418,9 @@ wsq_create_new() {
 
     msgbox "$(i18n wsq_create_title)" \
         "$(i18n wsq_test_ready "$target" "$rom_name" "$backup")"
+
+    wsq_restart_emulationstation_deferred || true
+    exit 0
 }
 
 wsq_select_save_candidate() {
@@ -558,6 +577,8 @@ wsq_resume_build() {
             fi
             wsq_refresh_emulationstation_games || true
             msgbox "$(i18n wsq_create_title)" "$(i18n wsq_build_done "$archive" "$WSQ_SAVE_ROOT/$game_name")"
+            wsq_restart_emulationstation_deferred || true
+            exit 0
         else
             msgbox "$(i18n wsq_create_title)" "$(i18n wsq_build_failed)"
         fi
