@@ -10,7 +10,7 @@ X86_LAYER_FILE="$LEGACY_LAYER_DIR/MangoHud.ultimate-wine-toolbox.x86.json"
 MANGOHUD_RUNTIME="$ROOT/runtime/mangohud"
 MANGOHUD32_LIB="$MANGOHUD_RUNTIME/lib32/mangohud/libMangoHud.so"
 MANGOHUD64_LIB="$MANGOHUD_RUNTIME/lib64/mangohud/libMangoHud.so"
-MANGOHUD_PV_RO="$MANGOHUD_RUNTIME"
+MANGOHUD_UMU_EXTRA_RO="$MANGOHUD_RUNTIME"
 MANGOHUD_PRELOAD="libMangoHud_shim.so"
 MANGOHUD_LIBPATH_PREFIX="$MANGOHUD_RUNTIME/lib64/mangohud:$MANGOHUD_RUNTIME/lib32/mangohud"
 LOG_DIR="/userdata/system/logs/ultimate-wine-toolbox"
@@ -162,7 +162,7 @@ rewrite_autorun() {
     local file="$1" state="$2" legacy="$3"
     [ -f "$file" ] || return 1
 
-    python3 - "$file" "$state" "$legacy" "$MANGOHUD_PRELOAD" "$MANGOHUD_LIBPATH_PREFIX" "$MANGOHUD_PV_RO" <<'PY'
+    python3 - "$file" "$state" "$legacy" "$MANGOHUD_PRELOAD" "$MANGOHUD_LIBPATH_PREFIX" "$MANGOHUD_UMU_EXTRA_RO" <<'PY'
 import re, sys
 from pathlib import Path
 
@@ -171,7 +171,7 @@ enabled=sys.argv[2] == "1"
 legacy=sys.argv[3] == "1"
 managed_preload=sys.argv[4]
 managed_libpath_prefix=sys.argv[5]
-managed_pv_ro=sys.argv[6]
+managed_umu_extra_ro=sys.argv[6]
 
 try:
     text=path.read_text(encoding="utf-8", errors="replace")
@@ -207,7 +207,9 @@ def clean_payload(payload):
         ' ',
         payload
     )
+    # Remove the legacy Ultimate-managed pressure-vessel form during migration.
     payload=re.sub(r'(^|\s)PRESSURE_VESSEL_FILESYSTEMS_RO=[^\s]+', ' ', payload)
+    payload=re.sub(r'(^|\s)UMU_BATOCERA_EXTRA_RO=[^\s]+', ' ', payload)
     return re.sub(r'\s+', ' ', payload).strip()
 
 for line in lines:
@@ -219,8 +221,8 @@ for line in lines:
             # let the dynamic linker select the matching 32/64-bit library.
             if not re.search(r'(^|\s)LD_LIBRARY_PATH=', payload):
                 payload += " LD_LIBRARY_PATH=\'" + managed_libpath_prefix + "\':\"${LD_LIBRARY_PATH:-}\""
-            if not re.search(r'(^|\s)PRESSURE_VESSEL_FILESYSTEMS_RO=', payload):
-                payload += " PRESSURE_VESSEL_FILESYSTEMS_RO=\'" + managed_pv_ro + "\':\"${PRESSURE_VESSEL_FILESYSTEMS_RO:-}\""
+            if not re.search(r'(^|\s)UMU_BATOCERA_EXTRA_RO=', payload):
+                payload += " UMU_BATOCERA_EXTRA_RO=\'" + managed_umu_extra_ro + "\':\"${UMU_BATOCERA_EXTRA_RO:-}\""
             if not re.search(r'(^|\s)LD_PRELOAD=', payload):
                 payload += " LD_PRELOAD='" + managed_preload + "'"
         if payload:
@@ -232,7 +234,7 @@ for line in lines:
 if enabled and not found:
     payload="MANGOHUD=1"
     payload += " LD_LIBRARY_PATH=\'" + managed_libpath_prefix + "\':\"${LD_LIBRARY_PATH:-}\""
-    payload += " PRESSURE_VESSEL_FILESYSTEMS_RO=\'" + managed_pv_ro + "\':\"${PRESSURE_VESSEL_FILESYSTEMS_RO:-}\""
+    payload += " UMU_BATOCERA_EXTRA_RO=\'" + managed_umu_extra_ro + "\':\"${UMU_BATOCERA_EXTRA_RO:-}\""
     payload += " LD_PRELOAD='" + managed_preload + "'"
     insert_at=0
     for i,line in enumerate(out):
