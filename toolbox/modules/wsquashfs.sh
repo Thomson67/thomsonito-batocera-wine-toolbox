@@ -490,8 +490,9 @@ wsq_resume_build() {
     yesno_default_no "$(i18n wsq_save_title)" \
         "$(i18n wsq_save_confirm "$save_rel" "$WSQ_SAVE_ROOT/$game_name")" || return
 
-    if ! wsq_move_save_data "$prefix" "$save_rel" "$game_name"; then
-        local move_rc=$?
+    wsq_move_save_data "$prefix" "$save_rel" "$game_name"
+    local move_rc=$?
+    if [ "$move_rc" -ne 0 ]; then
         if [ "$move_rc" -eq 10 ]; then
             return
         fi
