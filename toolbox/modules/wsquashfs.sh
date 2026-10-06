@@ -613,8 +613,9 @@ wsq_resume_build() {
             msgbox "$(i18n wsq_create_title)" "$(i18n wsq_archive_exists "$archive")"
             return
         fi
-        if ! wsq_cleanup_internal_savedir "$prefix" "$save_rel"; then
-            local cleanup_rc=$?
+        wsq_cleanup_internal_savedir "$prefix" "$save_rel"
+        local cleanup_rc=$?
+        if [ "$cleanup_rc" -ne 0 ]; then
             if [ "$cleanup_rc" -eq 2 ]; then
                 msgbox "$(i18n wsq_create_title)" "$(i18n wsq_savedir_not_empty "$prefix/$save_rel")"
             else
