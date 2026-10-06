@@ -104,11 +104,25 @@ PY
 
 wsq_template_terminal_notice() {
     local body="$1"
-    clear
-    printf '==== %s ====\n\n' "$(i18n wsq_templates_download_title)"
-    printf '%b\n\n' "$body"
-    printf '%s' "$(i18n press_enter)"
-    read -r _
+
+    # wsq_select_template is called inside command substitution:
+    #   template="$(wsq_select_template)"
+    # Never write interactive UI to stdout here, otherwise it is captured as
+    # part of the selected template path and the terminal appears blank.
+    if [ -r /dev/tty ] && [ -w /dev/tty ]; then
+        wt_clear_tty
+        {
+            printf '==== %s ====\n\n' "$(i18n wsq_templates_download_title)"
+            printf '%b\n\n' "$body"
+            printf '%s' "$(i18n press_enter)"
+        } > /dev/tty
+        read -r _ < /dev/tty
+        wt_clear_tty
+    else
+        printf '==== %s ====\n\n%b\n\n%s' \
+            "$(i18n wsq_templates_download_title)" "$body" "$(i18n press_enter)" >&2
+        read -r _
+    fi
 }
 
 wsq_install_default_template() {
