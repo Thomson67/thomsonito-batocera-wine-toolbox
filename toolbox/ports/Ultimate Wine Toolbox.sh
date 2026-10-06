@@ -68,7 +68,61 @@ fi
 rc=$?
 echo "xterm_exit_code=$rc" >>"$BOOT_LOG"
 
-RESTART_REQUEST="/userdata/system/ultimate-wine-toolbox/state/restart-es.request"
+STATE_DIR="/userdata/system/ultimate-wine-toolbox/state"
+RESTART_REQUEST="$STATE_DIR/restart-es.request"
+LAUNCH_REQUEST="$STATE_DIR/launch-game.request"
+
+wait_for_es_api() {
+    local attempt=0
+    while [ "$attempt" -lt 40 ]; do
+        attempt=$((attempt + 1))
+        if command -v curl >/dev/null 2>&1; then
+            if curl -fsS --max-time 1 http://127.0.0.1:1234/ >/dev/null 2>&1; then
+                echo "es_api_ready_after_attempt=$attempt" >>"$BOOT_LOG"
+                return 0
+            fi
+        elif command -v wget >/dev/null 2>&1; then
+            if wget -q -T 1 -O /dev/null http://127.0.0.1:1234/ >/dev/null 2>&1; then
+                echo "es_api_ready_after_attempt=$attempt" >>"$BOOT_LOG"
+                return 0
+            fi
+        else
+            echo "ERROR: curl/wget unavailable; cannot probe ES API." >>"$BOOT_LOG"
+            return 1
+        fi
+        sleep 0.25
+    done
+
+    echo "ERROR: ES API not ready after timeout." >>"$BOOT_LOG"
+    return 1
+}
+
+launch_game_via_es() {
+    local rom="$1"
+    [ -n "$rom" ] || return 1
+
+    echo "es_launch_rom=$rom" >>"$BOOT_LOG"
+
+    if command -v curl >/dev/null 2>&1; then
+        curl -fsS --max-time 5 -X POST --data-binary "$rom"             http://127.0.0.1:1234/launch >>"$BOOT_LOG" 2>&1
+        return $?
+    fi
+
+    if command -v wget >/dev/null 2>&1; then
+        wget -q -T 5 --post-data="$rom" -O -             http://127.0.0.1:1234/launch >>"$BOOT_LOG" 2>&1
+        return $?
+    fi
+
+    return 1
+}
+
+launch_rom=""
+if [ -f "$LAUNCH_REQUEST" ]; then
+    IFS= read -r launch_rom < "$LAUNCH_REQUEST" || true
+    rm -f -- "$LAUNCH_REQUEST"
+    echo "es_launch_requested=1" >>"$BOOT_LOG"
+fi
+
 if [ -f "$RESTART_REQUEST" ]; then
     rm -f -- "$RESTART_REQUEST"
     {
@@ -78,9 +132,24 @@ if [ -f "$RESTART_REQUEST" ]; then
 
     if command -v batocera-es-swissknife >/dev/null 2>&1; then
         batocera-es-swissknife --restart >>"$BOOT_LOG" 2>&1
-        echo "es_restart_exit_code=$?" >>"$BOOT_LOG"
+        restart_rc=$?
+        echo "es_restart_exit_code=$restart_rc" >>"$BOOT_LOG"
+
+        if [ "$restart_rc" -eq 0 ] && [ -n "$launch_rom" ]; then
+            if wait_for_es_api; then
+                launch_game_via_es "$launch_rom"
+                echo "es_launch_exit_code=$?" >>"$BOOT_LOG"
+            else
+                echo "ERROR: automatic game launch skipped because ES API is unavailable." >>"$BOOT_LOG"
+            fi
+        fi
     else
         echo "ERROR: batocera-es-swissknife not found; ES restart skipped." >>"$BOOT_LOG"
+    fi
+elif [ -n "$launch_rom" ]; then
+    if wait_for_es_api; then
+        launch_game_via_es "$launch_rom"
+        echo "es_launch_exit_code=$?" >>"$BOOT_LOG"
     fi
 fi
 
