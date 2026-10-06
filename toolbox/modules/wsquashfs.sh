@@ -14,6 +14,22 @@ wsq_list_templates() {
         \( -iname '*.prefix' -o -iname '*.wsquashfs' \) -print 2>/dev/null | sort -f
 }
 
+wsq_source_folder_visible() {
+    local name="$1"
+    case "$name" in .*) return 1 ;; esac
+    # Exact folder names, ignoring case: do not hide games such as
+    # "Video Game.wine" merely because their name contains a media keyword.
+    case "${name,,}" in
+        media|medias|médias|image|images|video|videos|vidéos|manual|manuals|\
+        music|musiques|marquee|marquees|thumbnail|thumbnails|\
+        screenshot|screenshots|fanart|fanarts|boxart|boxarts|\
+        boxback|boxbacks|wheel|wheels|mix|mixes|titleshot|titleshots|\
+        cover|covers|snap|snaps|downloaded_images|downloaded_videos)
+            return 1 ;;
+    esac
+    return 0
+}
+
 wsq_select_source_game() {
     local -a items=()
     local rows="" path base idx=1 choice
@@ -27,6 +43,7 @@ wsq_select_source_game() {
         [ -d "$path" ] || continue
         [ -L "$path" ] && continue
         base="$(basename "$path")"
+        wsq_source_folder_visible "$base" || continue
 
         items+=("$idx" "$base")
         rows+="$path"$'\n'
