@@ -3,8 +3,13 @@
 LOG_DIR="/userdata/system/logs/ultimate-wine-toolbox"
 BOOT_LOG="$LOG_DIR/port-launch.log"
 LAUNCHER="/userdata/system/ultimate-wine-toolbox/toolbox/launch-in-terminal.sh"
+TOOLBOX_PORT="/userdata/roms/ports/Ultimate Wine Toolbox.sh"
+STATE_DIR="/userdata/system/ultimate-wine-toolbox/state"
+RESTART_REQUEST="$STATE_DIR/restart-es.request"
+LAUNCH_REQUEST="$STATE_DIR/launch-game.request"
+RESUME_REQUEST="$STATE_DIR/resume-wsq.request"
 
-mkdir -p "$LOG_DIR"
+mkdir -p "$LOG_DIR" "$STATE_DIR"
 export DISPLAY="${DISPLAY:-:0}"
 
 # xterm decides its character encoding when the terminal process starts.
@@ -55,28 +60,43 @@ if [ ! -s "$LAUNCHER" ]; then
     exit 1
 fi
 
+resume_requested=0
+if [ -f "$RESUME_REQUEST" ]; then
+    rm -f -- "$RESUME_REQUEST"
+    resume_requested=1
+    echo "wsq_resume_request_consumed=1" >>"$BOOT_LOG"
+fi
+
 if [ "${WT_SKIP_INITIAL_TOOLBOX:-0}" = "1" ]; then
     unset WT_SKIP_INITIAL_TOOLBOX
     rc=0
     echo "initial_toolbox_skipped=1" >>"$BOOT_LOG"
 else
-    /usr/bin/xterm \
-        +lc \
-        -u8 \
-        -fa "DejaVu Sans Mono" \
-        -fs 10 \
-        -title "Ultimate Wine Toolbox" \
-        -geometry 120x36 \
-        -e /bin/bash "$LAUNCHER" \
-        >>"$BOOT_LOG" 2>&1
+    if [ "$resume_requested" -eq 1 ]; then
+        WT_AUTO_RESUME_WSQ=1 /usr/bin/xterm \
+            +lc \
+            -u8 \
+            -fa "DejaVu Sans Mono" \
+            -fs 10 \
+            -title "Ultimate Wine Toolbox" \
+            -geometry 120x36 \
+            -e /bin/bash "$LAUNCHER" \
+            >>"$BOOT_LOG" 2>&1
+    else
+        /usr/bin/xterm \
+            +lc \
+            -u8 \
+            -fa "DejaVu Sans Mono" \
+            -fs 10 \
+            -title "Ultimate Wine Toolbox" \
+            -geometry 120x36 \
+            -e /bin/bash "$LAUNCHER" \
+            >>"$BOOT_LOG" 2>&1
+    fi
 
     rc=$?
     echo "xterm_exit_code=$rc" >>"$BOOT_LOG"
 fi
-
-STATE_DIR="/userdata/system/ultimate-wine-toolbox/state"
-RESTART_REQUEST="$STATE_DIR/restart-es.request"
-LAUNCH_REQUEST="$STATE_DIR/launch-game.request"
 
 wait_for_es_api() {
     local attempt=0
@@ -190,6 +210,19 @@ wait_for_game_stop() {
 
 resume_wsquashfs_toolbox() {
     echo "wsq_auto_resume=1" >>"$BOOT_LOG"
+
+    # Relaunch the Toolbox through EmulationStation rather than spawning a
+    # naked xterm. This restores Batocera's normal Ports lifecycle, including
+    # evmapy/Pad2Key and Wayland compositor focus handling.
+    : > "$RESUME_REQUEST"
+
+    if wait_for_es_api && launch_game_via_es "$TOOLBOX_PORT"; then
+        echo "wsq_resume_via_es=1" >>"$BOOT_LOG"
+        return 0
+    fi
+
+    echo "ERROR: WSquashFS resume via EmulationStation failed; using direct xterm fallback." >>"$BOOT_LOG"
+    rm -f -- "$RESUME_REQUEST"
 
     WT_AUTO_RESUME_WSQ=1 /usr/bin/xterm \
         +lc \
