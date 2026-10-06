@@ -55,18 +55,24 @@ if [ ! -s "$LAUNCHER" ]; then
     exit 1
 fi
 
-/usr/bin/xterm \
-    +lc \
-    -u8 \
-    -fa "DejaVu Sans Mono" \
-    -fs 10 \
-    -title "Ultimate Wine Toolbox" \
-    -geometry 120x36 \
-    -e /bin/bash "$LAUNCHER" \
-    >>"$BOOT_LOG" 2>&1
+if [ "${WT_SKIP_INITIAL_TOOLBOX:-0}" = "1" ]; then
+    unset WT_SKIP_INITIAL_TOOLBOX
+    rc=0
+    echo "initial_toolbox_skipped=1" >>"$BOOT_LOG"
+else
+    /usr/bin/xterm \
+        +lc \
+        -u8 \
+        -fa "DejaVu Sans Mono" \
+        -fs 10 \
+        -title "Ultimate Wine Toolbox" \
+        -geometry 120x36 \
+        -e /bin/bash "$LAUNCHER" \
+        >>"$BOOT_LOG" 2>&1
 
-rc=$?
-echo "xterm_exit_code=$rc" >>"$BOOT_LOG"
+    rc=$?
+    echo "xterm_exit_code=$rc" >>"$BOOT_LOG"
+fi
 
 STATE_DIR="/userdata/system/ultimate-wine-toolbox/state"
 RESTART_REQUEST="$STATE_DIR/restart-es.request"
@@ -197,6 +203,12 @@ resume_wsquashfs_toolbox() {
 
     local resume_rc=$?
     echo "wsq_auto_resume_exit_code=$resume_rc" >>"$BOOT_LOG"
+
+    if [ -f "$RESTART_REQUEST" ] || [ -f "$LAUNCH_REQUEST" ]; then
+        echo "wsq_chained_request=1" >>"$BOOT_LOG"
+        WT_SKIP_INITIAL_TOOLBOX=1 exec /bin/bash "$0"
+    fi
+
     return "$resume_rc"
 }
 
