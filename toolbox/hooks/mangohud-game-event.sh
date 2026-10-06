@@ -211,9 +211,11 @@ def clean_payload(payload):
             payload
         )
 
-    # Remove only the library search path created by the Toolbox.
+    # Remove only an LD_LIBRARY_PATH token that contains Ultimate's
+    # managed MangoHud prefix. Keep unrelated user-defined LD_LIBRARY_PATH
+    # assignments untouched.
     payload=re.sub(
-        r'(^|\s)LD_LIBRARY_PATH=(?:[\'"])?' + re.escape(managed_libpath_prefix) + r'(?::(?:"?\$\{?LD_LIBRARY_PATH(?::-)?\}?"?))?(?:[\'"])?(?=\s|$)',
+        r'(^|\s)LD_LIBRARY_PATH=[^\s]*' + re.escape(managed_libpath_prefix) + r'[^\s]*(?=\s|$)',
         ' ',
         payload
     )
