@@ -102,6 +102,15 @@ PY
     return "$rc"
 }
 
+wsq_template_terminal_notice() {
+    local body="$1"
+    clear
+    printf '==== %s ====\n\n' "$(i18n wsq_templates_download_title)"
+    printf '%b\n\n' "$body"
+    printf '%s' "$(i18n press_enter)"
+    read -r _
+}
+
 wsq_install_default_template() {
     local -a meta=()
     local name version filename size url sha size_human free_bytes free_human dest tmp actual_size actual_sha
@@ -110,7 +119,7 @@ wsq_install_default_template() {
         meta+=("$line")
     done < <(wsq_default_template_metadata)
     [ "${#meta[@]}" -eq 6 ] || {
-        msgbox "$(i18n wsq_templates_title)" "$(i18n wsq_template_catalog_failed)"
+        wsq_template_terminal_notice "$(i18n wsq_template_catalog_failed)"
         return 1
     }
 
@@ -131,12 +140,12 @@ wsq_install_default_template() {
     fi
 
     if [ "$free_bytes" -gt 0 ] && [ "$free_bytes" -lt "$size" ]; then
-        msgbox "$(i18n wsq_templates_download_title)"             "$(i18n wsq_template_no_space "$size_human" "$free_human")"
+        wsq_template_terminal_notice "$(i18n wsq_template_no_space "$size_human" "$free_human")"
         return 1
     fi
 
     mkdir -p "$WSQ_TEMPLATES_DIR" || {
-        msgbox "$(i18n wsq_templates_download_title)"             "$(i18n wsq_template_dir_failed "$WSQ_TEMPLATES_DIR")"
+        wsq_template_terminal_notice "$(i18n wsq_template_dir_failed "$WSQ_TEMPLATES_DIR")"
         return 1
     }
 
@@ -150,31 +159,30 @@ wsq_install_default_template() {
 
     if ! download_file "$url" "$tmp"; then
         rm -f -- "$tmp"
-        msgbox "$(i18n wsq_templates_download_title)" "$(i18n wsq_template_download_failed)"
+        wsq_template_terminal_notice "$(i18n wsq_template_download_failed)"
         return 1
     fi
 
     actual_size="$(wc -c < "$tmp" 2>/dev/null | tr -d '[:space:]')"
     if [ "$actual_size" != "$size" ]; then
         rm -f -- "$tmp"
-        msgbox "$(i18n wsq_templates_download_title)" "$(i18n wsq_template_size_failed "$size" "$actual_size")"
+        wsq_template_terminal_notice "$(i18n wsq_template_size_failed "$size" "$actual_size")"
         return 1
     fi
 
     actual_sha="$(sha256sum "$tmp" 2>/dev/null | awk '{print $1}')"
     if [ "$actual_sha" != "$sha" ]; then
         rm -f -- "$tmp"
-        msgbox "$(i18n wsq_templates_download_title)" "$(i18n wsq_template_checksum_failed)"
+        wsq_template_terminal_notice "$(i18n wsq_template_checksum_failed)"
         return 1
     fi
 
     if ! mv -f -- "$tmp" "$dest"; then
         rm -f -- "$tmp"
-        msgbox "$(i18n wsq_templates_download_title)" "$(i18n wsq_template_install_failed)"
+        wsq_template_terminal_notice "$(i18n wsq_template_install_failed)"
         return 1
     fi
-
-    msgbox "$(i18n wsq_templates_download_title)"         "$(i18n wsq_template_installed "$name" "$version" "$size_human" "$dest")"
+    wt_log "WSquashFS: default prefix template installed: $dest ($size_human, version $version)"
     return 0
 }
 
