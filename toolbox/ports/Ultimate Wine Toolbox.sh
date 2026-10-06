@@ -77,7 +77,7 @@ wait_for_es_api() {
     while [ "$attempt" -lt 40 ]; do
         attempt=$((attempt + 1))
         if command -v curl >/dev/null 2>&1; then
-            if curl -fsS --max-time 1 http://127.0.0.1:1234/ >/dev/null 2>&1; then
+            if curl -sS --max-time 1 -o /dev/null http://127.0.0.1:1234/ >/dev/null 2>&1; then
                 echo "es_api_ready_after_attempt=$attempt" >>"$BOOT_LOG"
                 return 0
             fi
@@ -94,6 +94,23 @@ wait_for_es_api() {
     done
 
     echo "ERROR: ES API not ready after timeout." >>"$BOOT_LOG"
+    return 1
+}
+
+wait_for_es_restart() {
+    local old_pid="$1" attempt=0 new_pid=""
+    while [ "$attempt" -lt 80 ]; do
+        attempt=$((attempt + 1))
+        new_pid="$(pidof emulationstation 2>/dev/null | awk '{print $1}')"
+        if [ -n "$new_pid" ] && { [ -z "$old_pid" ] || [ "$new_pid" != "$old_pid" ]; }; then
+            echo "es_new_pid=$new_pid" >>"$BOOT_LOG"
+            echo "es_pid_changed_after_attempt=$attempt" >>"$BOOT_LOG"
+            return 0
+        fi
+        sleep 0.25
+    done
+
+    echo "ERROR: EmulationStation PID did not change after restart timeout." >>"$BOOT_LOG"
     return 1
 }
 
@@ -131,16 +148,19 @@ if [ -f "$RESTART_REQUEST" ]; then
     } >>"$BOOT_LOG"
 
     if command -v batocera-es-swissknife >/dev/null 2>&1; then
+        old_es_pid="$(pidof emulationstation 2>/dev/null | awk '{print $1}')"
+        echo "es_old_pid=${old_es_pid:-<none>}" >>"$BOOT_LOG"
+
         batocera-es-swissknife --restart >>"$BOOT_LOG" 2>&1
         restart_rc=$?
         echo "es_restart_exit_code=$restart_rc" >>"$BOOT_LOG"
 
         if [ "$restart_rc" -eq 0 ] && [ -n "$launch_rom" ]; then
-            if wait_for_es_api; then
+            if wait_for_es_restart "$old_es_pid" && wait_for_es_api; then
                 launch_game_via_es "$launch_rom"
                 echo "es_launch_exit_code=$?" >>"$BOOT_LOG"
             else
-                echo "ERROR: automatic game launch skipped because ES API is unavailable." >>"$BOOT_LOG"
+                echo "ERROR: automatic game launch skipped because restarted ES is unavailable." >>"$BOOT_LOG"
             fi
         fi
     else
