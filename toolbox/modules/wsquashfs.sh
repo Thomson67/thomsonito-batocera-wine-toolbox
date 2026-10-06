@@ -71,7 +71,16 @@ wsq_prepare_prefix() {
         base="$(basename "$item")"
         [ "$item" = "$target" ] && continue
         if ! mv -- "$item" "$target/drive_c/game/"; then
+            # All game items already moved came from this source directory and
+            # drive_c/game was created empty above. Roll them back using
+            # same-filesystem renames so a partial preparation does not split
+            # a very large game between two locations.
+            local rollback
+            for rollback in "$target/drive_c/game"/*; do
+                mv -- "$rollback" "$source/" 2>/dev/null || true
+            done
             shopt -u dotglob nullglob
+            rm -rf -- "$target"
             return 6
         fi
     done
