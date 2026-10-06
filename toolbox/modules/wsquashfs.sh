@@ -392,24 +392,77 @@ wsq_select_save_candidate() {
     sed -n "${choice}p" <<< "$rows"
 }
 
+wsq_save_destination_prepare() {
+    local dest="$1"
+    local choice backup stamp
+
+    if [ ! -e "$dest" ]; then
+        mkdir -p "$dest"
+        return 0
+    fi
+
+    [ -d "$dest" ] && [ ! -L "$dest" ] || return 4
+
+    choice="$(menu_select "$(i18n wsq_save_conflict_title)" \
+        "$(i18n wsq_save_conflict_body "$dest")" \
+        "1" "$(i18n wsq_save_conflict_backup)" \
+        "2" "$(i18n wsq_save_conflict_replace)" \
+        "0" "$(i18n cancel)")" || return 10
+
+    case "$choice" in
+        1)
+            stamp="$(date '+%Y%m%d-%H%M%S')"
+            backup="${dest}.backup-${stamp}"
+            while [ -e "$backup" ]; do
+                sleep 1
+                stamp="$(date '+%Y%m%d-%H%M%S')"
+                backup="${dest}.backup-${stamp}"
+            done
+            if ! mv -- "$dest" "$backup"; then
+                return 5
+            fi
+            mkdir -p "$dest" || {
+                mv -- "$backup" "$dest" 2>/dev/null || true
+                return 6
+            }
+            WSQ_LAST_SAVE_BACKUP="$backup"
+            return 0
+            ;;
+        2)
+            yesno_default_no "$(i18n wsq_save_conflict_title)" \
+                "$(i18n wsq_save_replace_confirm "$dest")" || return 10
+            rm -rf -- "$dest" || return 7
+            mkdir -p "$dest" || return 8
+            WSQ_LAST_SAVE_BACKUP=""
+            return 0
+            ;;
+        0|"")
+            return 10
+            ;;
+    esac
+
+    return 10
+}
+
 wsq_move_save_data() {
     local prefix="$1" save_rel="$2" game_name="$3"
     local save_abs dest item
     save_abs="$prefix/$save_rel"
     dest="$WSQ_SAVE_ROOT/$game_name"
-    mkdir -p "$dest"
+    WSQ_LAST_SAVE_BACKUP=""
 
     [ -d "$save_abs" ] || return 2
+
+    if ! wsq_save_destination_prepare "$dest"; then
+        return $?
+    fi
+
     shopt -s dotglob nullglob
     for item in "$save_abs"/*; do
-        if [ -e "$dest/$(basename "$item")" ]; then
+        if ! mv -- "$item" "$dest/"; then
             shopt -u dotglob nullglob
-            return 3
+            return 9
         fi
-    done
-
-    for item in "$save_abs"/*; do
-        mv -- "$item" "$dest/"
     done
     shopt -u dotglob nullglob
 }
@@ -438,11 +491,19 @@ wsq_resume_build() {
         "$(i18n wsq_save_confirm "$save_rel" "$WSQ_SAVE_ROOT/$game_name")" || return
 
     if ! wsq_move_save_data "$prefix" "$save_rel" "$game_name"; then
+        local move_rc=$?
+        if [ "$move_rc" -eq 10 ]; then
+            return
+        fi
         msgbox "$(i18n wsq_save_title)" "$(i18n wsq_save_move_failed "$WSQ_SAVE_ROOT/$game_name")"
         return
     fi
 
     wsq_write_autorun "$prefix" "$exe_rel" "$save_rel"
+
+    if [ -n "${WSQ_LAST_SAVE_BACKUP:-}" ]; then
+        msgbox "$(i18n wsq_save_title)" "$(i18n wsq_save_backup_done "$WSQ_LAST_SAVE_BACKUP")"
+    fi
 
     rm -f -- "$snapshot" "$WSQ_STATE_FILE"
 
