@@ -599,12 +599,57 @@ wsq_retry_pending() {
     exit 0
 }
 
+wsq_inspect_folder() {
+    local folder="$1" listing rc
+    listing="$(mktemp /tmp/uwt-save-inspect.XXXXXX)" || return 1
+    printf '%b\n\n' "$(i18n wsq_inspect_header)" > "$listing"
+    if ! python3 "$WSQ_HELPER" inspect "$prefix" "$folder" >> "$listing" 2>&1; then
+        rm -f -- "$listing"
+        msgbox "$(i18n wsq_inspect_title)" "$(i18n wsq_browser_invalid)"
+        return 1
+    fi
+    if have_dialog; then
+        wt_clear_tty
+        dialog --clear --no-shadow --exit-label "$(i18n back)"             --title "$(i18n wsq_inspect_title)" --textbox "$listing" 24 100
+        rc=$?
+        wt_clear_tty
+    else
+        cat "$listing"
+        read -r -p "$(i18n press_enter)" _
+        rc=$?
+    fi
+    rm -f -- "$listing"
+    return "$rc"
+}
+
+wsq_review_save_candidate() {
+    local candidate="$1" choice
+    while true; do
+        choice="$(menu_select "$(i18n wsq_save_title)" \
+            "$(i18n wsq_candidate_prompt "$candidate")" \
+            "select" "$(i18n wsq_browser_select)" \
+            "inspect" "$(i18n wsq_inspect_title)" \
+            "browse" "$(i18n wsq_browser_title)" \
+            "back" "$(i18n back)")" || return 1
+        case "$choice" in
+            select)
+                WSQ_SELECTED_SAVE="$candidate"
+                WSQ_SAVE_KIND="directory"
+                return 0 ;;
+            inspect) wsq_inspect_folder "$candidate" || true ;;
+            browse) wsq_browse_save && return 0 ;;
+            back) return 1 ;;
+        esac
+    done
+}
+
 wsq_browse_save() {
     local current="." path choice validated
     local -a dirs=() items=()
     while true; do
         dirs=()
-        items=("select" "$(i18n wsq_browser_select)")
+        items=("select" "$(i18n wsq_browser_select)"
+               "inspect" "$(i18n wsq_inspect_title)")
         [ "$current" = "." ] || items+=("up" "$(i18n wsq_browser_up)")
         while IFS= read -r path; do
             dirs+=("$path")
@@ -613,6 +658,7 @@ wsq_browse_save() {
         choice="$(menu_select "$(i18n wsq_browser_title)" \
             "$(i18n wsq_browser_prompt "$current")" "${items[@]}")" || return 1
         case "$choice" in
+            inspect) wsq_inspect_folder "$current" || true ;;
             select)
                 validated="$(python3 "$WSQ_HELPER" validate-save "$prefix" "$current" "$exe_rel" 2>/dev/null)" || {
                     msgbox "$(i18n wsq_browser_title)" "$(i18n wsq_browser_invalid)"
@@ -670,10 +716,24 @@ wsq_select_save_candidate() {
     done < <(python3 "$WSQ_HELPER" diff "$prefix" "$snapshot")
 
     if [ "${#items[@]}" -gt 0 ]; then
-        choice="$(menu_select "$(i18n wsq_save_title)" "$(i18n wsq_save_prompt)" "${items[@]}")" || return 1
-        WSQ_SELECTED_SAVE="$(sed -n "${choice}p" <<< "$rows")"
-        [ -n "$WSQ_SELECTED_SAVE" ]
-        return $?
+        items+=("browse" "$(i18n wsq_browser_title)"
+                "retry" "$(i18n wsq_no_save_retry)"
+                "registry" "$(i18n wsq_registry_title)"
+                "cancel" "$(i18n wsq_launch_cancel)")
+        while true; do
+            choice="$(menu_select "$(i18n wsq_save_title)" "$(i18n wsq_detected_choices)" "${items[@]}")" || return 1
+            case "$choice" in
+                browse) wsq_browse_save && return 0 ;;
+                retry) wsq_retry_pending; return 1 ;;
+                registry) wsq_registry_save && return 0 ;;
+                cancel) wsq_cancel_pending; return 1 ;;
+                *)
+                    case "$choice" in ''|*[!0-9]*) continue ;; esac
+                    [ "$choice" -ge 1 ] && [ "$choice" -lt "$idx" ] || continue
+                    rel="$(sed -n "${choice}p" <<< "$rows")"
+                    wsq_review_save_candidate "$rel" && return 0 ;;
+            esac
+        done
     fi
 
     while true; do

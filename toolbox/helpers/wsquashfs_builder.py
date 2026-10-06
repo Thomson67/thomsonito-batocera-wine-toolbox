@@ -4,6 +4,7 @@ import json
 import os
 import re
 import sys
+from datetime import datetime
 from pathlib import Path
 
 EXCLUDED_DIRS = {
@@ -118,6 +119,45 @@ def cmd_registry(args):
 def cmd_registry_view(args):
     values = registry_sections(Path(args.prefix)).get(args.key, "")
     print(f"[{args.key}]\n{values[:6000]}")
+
+
+def cmd_inspect(args):
+    """Bounded read-only listing; never follow links outside the prefix."""
+    root = Path(args.prefix).resolve()
+    current = (root / args.relative).resolve()
+    current.relative_to(root)
+    print(current.relative_to(root).as_posix() + "/\n")
+    count = 0
+
+    def visit(folder, depth):
+        nonlocal count
+        try:
+            children = sorted(folder.iterdir(), key=lambda p: (not p.is_dir(), p.name.casefold()))
+        except OSError as exc:
+            print(str(exc))
+            return
+        for child in children:
+            if count >= 500:
+                return
+            count += 1
+            try:
+                info = child.lstat()
+                stamp = datetime.fromtimestamp(info.st_mtime).strftime("%Y-%m-%d %H:%M:%S")
+                rel = child.relative_to(current).as_posix()
+                if child.is_symlink():
+                    print(f"{stamp}  [LINK]  {rel} -> {os.readlink(child)}")
+                elif child.is_dir():
+                    print(f"{stamp}  [DIR]   {rel}/")
+                    if depth < 2:
+                        visit(child, depth + 1)
+                else:
+                    print(f"{stamp}  {info.st_size:>12} B  {rel}")
+            except OSError as exc:
+                print(f"{child.name}: {exc}")
+
+    visit(current, 0)
+    if count >= 500:
+        print("\n[500 entries maximum]")
 
 
 def clean_game_name(name: str) -> str:
@@ -344,6 +384,11 @@ def main():
     p.add_argument("prefix")
     p.add_argument("key")
     p.set_defaults(func=cmd_registry_view)
+
+    p = sub.add_parser("inspect")
+    p.add_argument("prefix")
+    p.add_argument("relative")
+    p.set_defaults(func=cmd_inspect)
 
     args = parser.parse_args()
     args.func(args)
