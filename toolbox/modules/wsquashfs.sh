@@ -29,11 +29,6 @@ wsq_select_source_game() {
         [ -L "$path" ] && continue
         base="$(basename "$path")"
 
-        # Existing prepared .wine prefixes are not raw-game sources.
-        case "$base" in
-            *.wine) continue ;;
-        esac
-
         items+=("$idx" "$base")
         rows+="$path"$'\n'
         idx=$((idx+1))
@@ -305,37 +300,44 @@ wsq_create_new() {
         return
     fi
 
-    case "$(basename "$source")" in
-        *.wine|*.wsquashfs)
-            msgbox "$(i18n wsq_create_title)" "$(i18n wsq_source_invalid "$source")"
-            return ;;
-    esac
+    if [[ "$(basename "$source")" == *.wine ]]; then
+        target="$source"
+        raw_name="$(basename "$source")"
+        raw_name="${raw_name%.wine}"
+        game_name="$(wsq_clean_name "$raw_name")"
+        [ -n "$game_name" ] || game_name="$raw_name"
 
-    if find "$source" -mindepth 1 -maxdepth 1 \
-        \( -type d \( -iname '*.wine' -o -iname '*.pc' \) -o -type f -iname '*.wsquashfs' \) \
-        -print -quit 2>/dev/null | grep -q .; then
-        msgbox "$(i18n wsq_create_title)" "$(i18n wsq_source_contains_games "$source")"
-        return
-    fi
+        [ -d "$target/drive_c" ] || {
+            msgbox "$(i18n wsq_create_title)" "$(i18n wsq_wine_invalid "$target")"
+            return
+        }
+    else
+        if find "$source" -mindepth 1 -maxdepth 1 \
+            \( -type d \( -iname '*.wine' -o -iname '*.pc' \) -o -type f -iname '*.wsquashfs' \) \
+            -print -quit 2>/dev/null | grep -q .; then
+            msgbox "$(i18n wsq_create_title)" "$(i18n wsq_source_contains_games "$source")"
+            return
+        fi
 
-    template="$(wsq_select_template)" || return
-    raw_name="$(basename "$source")"
-    raw_name="${raw_name%.pc}"
-    game_name="$(wsq_clean_name "$raw_name")"
-    [ -n "$game_name" ] || game_name="$raw_name"
-    target="$(dirname "$source")/$game_name.wine"
+        template="$(wsq_select_template)" || return
+        raw_name="$(basename "$source")"
+        raw_name="${raw_name%.pc}"
+        game_name="$(wsq_clean_name "$raw_name")"
+        [ -n "$game_name" ] || game_name="$raw_name"
+        target="$(dirname "$source")/$game_name.wine"
 
-    [ ! -e "$target" ] || {
-        msgbox "$(i18n wsq_create_title)" "$(i18n wsq_target_exists "$target")"
-        return
-    }
+        [ ! -e "$target" ] || {
+            msgbox "$(i18n wsq_create_title)" "$(i18n wsq_target_exists "$target")"
+            return
+        }
 
-    yesno_default_no "$(i18n wsq_create_title)" \
-        "$(i18n wsq_move_confirm "$source" "$template" "$target")" || return
+        yesno_default_no "$(i18n wsq_create_title)" \
+            "$(i18n wsq_move_confirm "$source" "$template" "$target")" || return
 
-    if ! wsq_prepare_prefix "$source" "$template" "$game_name" "$target"; then
-        msgbox "$(i18n wsq_create_title)" "$(i18n wsq_prepare_failed "$target")"
-        return
+        if ! wsq_prepare_prefix "$source" "$template" "$game_name" "$target"; then
+            msgbox "$(i18n wsq_create_title)" "$(i18n wsq_prepare_failed "$target")"
+            return
+        fi
     fi
 
     exe_rel="$(wsq_select_executable "$target")" || {
