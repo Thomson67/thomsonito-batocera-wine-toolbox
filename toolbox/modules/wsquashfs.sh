@@ -307,6 +307,13 @@ wsq_restart_emulationstation_deferred() {
     return 0
 }
 
+wsq_request_game_launch() {
+    local rom="$1"
+    mkdir -p "$WSQ_STATE_DIR"
+    printf '%s\n' "$rom" > "$WSQ_STATE_DIR/launch-game.request"
+    return 0
+}
+
 wsq_create_new() {
     local source template raw_name game_name target exe_rel runner snapshot backup rom_name
     command -v unsquashfs >/dev/null 2>&1 || {
@@ -398,6 +405,7 @@ wsq_create_new() {
     msgbox "$(i18n wsq_create_title)" \
         "$(i18n wsq_test_ready "$target" "$rom_name" "$backup")"
 
+    wsq_request_game_launch "$target" || true
     wsq_restart_emulationstation_deferred || true
     exit 0
 }
