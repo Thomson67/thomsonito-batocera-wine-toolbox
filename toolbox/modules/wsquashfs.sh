@@ -235,8 +235,9 @@ for ext in (".wsquashfs", ".wine", ".pc"):
         stem_name=stem_name[:-len(ext)]
         break
 
+canonical_prefix = f'windows["{safe_name}"].wine-runner='
 prefixes = {
-    f'windows["{safe_name}"].wine-runner=',
+    canonical_prefix,
     f'windows["{stem_name}"].wine-runner=',
 }
 
@@ -254,7 +255,7 @@ if runner != "__SYSTEM__":
         lines[-1]+="\n"
     if lines and lines[-1].strip():
         lines.append("\n")
-    lines.append(prefix + runner + "\n")
+    lines.append(canonical_prefix + runner + "\n")
 
 tmp=conf+".uwt-wsq"
 with open(tmp, "w", encoding="utf-8", errors="surrogateescape") as f:
