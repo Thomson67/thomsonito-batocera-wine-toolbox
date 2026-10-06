@@ -48,7 +48,11 @@ def find_exes(prefix: Path):
     if not game_dir.is_dir():
         return rows
     for root, dirs, files in os.walk(game_dir):
-        dirs[:] = [d for d in dirs if d.casefold() not in EXCLUDED_DIRS]
+        dirs[:] = [
+            d for d in dirs
+            if d.casefold() not in EXCLUDED_DIRS
+            and not d.casefold().endswith((".wine", ".pc"))
+        ]
         root_p = Path(root)
         rel_root = root_p.relative_to(prefix)
         for filename in files:
