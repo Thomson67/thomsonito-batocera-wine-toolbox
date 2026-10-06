@@ -602,6 +602,25 @@ wsq_retry_pending() {
     exit 0
 }
 
+wsq_display_path() {
+    # Presentation only: the real path is never modified.
+    python3 - "$1" <<'PY'
+import sys, textwrap
+print(textwrap.fill(sys.argv[1], width=72, break_long_words=True,
+                    break_on_hyphens=False, replace_whitespace=False))
+PY
+}
+
+wsq_path_label() {
+    # dialog menu rows cannot wrap; keep a readable suffix, then show the full
+    # wrapped path in the candidate review and save confirmation prompts.
+    python3 - "$1" <<'PY'
+import sys
+path = sys.argv[1]
+print(path if len(path) <= 58 else "…/" + path[-55:])
+PY
+}
+
 wsq_inspect_folder() {
     local folder="$1" listing rc
     listing="$(mktemp /tmp/uwt-save-inspect.XXXXXX)" || return 1
@@ -629,7 +648,7 @@ wsq_review_save_candidate() {
     local candidate="$1" choice
     while true; do
         choice="$(menu_select "$(i18n wsq_save_title)" \
-            "$(i18n wsq_candidate_prompt "$candidate")" \
+            "$(i18n wsq_candidate_prompt "$(wsq_display_path "$candidate")")" \
             "select" "$(i18n wsq_browser_select)" \
             "inspect" "$(i18n wsq_inspect_title)" \
             "browse" "$(i18n wsq_browser_title)" \
@@ -691,7 +710,7 @@ wsq_browse_save_terminal() {
             items+=("${#dirs[@]}" "$(basename "$path")/")
         done < <(python3 "$WSQ_HELPER" directories "$prefix" "$current" --save-root "$WSQ_SAVE_ROOT" 2>/dev/null)
         choice="$(menu_select "$(i18n wsq_browser_title)" \
-            "$(i18n wsq_browser_prompt "$current")" "${items[@]}")" || return 1
+            "$(i18n wsq_browser_prompt "$(wsq_display_path "$current")")" "${items[@]}")" || return 1
         case "$choice" in
             inspect) wsq_inspect_folder "$current" || true ;;
             select)
@@ -745,7 +764,7 @@ wsq_select_save_candidate() {
     while IFS=$'\t' read -r score count rel reason; do
         [ -n "$rel" ] || continue
         validated="$(python3 "$WSQ_HELPER" validate-save "$prefix" "$rel" "$exe_rel" --save-root "$WSQ_SAVE_ROOT" 2>/dev/null)" || continue
-        items+=("$idx" "[$score] $validated  ($count)")
+        items+=("$idx" "[$score] $(wsq_path_label "$validated")  ($count)")
         rows+="$validated"$'\n'
         idx=$((idx+1))
     done < <(python3 "$WSQ_HELPER" diff "$prefix" "$snapshot")
@@ -1079,7 +1098,11 @@ wsq_game_options_menu() {
 wsq_launch_failure_menu() {
     local choice new_runner
     while true; do
-        choice="$(menu_select "$(i18n wsq_launch_title)" "$1"             "runner" "$(i18n wsq_launch_runner)"             "retry" "$(i18n wsq_launch_retry)"             "options" "$(i18n wsq_options_title)"             "cancel" "$(i18n wsq_launch_cancel)")" || return 1
+        choice="$(menu_select "$(i18n wsq_launch_title)" "$1" \
+            "runner" "$(i18n wsq_launch_runner)" \
+            "retry" "$(i18n wsq_launch_retry)" \
+            "options" "$(i18n wsq_options_title)" \
+            "cancel" "$(i18n wsq_launch_cancel)")" || return 1
         case "$choice" in
             runner)
                 new_runner="$(wsq_select_runner)" || continue
@@ -1114,33 +1137,24 @@ wsq_review_launch() {
     body="$(i18n wsq_game_worked "$runner")"
     [ "$result" != short ] || body="$(i18n wsq_launch_short)"$'\n\n'"$body"
     while true; do
-        choice="$(menu_select "$(i18n wsq_launch_title)" "$body"             "yes" "$(i18n wsq_game_yes)"             "no" "$(i18n wsq_game_no)"             "options" "$(i18n wsq_options_title)"             "cancel" "$(i18n wsq_launch_cancel)")" || return 1
-        case "$choice" in
-            yes) break ;;
-            no) wsq_launch_failure_menu "$(i18n wsq_game_failed)"; return 1 ;;
-            options) wsq_game_options_menu || return 1 ;;
-            cancel) wsq_cancel_pending; return 1 ;;
-        esac
-    done
-
-    while true; do
-        choice="$(menu_select "$(i18n wsq_controller_title)" "$(i18n wsq_controller_prompt)"             "yes" "$(i18n wsq_controller_yes)"             "no" "$(i18n wsq_controller_no)"             "options" "$(i18n wsq_options_title)"             "cancel" "$(i18n wsq_launch_cancel)")" || return 1
+        choice="$(menu_select "$(i18n wsq_launch_title)" "$body" \
+            "yes" "$(i18n wsq_game_yes)" \
+            "no" "$(i18n wsq_game_no)" \
+            "hidraw" "$(i18n wsq_hidraw_retry)" \
+            "options" "$(i18n wsq_options_title)" \
+            "cancel" "$(i18n wsq_launch_cancel)")" || return 1
         case "$choice" in
             yes)
                 rm -f -- "$WSQ_STATE_DIR/wsq-launch-result"
                 return 0 ;;
-            no)
-                choice="$(menu_select "$(i18n wsq_controller_title)" "$(i18n wsq_hidraw_prompt)"                     "hidraw" "$(i18n wsq_hidraw_retry)"                     "options" "$(i18n wsq_options_title)"                     "back" "$(i18n back)")" || continue
-                case "$choice" in
-                    hidraw)
-                        wsq_game_option set enable_hidraw 1 || {
-                            msgbox "$(i18n wsq_controller_title)" "$(i18n wsq_runner_config_failed)"
-                            return 1
-                        }
-                        wsq_retry_pending
-                        return 1 ;;
-                    options) wsq_game_options_menu || return 1 ;;
-                esac ;;
+            no) wsq_launch_failure_menu "$(i18n wsq_game_failed)"; return 1 ;;
+            hidraw)
+                wsq_game_option set enable_hidraw 1 || {
+                    msgbox "$(i18n wsq_launch_title)" "$(i18n wsq_runner_config_failed)"
+                    return 1
+                }
+                wsq_retry_pending
+                return 1 ;;
             options) wsq_game_options_menu || return 1 ;;
             cancel) wsq_cancel_pending; return 1 ;;
         esac
@@ -1176,7 +1190,7 @@ wsq_resume_build() {
         wsq_copy_registry_save
     else
         yesno_default_no "$(i18n wsq_save_title)" \
-            "$(i18n wsq_save_confirm "$save_rel" "$WSQ_SAVE_ROOT/$game_name")" || return
+            "$(i18n wsq_save_confirm "$(wsq_display_path "$save_rel")" "$(wsq_display_path "$WSQ_SAVE_ROOT/$game_name")")" || return
         wsq_move_save_data "$prefix" "$save_rel" "$game_name"
     fi
     local move_rc=$?
