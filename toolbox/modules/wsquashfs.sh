@@ -150,7 +150,7 @@ wsq_install_default_template() {
     }
 
     dest="$WSQ_TEMPLATES_DIR/$filename"
-    tmp="$dest.download-$"
+    tmp="$dest.download-$$"
     rm -f -- "$tmp"
 
     clear
