@@ -54,7 +54,14 @@ wsq_select_template() {
     done < <(wsq_list_templates)
 
     if [ "${#items[@]}" -eq 0 ]; then
-        msgbox "$(i18n wsq_templates_title)" "$(i18n wsq_templates_none "$WSQ_TEMPLATES_DIR")"
+        # Do not rely on dialog for this blocking error. Some Batocera/Wayland
+        # combinations can render a dialog msgbox as an apparently blank
+        # terminal, making the Toolbox look frozen.
+        clear
+        printf '==== %s ====\n\n' "$(i18n wsq_templates_title)"
+        printf '%b\n\n' "$(i18n wsq_templates_none "$WSQ_TEMPLATES_DIR")"
+        printf '%s' "$(i18n press_enter)"
+        read -r _
         return 1
     fi
 
