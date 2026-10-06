@@ -507,7 +507,7 @@ wsq_move_save_data() {
 
 wsq_cleanup_internal_savedir() {
     local prefix="$1" save_rel="$2"
-    local save_abs prefix_real save_real
+    local save_abs prefix_real save_real parent_real
 
     save_rel="${save_rel%/}"
     [ -n "$save_rel" ] || return 1
@@ -519,12 +519,24 @@ wsq_cleanup_internal_savedir() {
 
     # SAVEDIR must remain an internal path of this prefix. Never follow or
     # remove anything outside the prefix.
+    parent_real="$(readlink -f -- "$(dirname "$save_abs")" 2>/dev/null || true)"
+    case "$parent_real" in
+        "$prefix_real"|"$prefix_real"/*) ;;
+        *) return 1 ;;
+    esac
+
+    # A symlink is never allowed in the final archive. Replace it with a real,
+    # empty directory so an extracted .pc/.wine remains directly runnable.
     if [ -L "$save_abs" ]; then
         rm -f -- "$save_abs" || return 1
+        mkdir -p -- "$save_abs" || return 1
         return 0
     fi
 
+    # If the path disappeared after moving the save data, recreate it as a
+    # real empty directory for portability after extraction.
     if [ ! -e "$save_abs" ]; then
+        mkdir -p -- "$save_abs" || return 1
         return 0
     fi
 
@@ -541,7 +553,8 @@ wsq_cleanup_internal_savedir() {
         return 2
     fi
 
-    rmdir -- "$save_abs" 2>/dev/null || return 1
+    # Keep the real empty directory in the prefix. This makes an extracted
+    # archive usable as .pc/.wine without requiring Batocera to recreate it.
     return 0
 }
 
