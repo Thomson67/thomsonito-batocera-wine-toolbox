@@ -22,16 +22,32 @@ on:
   workflow_dispatch:
 
 jobs:
-  bash-syntax:
+  wsquashfs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Check Bash syntax
-        shell: bash
-        run: |
-          set -euo pipefail
-          bash -n toolbox/modules/wsquashfs.sh
-          bash -n toolbox/lib/common.sh
-          bash -n toolbox/lib/download.sh
-          bash -n toolbox/lang/fr.sh
-          bash -n toolbox/lang/en.sh
+      - run: bash -n toolbox/modules/wsquashfs.sh
+
+  common:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: bash -n toolbox/lib/common.sh
+
+  download:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: bash -n toolbox/lib/download.sh
+
+  lang-fr:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: bash -n toolbox/lang/fr.sh
+
+  lang-en:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: bash -n toolbox/lang/en.sh
