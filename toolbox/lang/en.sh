@@ -389,6 +389,7 @@ declare -gA I18N=(
   [wsq_runner_prompt]="Choose the runner that will be stored for this game in batocera.conf. Detected UMU runners are listed first."
   [wsq_runner_system]="System default Wine runner"
   [wsq_runner_config_failed]="Unable to store the selected runner in batocera.conf."
+  [wsq_runner_finalize_failed]="The WSquashFS was created, but migrating the runner setting to the final archive name failed:\n%s\n\nThe source .wine is kept for safety."
   [wsq_snapshot_failed]="Unable to create the save-location snapshot."
   [wsq_test_ready]="Preparation completed.\n\nGame:\n%s\n\nES entry: %s\n\nbatocera.conf backup:\n%s\n\nTo preserve the exact Batocera/EmulationStation environment:\n1. Exit the Toolbox.\n2. Launch this game from the Windows system in EmulationStation.\n3. Create an in-game save, then exit normally.\n4. Relaunch Ultimate Wine Toolbox > WSquashFS Management > Resume a pending build.\n\nThe BEFORE-launch snapshot has been saved."
   [wsq_no_pending]="No pending WSquashFS build was found."
