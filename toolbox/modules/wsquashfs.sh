@@ -630,6 +630,7 @@ wsq_review_save_candidate() {
             "select" "$(i18n wsq_browser_select)" \
             "inspect" "$(i18n wsq_inspect_title)" \
             "browse" "$(i18n wsq_browser_title)" \
+            "terminal" "$(i18n wsq_browser_terminal)" \
             "back" "$(i18n back)")" || return 1
         case "$choice" in
             select)
@@ -638,12 +639,43 @@ wsq_review_save_candidate() {
                 return 0 ;;
             inspect) wsq_inspect_folder "$candidate" || true ;;
             browse) wsq_browse_save && return 0 ;;
+            terminal) wsq_browse_save terminal && return 0 ;;
             back) return 1 ;;
         esac
     done
 }
 
 wsq_browse_save() {
+    if [ "${1:-}" = terminal ] || ! command -v yad >/dev/null 2>&1; then
+        wsq_browse_save_terminal
+        return $?
+    fi
+    local selected validated rc
+    while true; do
+        selected="$(DISPLAY="${DISPLAY:-:0}" LANGUAGE="$WT_LANGUAGE" yad \
+            --file-selection --directory --filename="$prefix/" \
+            --title="$(i18n wsq_browser_title)" --width=1000 --height=700)"
+        rc=$?
+        case "$rc" in
+            0) ;;
+            1|252) return 1 ;;
+            *)
+                wt_log "WSquashFS: YAD folder selection failed (rc=$rc); using terminal browser"
+                msgbox "$(i18n wsq_browser_title)" "$(i18n wsq_browser_graphical_failed)"
+                wsq_browse_save_terminal
+                return $? ;;
+        esac
+        validated="$(python3 "$WSQ_HELPER" validate-save "$prefix" "$selected" "$exe_rel" 2>/dev/null)" || {
+            msgbox "$(i18n wsq_browser_title)" "$(i18n wsq_browser_invalid)"
+            continue
+        }
+        WSQ_SELECTED_SAVE="$validated"
+        WSQ_SAVE_KIND=directory
+        return 0
+    done
+}
+
+wsq_browse_save_terminal() {
     local current="." path choice validated
     local -a dirs=() items=()
     while true; do
@@ -716,7 +748,8 @@ wsq_select_save_candidate() {
     done < <(python3 "$WSQ_HELPER" diff "$prefix" "$snapshot")
 
     if [ "${#items[@]}" -gt 0 ]; then
-        items+=("browse" "$(i18n wsq_browser_title)"
+        items+=("browse" "$(i18n wsq_browser_title)" \
+            "terminal" "$(i18n wsq_browser_terminal)"
                 "retry" "$(i18n wsq_no_save_retry)"
                 "registry" "$(i18n wsq_registry_title)"
                 "cancel" "$(i18n wsq_launch_cancel)")
@@ -724,6 +757,7 @@ wsq_select_save_candidate() {
             choice="$(menu_select "$(i18n wsq_save_title)" "$(i18n wsq_detected_choices)" "${items[@]}")" || return 1
             case "$choice" in
                 browse) wsq_browse_save && return 0 ;;
+            terminal) wsq_browse_save terminal && return 0 ;;
                 retry) wsq_retry_pending; return 1 ;;
                 registry) wsq_registry_save && return 0 ;;
                 cancel) wsq_cancel_pending; return 1 ;;
@@ -741,11 +775,13 @@ wsq_select_save_candidate() {
             "retry" "$(i18n wsq_no_save_retry)" \
             "registry" "$(i18n wsq_registry_title)" \
             "browse" "$(i18n wsq_browser_title)" \
+            "terminal" "$(i18n wsq_browser_terminal)" \
             "cancel" "$(i18n wsq_launch_cancel)")" || return 1
         case "$choice" in
             retry) wsq_retry_pending; return 1 ;;
             registry) wsq_registry_save && return 0 ;;
             browse) wsq_browse_save && return 0 ;;
+            terminal) wsq_browse_save terminal && return 0 ;;
             cancel) wsq_cancel_pending; return 1 ;;
         esac
     done

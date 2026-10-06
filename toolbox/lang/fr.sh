@@ -413,6 +413,8 @@ declare -gA I18N=(
   [wsq_registry_build_now]="SAVEFILES=user.reg a été configuré. Le registre a été copié vers les sauvegardes ; une copie valide reste dans le préfixe.\n\nCréer maintenant le .wsquashfs ?"
   [wsq_no_save_choices]="Aucun dossier de sauvegarde plausible n’a été détecté. Vous pouvez relancer le jeu en créant une sauvegarde, examiner le registre ou choisir un dossier manuellement."
   [wsq_no_save_retry]="Relancer le jeu pour créer une sauvegarde"
+  [wsq_browser_terminal]="Choisir un dossier avec le navigateur terminal (manette)"
+  [wsq_browser_graphical_failed]="Le sélecteur graphique ne peut pas s’ouvrir. Le navigateur terminal va être utilisé."
   [wsq_browser_title]="Choisir le dossier de sauvegarde manuellement"
   [wsq_browser_prompt]="Dossier actuel : %s\n\nOuvrez un sous-dossier, remontez au parent ou choisissez le dossier actuel. Sélectionnez uniquement le dossier propre aux sauvegardes du jeu : son contenu sera déplacé."
   [wsq_browser_select]="Utiliser ce dossier"

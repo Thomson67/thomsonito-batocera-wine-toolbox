@@ -413,6 +413,8 @@ declare -gA I18N=(
   [wsq_registry_build_now]="SAVEFILES=user.reg has been configured. The registry was copied to the save directory; a valid copy remains in the prefix.\n\nCreate the .wsquashfs now?"
   [wsq_no_save_choices]="No plausible save directory was detected. You can launch again and create a save, inspect the registry, or choose a directory manually."
   [wsq_no_save_retry]="Launch the game again to create a save"
+  [wsq_browser_terminal]="Choose a directory with the terminal browser (controller)"
+  [wsq_browser_graphical_failed]="The graphical folder selector could not open. The terminal browser will be used."
   [wsq_browser_title]="Choose the save directory manually"
   [wsq_browser_prompt]="Current directory: %s\n\nOpen a subdirectory, go to its parent, or select the current directory. Choose only the game’s dedicated save directory: its contents will be moved."
   [wsq_browser_select]="Use this directory"
