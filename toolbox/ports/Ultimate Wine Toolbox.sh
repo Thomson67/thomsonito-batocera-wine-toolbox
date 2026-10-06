@@ -8,6 +8,7 @@ STATE_DIR="/userdata/system/ultimate-wine-toolbox/state"
 RESTART_REQUEST="$STATE_DIR/restart-es.request"
 LAUNCH_REQUEST="$STATE_DIR/launch-game.request"
 RESUME_REQUEST="$STATE_DIR/resume-wsq.request"
+RESULT_FILE="$STATE_DIR/wsq-launch-result"
 
 mkdir -p "$LOG_DIR" "$STATE_DIR"
 export DISPLAY="${DISPLAY:-:0}"
@@ -181,18 +182,17 @@ get_running_game_http_code() {
 }
 
 wait_for_game_start() {
-    local attempt=0 code=""
-    while [ "$attempt" -lt 480 ]; do
-        attempt=$((attempt + 1))
+    local deadline=$((SECONDS + 300)) code=""
+    while [ "$SECONDS" -lt "$deadline" ]; do
         code="$(get_running_game_http_code)"
         if [ "$code" = "200" ]; then
-            echo "game_started_after_attempt=$attempt" >>"$BOOT_LOG"
+            GAME_STARTED_AT=$SECONDS
+            echo "game_started_at=$GAME_STARTED_AT" >>"$BOOT_LOG"
             return 0
         fi
         sleep 0.25
     done
-
-    echo "ERROR: game did not enter running state before timeout." >>"$BOOT_LOG"
+    echo "ERROR: game launch not confirmed within 300 seconds." >>"$BOOT_LOG"
     return 1
 }
 
@@ -206,6 +206,31 @@ wait_for_game_stop() {
         fi
         sleep 0.5
     done
+}
+
+monitor_wsq_launch() {
+    local result
+    if ! launch_game_via_es "$launch_rom"; then
+        result="launch_failed"
+    elif ! wait_for_game_start; then
+        result="start_unconfirmed"
+    else
+        wait_for_game_stop
+        if [ "$((SECONDS - GAME_STARTED_AT))" -lt 15 ]; then
+            result="short"
+        else
+            result="normal"
+        fi
+    fi
+    printf '%s\n' "$result" > "$RESULT_FILE.tmp"
+    mv -f -- "$RESULT_FILE.tmp" "$RESULT_FILE"
+    echo "wsq_launch_result=$result" >>"$BOOT_LOG"
+    resume_wsquashfs_toolbox || true
+}
+
+resume_wsq_unavailable() {
+    printf '%s\n' "es_unavailable" > "$RESULT_FILE"
+    resume_wsquashfs_toolbox || true
 }
 
 resume_wsquashfs_toolbox() {
@@ -269,27 +294,23 @@ if [ -f "$RESTART_REQUEST" ]; then
 
         if [ "$restart_rc" -eq 0 ] && [ -n "$launch_rom" ]; then
             if wait_for_es_restart "$old_es_pid" && wait_for_es_api; then
-                launch_game_via_es "$launch_rom"
-                launch_rc=$?
-                echo "es_launch_exit_code=$launch_rc" >>"$BOOT_LOG"
-                if [ "$launch_rc" -eq 0 ] && wait_for_game_start && wait_for_game_stop; then
-                    resume_wsquashfs_toolbox || true
-                fi
+                monitor_wsq_launch
             else
                 echo "ERROR: automatic game launch skipped because restarted ES is unavailable." >>"$BOOT_LOG"
+                resume_wsq_unavailable
             fi
+        elif [ -n "$launch_rom" ]; then
+            resume_wsq_unavailable
         fi
     else
         echo "ERROR: batocera-es-swissknife not found; ES restart skipped." >>"$BOOT_LOG"
+        [ -z "$launch_rom" ] || resume_wsq_unavailable
     fi
 elif [ -n "$launch_rom" ]; then
     if wait_for_es_api; then
-        launch_game_via_es "$launch_rom"
-        launch_rc=$?
-        echo "es_launch_exit_code=$launch_rc" >>"$BOOT_LOG"
-        if [ "$launch_rc" -eq 0 ] && wait_for_game_start && wait_for_game_stop; then
-            resume_wsquashfs_toolbox || true
-        fi
+        monitor_wsq_launch
+    else
+        resume_wsq_unavailable
     fi
 fi
 

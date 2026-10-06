@@ -485,6 +485,7 @@ wsq_restart_emulationstation_deferred() {
 wsq_request_game_launch() {
     local rom="$1"
     mkdir -p "$WSQ_STATE_DIR"
+    rm -f -- "$WSQ_STATE_DIR/wsq-launch-result"
     printf '%s\n' "$rom" > "$WSQ_STATE_DIR/launch-game.request"
     return 0
 }
@@ -805,6 +806,54 @@ wsq_post_build_menu() {
     esac
 }
 
+wsq_review_launch() {
+    local result="" choice new_runner
+    if [ -f "$WSQ_STATE_DIR/wsq-launch-result" ]; then
+        IFS= read -r result < "$WSQ_STATE_DIR/wsq-launch-result" || true
+    fi
+    case "$result" in
+        ""|normal) return 0 ;;
+        short|launch_failed|start_unconfirmed|es_unavailable) ;;
+        *) return 1 ;;
+    esac
+
+    local -a choices=()
+    if [ "$result" = short ]; then
+        choices+=("continue" "$(i18n wsq_launch_continue)")
+    fi
+    choices+=("runner" "$(i18n wsq_launch_runner)"
+              "retry" "$(i18n wsq_launch_retry)"
+              "cancel" "$(i18n wsq_launch_cancel)")
+    choice="$(menu_select "$(i18n wsq_launch_title)" \
+        "$(i18n "wsq_launch_$result")\n\n$(i18n wsq_launch_context "$runner")" \
+        "${choices[@]}")" || return 1
+
+    case "$choice" in
+        continue)
+            rm -f -- "$WSQ_STATE_DIR/wsq-launch-result"
+            return 0 ;;
+        runner|retry)
+            if [ "$choice" = runner ]; then
+                new_runner="$(wsq_select_runner)" || return 1
+                wsq_set_runner_config "$(basename "$prefix")" "$new_runner" || {
+                    msgbox "$(i18n wsq_launch_title)" "$(i18n wsq_runner_config_failed)"
+                    return 1
+                }
+                runner="$new_runner"
+            fi
+            wsq_save_state "$prefix" "$game_name" "$snapshot" "$exe_rel" "$runner" || return 1
+            wsq_request_game_launch "$prefix" || return 1
+            wsq_restart_emulationstation_deferred || return 1
+            exit 0 ;;
+        cancel)
+            # Keep the prepared game and its save data; cancel only the builder.
+            rm -f -- "$snapshot" "$WSQ_STATE_FILE" "$WSQ_STATE_DIR/wsq-launch-result"
+            msgbox "$(i18n wsq_launch_title)" "$(i18n wsq_prefix_kept "$prefix")"
+            return 1 ;;
+    esac
+    return 1
+}
+
 wsq_resume_build() {
     local prefix game_name snapshot exe_rel runner save_rel dest archive
     [ -s "$WSQ_STATE_FILE" ] || {
@@ -822,6 +871,8 @@ wsq_resume_build() {
         msgbox "$(i18n wsq_resume_title)" "$(i18n wsq_pending_invalid)"
         return
     }
+
+    wsq_review_launch || return
 
     save_rel="$(wsq_select_save_candidate "$prefix" "$snapshot")" || return
 
