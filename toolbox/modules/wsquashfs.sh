@@ -744,6 +744,54 @@ wsq_cleanup_internal_savedir() {
     return 0
 }
 
+wsq_prepare_existing_archive() {
+    local archive="$1"
+    local choice stamp backup
+
+    WSQ_LAST_ARCHIVE_BACKUP=""
+
+    [ -e "$archive" ] || return 0
+    [ -f "$archive" ] && [ ! -L "$archive" ] || return 4
+
+    choice="$(menu_select "$(i18n wsq_archive_conflict_title)" \
+        "$(i18n wsq_archive_conflict_body "$archive")" \
+        "1" "$(i18n wsq_archive_conflict_backup)" \
+        "2" "$(i18n wsq_archive_conflict_replace)" \
+        "0" "$(i18n cancel)")" || return 10
+
+    case "$choice" in
+        1)
+            stamp="$(date '+%Y%m%d-%H%M%S')"
+            case "$archive" in
+                *.wsquashfs) backup="${archive%.wsquashfs}.backup-${stamp}.wsquashfs" ;;
+                *) backup="${archive}.backup-${stamp}" ;;
+            esac
+            while [ -e "$backup" ]; do
+                sleep 1
+                stamp="$(date '+%Y%m%d-%H%M%S')"
+                case "$archive" in
+                    *.wsquashfs) backup="${archive%.wsquashfs}.backup-${stamp}.wsquashfs" ;;
+                    *) backup="${archive}.backup-${stamp}" ;;
+                esac
+            done
+            mv -- "$archive" "$backup" || return 5
+            WSQ_LAST_ARCHIVE_BACKUP="$backup"
+            wt_log "WSquashFS: existing archive backed up: $archive -> $backup"
+            return 0
+            ;;
+        2)
+            rm -f -- "$archive" || return 6
+            wt_log "WSquashFS: existing archive removed before replacement: $archive"
+            return 0
+            ;;
+        0|"")
+            return 10
+            ;;
+    esac
+
+    return 10
+}
+
 wsq_post_build_menu() {
     local choice
     choice="$(menu_select "$(i18n wsq_post_title)" "$(i18n wsq_post_prompt)" \
@@ -808,8 +856,26 @@ wsq_resume_build() {
 
     if yesno "$(i18n wsq_create_title)" "$(i18n wsq_build_now)"; then
         archive="${prefix%.wine}.wsquashfs"
-        if [ -e "$archive" ]; then
-            msgbox "$(i18n wsq_create_title)" "$(i18n wsq_archive_exists "$archive")"
+        wsq_prepare_existing_archive "$archive"
+        local archive_rc=$?
+        if [ "$archive_rc" -ne 0 ]; then
+            case "$archive_rc" in
+                10)
+                    return
+                    ;;
+                4)
+                    msgbox "$(i18n wsq_archive_conflict_title)" "$(i18n wsq_archive_conflict_invalid "$archive")"
+                    ;;
+                5)
+                    msgbox "$(i18n wsq_archive_conflict_title)" "$(i18n wsq_archive_backup_failed "$archive")"
+                    ;;
+                6)
+                    msgbox "$(i18n wsq_archive_conflict_title)" "$(i18n wsq_archive_replace_failed "$archive")"
+                    ;;
+                *)
+                    msgbox "$(i18n wsq_archive_conflict_title)" "$(i18n wsq_archive_conflict_failed "$archive")"
+                    ;;
+            esac
             return
         fi
         wsq_cleanup_internal_savedir "$prefix" "$save_rel"
@@ -828,6 +894,11 @@ wsq_resume_build() {
                 msgbox "$(i18n wsq_create_title)" "$(i18n wsq_runner_finalize_failed "$archive")"
                 return
             }
+
+            if [ -n "${WSQ_LAST_ARCHIVE_BACKUP:-}" ]; then
+                msgbox "$(i18n wsq_archive_conflict_title)" \
+                    "$(i18n wsq_archive_backup_done "$WSQ_LAST_ARCHIVE_BACKUP")"
+            fi
 
             if yesno_default_no "$(i18n squash_delete_source_title)" \
                 "$(i18n squash_delete_source_confirm "$(basename "$prefix")")"; then
