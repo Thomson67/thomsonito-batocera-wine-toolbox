@@ -57,7 +57,7 @@ def find_exes(prefix: Path):
         rel_root = root_p.relative_to(prefix)
         for filename in files:
             low = filename.casefold()
-            if not low.endswith((".exe", ".bat")):
+            if not low.endswith((".exe", ".bat", ".cmd")):
                 continue
             if any(x in low for x in EXCLUDED_EXE_NAMES):
                 continue
@@ -65,6 +65,8 @@ def find_exes(prefix: Path):
             score = 0
             if any(x in low for x in PRIORITY_EXE_NAMES):
                 score += 50
+            if low.endswith((".bat", ".cmd")) and any(x in low for x in ("start", "launch", "play", "run")):
+                score += 20
             rel_low = rel_root.as_posix().casefold()
             if any(x in rel_low for x in PRIORITY_DIRS):
                 score += 30
