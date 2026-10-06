@@ -278,6 +278,19 @@ print(data.get(sys.argv[2], ""))
 PY
 }
 
+wsq_refresh_emulationstation_games() {
+    local url="http://127.0.0.1:1234/reloadgames"
+
+    if command -v curl >/dev/null 2>&1; then
+        curl -fsS --max-time 5 "$url" >/dev/null 2>&1 && return 0
+    elif command -v wget >/dev/null 2>&1; then
+        wget -q -T 5 -O /dev/null "$url" >/dev/null 2>&1 && return 0
+    fi
+
+    wt_log "WSquashFS: unable to request EmulationStation gamelist reload via $url"
+    return 1
+}
+
 wsq_create_new() {
     local source template raw_name game_name target exe_rel runner snapshot backup rom_name
     command -v unsquashfs >/dev/null 2>&1 || {
@@ -365,8 +378,7 @@ wsq_create_new() {
     fi
 
     wsq_save_state "$target" "$game_name" "$snapshot" "$exe_rel" "$runner"
-    command -v batocera-es-swissknife >/dev/null 2>&1 && \
-        batocera-es-swissknife --update-gamelists >/dev/null 2>&1 || true
+    wsq_refresh_emulationstation_games || true
 
     msgbox "$(i18n wsq_create_title)" \
         "$(i18n wsq_test_ready "$target" "$rom_name" "$backup")"
@@ -519,6 +531,7 @@ wsq_resume_build() {
                 "$(i18n squash_delete_source_confirm "$(basename "$prefix")")"; then
                 maintenance_delete_wine_dir_symlink_safe "$prefix" || true
             fi
+            wsq_refresh_emulationstation_games || true
             msgbox "$(i18n wsq_create_title)" "$(i18n wsq_build_done "$archive" "$WSQ_SAVE_ROOT/$game_name")"
         else
             msgbox "$(i18n wsq_create_title)" "$(i18n wsq_build_failed)"
