@@ -16,6 +16,7 @@ source "$WT_ROOT/modules/starter-pack.sh"
 source "$WT_ROOT/modules/runners.sh"
 source "$WT_ROOT/modules/ge-proton-legacy.sh"
 source "$WT_ROOT/modules/maintenance.sh"
+source "$WT_ROOT/modules/wsquashfs.sh"
 source "$WT_ROOT/modules/batocera-conf.sh"
 source "$WT_ROOT/modules/batocera-conf-extra.sh"
 source "$WT_ROOT/modules/batocera-conf-transfer.sh"
@@ -37,8 +38,9 @@ $(i18n menu_umu): $(umu_toolbox_status)" \
             "2" "$(i18n menu_starter)" \
             "3" "$(i18n menu_runners)" \
             "4" "$(i18n menu_graphics)" \
-            "5" "$(i18n menu_maintenance)" \
-            "6" "$(i18n menu_settings)" \
+            "5" "$(i18n menu_wsquashfs)" \
+            "6" "$(i18n menu_maintenance)" \
+            "7" "$(i18n menu_settings)" \
             "0" "$(i18n exit)")" || exit 0
 
         case "$choice" in
@@ -46,8 +48,9 @@ $(i18n menu_umu): $(umu_toolbox_status)" \
             2) starter_pack_menu ;;
             3) runner_manager_menu ;;
             4) graphics_menu ;;
-            5) maintenance_menu ;;
-            6) settings_menu ;;
+            5) wsquashfs_menu ;;
+            6) maintenance_menu ;;
+            7) settings_menu ;;
             0|"") clear; exit 0 ;;
         esac
     done
