@@ -505,6 +505,67 @@ wsq_move_save_data() {
     shopt -u dotglob nullglob
 }
 
+wsq_cleanup_internal_savedir() {
+    local prefix="$1" save_rel="$2"
+    local save_abs prefix_real save_real
+
+    save_rel="${save_rel%/}"
+    [ -n "$save_rel" ] || return 1
+
+    prefix_real="$(readlink -f -- "$prefix" 2>/dev/null || true)"
+    [ -n "$prefix_real" ] || return 1
+
+    save_abs="$prefix/$save_rel"
+
+    # SAVEDIR must remain an internal path of this prefix. Never follow or
+    # remove anything outside the prefix.
+    if [ -L "$save_abs" ]; then
+        rm -f -- "$save_abs" || return 1
+        return 0
+    fi
+
+    if [ ! -e "$save_abs" ]; then
+        return 0
+    fi
+
+    [ -d "$save_abs" ] || return 1
+    save_real="$(readlink -f -- "$save_abs" 2>/dev/null || true)"
+    case "$save_real" in
+        "$prefix_real"/*) ;;
+        *) return 1 ;;
+    esac
+
+    # Never hide unexpected data inside the final archive. The save contents
+    # must already have been moved to /userdata/saves/windows/<game>.
+    if find "$save_abs" -mindepth 1 -print -quit 2>/dev/null | grep -q .; then
+        return 2
+    fi
+
+    rmdir -- "$save_abs" 2>/dev/null || return 1
+    return 0
+}
+
+wsq_post_build_menu() {
+    local choice
+    choice="$(menu_select "$(i18n wsq_post_title)" "$(i18n wsq_post_prompt)" \
+        "1" "$(i18n wsq_post_new)" \
+        "2" "$(i18n wsq_post_toolbox)" \
+        "3" "$(i18n wsq_post_es)")" || return 20
+
+    case "$choice" in
+        1)
+            wsq_create_new
+            return 0
+            ;;
+        2)
+            return 0
+            ;;
+        3|"")
+            return 20
+            ;;
+    esac
+}
+
 wsq_resume_build() {
     local prefix game_name snapshot exe_rel runner save_rel dest archive
     [ -s "$WSQ_STATE_FILE" ] || {
@@ -552,6 +613,16 @@ wsq_resume_build() {
             msgbox "$(i18n wsq_create_title)" "$(i18n wsq_archive_exists "$archive")"
             return
         fi
+        if ! wsq_cleanup_internal_savedir "$prefix" "$save_rel"; then
+            local cleanup_rc=$?
+            if [ "$cleanup_rc" -eq 2 ]; then
+                msgbox "$(i18n wsq_create_title)" "$(i18n wsq_savedir_not_empty "$prefix/$save_rel")"
+            else
+                msgbox "$(i18n wsq_create_title)" "$(i18n wsq_savedir_cleanup_failed "$prefix/$save_rel")"
+            fi
+            return
+        fi
+
         if maintenance_squash_wine "$prefix" "$archive"; then
             wsq_finalize_runner_config "$game_name" "$runner" || {
                 msgbox "$(i18n wsq_create_title)" "$(i18n wsq_runner_finalize_failed "$archive")"
@@ -564,7 +635,8 @@ wsq_resume_build() {
             fi
             msgbox "$(i18n wsq_create_title)" "$(i18n wsq_build_done "$archive" "$WSQ_SAVE_ROOT/$game_name")"
             wsq_restart_emulationstation_deferred || true
-            exit 0
+            wsq_post_build_menu
+            return $?
         else
             msgbox "$(i18n wsq_create_title)" "$(i18n wsq_build_failed)"
         fi
