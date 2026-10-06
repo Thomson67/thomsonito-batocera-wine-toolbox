@@ -589,6 +589,7 @@ wsq_create_new() {
 
 wsq_select_save_candidate() {
     local prefix="$1" snapshot="$2"
+    WSQ_SELECTED_SAVE=""
     local -a items=()
     local rows="" score count rel reason idx=1 choice
     while IFS=$'\t' read -r score count rel reason; do
@@ -604,7 +605,8 @@ wsq_select_save_candidate() {
     fi
 
     choice="$(menu_select "$(i18n wsq_save_title)" "$(i18n wsq_save_prompt)" "${items[@]}")" || return 1
-    sed -n "${choice}p" <<< "$rows"
+    WSQ_SELECTED_SAVE="$(sed -n "${choice}p" <<< "$rows")"
+    [ -n "$WSQ_SELECTED_SAVE" ]
 }
 
 wsq_save_destination_prepare() {
@@ -874,7 +876,8 @@ wsq_resume_build() {
 
     wsq_review_launch || return
 
-    save_rel="$(wsq_select_save_candidate "$prefix" "$snapshot")" || return
+    wsq_select_save_candidate "$prefix" "$snapshot" || return
+    save_rel="$WSQ_SELECTED_SAVE"
 
     yesno_default_no "$(i18n wsq_save_title)" \
         "$(i18n wsq_save_confirm "$save_rel" "$WSQ_SAVE_ROOT/$game_name")" || return
