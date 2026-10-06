@@ -780,8 +780,10 @@ wsq_prepare_existing_archive() {
             return 0
             ;;
         2)
-            rm -f -- "$archive" || return 6
-            wt_log "WSquashFS: existing archive removed before replacement: $archive"
+            # Keep the current archive in place while mksquashfs builds and
+            # validates a temporary file. maintenance_squash_wine() replaces
+            # the destination only after the new archive has passed validation.
+            wt_log "WSquashFS: existing archive will be atomically replaced after validation: $archive"
             return 0
             ;;
         0|"")
@@ -868,9 +870,6 @@ wsq_resume_build() {
                     ;;
                 5)
                     msgbox "$(i18n wsq_archive_conflict_title)" "$(i18n wsq_archive_backup_failed "$archive")"
-                    ;;
-                6)
-                    msgbox "$(i18n wsq_archive_conflict_title)" "$(i18n wsq_archive_replace_failed "$archive")"
                     ;;
                 *)
                     msgbox "$(i18n wsq_archive_conflict_title)" "$(i18n wsq_archive_conflict_failed "$archive")"
