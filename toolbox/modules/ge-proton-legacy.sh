@@ -143,7 +143,7 @@ runner_install_ge_archive() {
     fi
     rm -rf "$candidate/files"
 
-    target="$BATOCERA_CUSTOM_WINE/$(basename "$candidate")"
+    target="$BATOCERA_CUSTOM_WINE/$(runner_normalized_name "$(basename "$candidate")")"
     if [ -e "$target" ]; then
         rm -rf "$stage"
         msgbox "$title" "$(i18n runner_already_installed "$(basename "$target")")"

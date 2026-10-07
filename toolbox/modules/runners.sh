@@ -6,6 +6,23 @@ RUNNER_CACHE_TTL=21600
 KRON4EK_REPO="Kron4ek/Wine-Builds"
 GE_REPO="GloriousEggroll/proton-ge-custom"
 
+runner_normalized_name() {
+    python3 "$WT_ROOT/helpers/runner_names.py" name "$1"
+}
+
+runner_normalize_installed() {
+    local report
+    report="$(python3 "$WT_ROOT/helpers/runner_names.py" migrate "$BATOCERA_CUSTOM_WINE" \
+        /userdata/system/batocera.conf /userdata/system/wine-bottles/windows \
+        "$WT_HOME/state/wsquashfs-builder.json" "$WT_HOME/backups/runner-names" 2>&1)"
+    local rc=$?
+    [ -z "$report" ] || wt_log "$report"
+    if [ "$rc" -ne 0 ]; then
+        msgbox "$WT_TITLE" "$report"
+        return "$rc"
+    fi
+}
+
 runner_api_get() {
     local url="$1"
     curl -fsSL --retry 2 --connect-timeout 10 --max-time 30         -H "Accept: application/vnd.github+json"         -H "User-Agent: Ultimate-Wine-Toolbox"         "$url"
@@ -222,10 +239,11 @@ runner_choose_release() {
         state=""
         expected="${name%.tar.xz}"
         expected="${expected%.tar.gz}"
+        expected="$(runner_normalized_name "$expected")"
         if runner_installed "$expected"; then
             state=" | $(i18n installed)"
         fi
-        items+=("$idx" "$tag | $(human_bytes "$size")$state")
+        items+=("$idx" "$expected | $(human_bytes "$size")$state")
         idx=$((idx+1))
     done <<< "$rows"
 
@@ -312,7 +330,7 @@ runner_install_archive() {
     fi
 
     candidate="$(find "$extract" -mindepth 1 -maxdepth 1 -type d | head -n1)"
-    target="$BATOCERA_CUSTOM_WINE/$(basename "$candidate")"
+    target="$BATOCERA_CUSTOM_WINE/$(runner_normalized_name "$(basename "$candidate")")"
 
     if [ -e "$target" ]; then
         rm -rf "$stage"
@@ -360,8 +378,8 @@ runner_family_label() {
     case "$name" in
         *-UMU) printf '%s' "UMU" ;;
         GE-Proton*) printf '%s' "GE-Proton" ;;
-        wine-*-staging-tkg-amd64-wow64|wine-*-staging-tkg-amd64|wine-tkg-*) printf '%s' "Kron4ek TKG" ;;
-        wine-*-amd64-wow64|wine-*-amd64) printf '%s' "Kron4ek Vanilla" ;;
+        TKG-*|wine-*-staging-tkg-amd64-wow64|wine-*-staging-tkg-amd64|wine-tkg-*) printf '%s' "Kron4ek TKG" ;;
+        Vanilla-*|wine-*-amd64-wow64|wine-*-amd64) printf '%s' "Kron4ek Vanilla" ;;
         *) printf '%s' "$(i18n runner_other_family)" ;;
     esac
 }

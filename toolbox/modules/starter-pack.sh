@@ -5,8 +5,10 @@ RUNNERS_DATA="$WT_ROOT/data/runners.json"
 STARTER_STAGE="$WT_HOME/staging/starter-pack"
 
 starter_status_tsv() {
-    python3 - "$STARTER_DATA" "$RUNNERS_DATA" <<'PY'
+    python3 - "$STARTER_DATA" "$RUNNERS_DATA" "$WT_ROOT/helpers" <<'PY'
 import json, os, sys
+sys.path.insert(0, sys.argv[3])
+from runner_names import canonical
 starter=json.load(open(sys.argv[1], encoding="utf-8"))
 catalog=json.load(open(sys.argv[2], encoding="utf-8"))
 byid={r["id"]:r for r in catalog["runners"]}
@@ -15,13 +17,13 @@ install_path=catalog.get("install_path","/userdata/system/wine/custom")
 print("META\t"+starter["version"]+"\t"+install_path)
 for rid in starter["classic_runner_ids"]:
     r=byid[rid]
-    target=os.path.join(install_path, r["name"])
+    target=os.path.join(install_path, canonical(r["name"]))
     state="installed" if os.path.isdir(target) else "missing"
     print("CLASSIC\t%s\t%s\t%s\t%s\t%s\t%s\t%s" % (
-        rid, r["name"], state, r["file"], r["size_bytes"], r["download_url"], r["sha256"]
+        rid, canonical(r["name"]), state, r["file"], r["size_bytes"], r["download_url"], r["sha256"]
     ))
 for rid in starter.get("umu_runner_ids", []):
-    target=os.path.join("/userdata/system/wine/custom", rid)
+    target=os.path.join("/userdata/system/wine/custom", canonical(rid))
     state="installed" if os.path.isdir(target) else "missing"
     print("UMU\t%s\t%s" % (rid, state))
 PY

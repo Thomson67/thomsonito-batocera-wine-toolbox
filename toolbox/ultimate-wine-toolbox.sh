@@ -25,6 +25,7 @@ source "$WT_ROOT/modules/dxvk-manager.sh"
 source "$WT_ROOT/modules/settings.sh"
 
 ensure_batocera_paths
+runner_normalize_installed
 startup_update_check
 
 main_menu() {
