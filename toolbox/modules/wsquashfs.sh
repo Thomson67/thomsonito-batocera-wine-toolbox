@@ -1359,7 +1359,7 @@ wsquashfs_menu() {
     while true; do
         local choice pending=""
         [ -s "$WSQ_STATE_FILE" ] && pending="$(i18n wsq_pending_marker)"
-        choice="$(menu_select "$(i18n wsq_title)" "$(i18n wsq_intro)\n\n$(i18n wsq_version_warning)" \
+        choice="$(menu_select "$(i18n wsq_title)" "$(i18n wsq_intro)" \
             "1" "$(i18n wsq_create_action)" \
             "2" "$(i18n wsq_resume_action) $pending" \
             "3" "$(i18n squash_wine)" \
