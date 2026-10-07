@@ -1393,11 +1393,11 @@ wsq_integrity_check() {
         while kill -0 "$pid" 2>/dev/null; do
             elapsed=$((SECONDS-start))
             if have_dialog; then
-                dialog --clear --no-shadow --ok-label "$(i18n wsq_integrity_wait)" --cancel-label "$(i18n cancel)" \
+                DIALOG_TIMEOUT=42 dialog --clear --no-shadow --timeout 1 --ok-label "$(i18n cancel)" \
                     --title "$(i18n wsq_integrity_title)" \
-                    --pause "$(i18n wsq_integrity_running "$idx" "$(basename "$path")" "$elapsed")" 14 96 1
+                    --msgbox "$(i18n wsq_integrity_running "$idx" "$(basename "$path")" "$elapsed")" 14 96
                 rc=$?
-                if [ "$rc" -ne 0 ]; then
+                if [ "$rc" -ne 42 ]; then
                     touch "$cancel"
                     break
                 fi
