@@ -41,6 +41,24 @@ os.replace(tmp, path)
 PY
 }
 
+wsq_update_select_executable() {
+    local prefix="$1" existing choice
+    existing="$(python3 "$WSQ_UPDATE_HELPER" exe "$prefix")" || return 1
+    if [ -n "$existing" ]; then
+        choice="$(menu_select "$(i18n wsq_executable_title)" \
+            "$(i18n wsq_update_exe_prompt "$(wsq_display_path "$existing")")" \
+            keep "$(i18n wsq_update_exe_keep)" other "$(i18n wsq_update_exe_other)")" || return 1
+        case "$choice" in
+            keep) printf '%s\n' "$existing"; return 0 ;;
+            other) ;;
+            *) return 1 ;;
+        esac
+    else
+        msgbox "$(i18n wsq_executable_title)" "$(i18n wsq_update_exe_missing)"
+    fi
+    wsq_select_executable "$prefix"
+}
+
 wsq_update_new() {
     wsq_pending_guard || return
     local archive source prefix game_name exe_rel runner snapshot metadata log choice idx=1 rows="" path stamp
@@ -90,7 +108,7 @@ wsq_update_new() {
         python3 "$WSQ_UPDATE_HELPER" prepare "$prefix" "$source" "$archive" "$WSQ_SAVE_ROOT" "$metadata"; then
         msgbox "$(i18n wsq_update_title)" "$(i18n wsq_update_failed "$prefix" "$log")"; return
     fi
-    exe_rel="$(wsq_select_executable "$prefix")" || {
+    exe_rel="$(wsq_update_select_executable "$prefix")" || {
         msgbox "$(i18n wsq_update_title)" "$(i18n wsq_update_kept "$prefix")"; return
     }
     python3 "$WSQ_UPDATE_HELPER" autorun "$prefix" "$exe_rel" >> "$log" 2>&1 || {
@@ -100,6 +118,25 @@ wsq_update_new() {
         --backup-dir "$WSQ_STATE_DIR/config-backups" 2>> "$log")" || {
         msgbox "$(i18n wsq_update_title)" "$(i18n wsq_update_failed "$prefix" "$log")"; return
     }
+    if [ "$(python3 "$WSQ_UPDATE_HELPER" root-link "$metadata")" = True ]; then
+        while true; do
+            choice="$(menu_select "$(i18n wsq_update_save_title)" "$(i18n wsq_update_root_prompt)" \
+                continue "$(i18n wsq_update_root_continue)" \
+                copy "$(i18n wsq_update_root_copy)")" || return
+            [ "$choice" != continue ] || break
+            [ "$choice" = copy ] || return
+            if command -v yad >/dev/null 2>&1; then
+                path="$(DISPLAY="${DISPLAY:-:0}" yad --file-selection --directory --filename="$WSQ_SAVE_ROOT/" \
+                    --title="$(i18n wsq_update_root_copy)" --width=1000 --height=700)" || continue
+            else
+                path="$(input_text "$(i18n wsq_update_root_copy)" "$(i18n wsq_update_root_prompt)" "$WSQ_SAVE_ROOT/")" || continue
+            fi
+            if ! wsq_update_run "$(i18n wsq_update_title)" "$(i18n wsq_update_copy)" "$log" \
+                python3 "$WSQ_UPDATE_HELPER" seed-legacy "$metadata" "$path"; then
+                msgbox "$(i18n wsq_update_title)" "$(i18n wsq_update_failed "$prefix" "$log")"
+            fi
+        done
+    fi
     snapshot="$WSQ_STATE_DIR/wsquashfs-before-$stamp.json"
     python3 "$WSQ_HELPER" snapshot "$prefix" "$snapshot" >> "$log" 2>&1 || {
         msgbox "$(i18n wsq_update_title)" "$(i18n wsq_update_failed "$prefix" "$log")"; return
@@ -113,9 +150,30 @@ wsq_update_new() {
 }
 
 wsq_update_review_save() {
-    local metadata="$1" savedir savefiles choice
+    local metadata="$1" savedir savefiles choice legacy
     savedir="$(python3 "$WSQ_UPDATE_HELPER" value "$metadata" savedir)" || return 1
     savefiles="$(python3 "$WSQ_UPDATE_HELPER" value "$metadata" savefiles)" || return 1
+    legacy="$(python3 "$WSQ_UPDATE_HELPER" legacy-summary "$metadata")" || return 1
+    if [ -z "$savedir$savefiles" ] && [ -n "$legacy" ]; then
+        while true; do
+            choice="$(menu_select "$(i18n wsq_update_save_title)" \
+                "$(i18n wsq_update_links_prompt "$(wsq_display_path "$legacy")")" \
+                keep "$(i18n wsq_update_links_keep)" \
+                detect "$(i18n wsq_update_save_detect)" \
+                browse "$(i18n wsq_browser_title)" \
+                retry "$(i18n wsq_no_save_retry)" \
+                cancel "$(i18n wsq_launch_cancel)")" || return 1
+            case "$choice" in
+                keep)
+                    yesno_default_no "$(i18n wsq_update_save_title)" "$(i18n wsq_update_save_confirm)" || continue
+                    WSQ_SAVE_KIND=legacy; WSQ_SELECTED_SAVE=""; return 0 ;;
+                detect) wsq_select_save_candidate "$prefix" "$snapshot" && return 0 ;;
+                browse) wsq_browse_save && return 0 ;;
+                retry) wsq_retry_pending; return 1 ;;
+                cancel) wsq_cancel_pending; return 1 ;;
+            esac
+        done
+    fi
     if [ -z "$savedir$savefiles" ]; then
         wsq_select_save_candidate "$prefix" "$snapshot"
         return $?
@@ -168,12 +226,17 @@ wsq_resume_update() {
         wsq_update_review_save "$metadata" || return
         save_kind="$WSQ_SAVE_KIND"; save_rel="$WSQ_SELECTED_SAVE"
         case "$save_kind" in
+            legacy)
+                python3 "$WSQ_UPDATE_HELPER" stage-legacy "$metadata" >> "$log" 2>&1 || return
+                python3 "$WSQ_UPDATE_HELPER" restore-legacy "$metadata" >> "$log" 2>&1 || return
+                ;;
             existing)
+                python3 "$WSQ_UPDATE_HELPER" stage-legacy "$metadata" >> "$log" 2>&1 || return
                 # A test uses its own copy; never empty existing saves because
                 # the new version failed to produce any data.
                 if [ -d "$test_save" ] && find "$test_save" -mindepth 1 -print -quit | grep -q .; then
                     wsq_save_destination_prepare "$WSQ_SAVE_ROOT/$game_name" || return
-                    cp -a -- "$test_save/." "$WSQ_SAVE_ROOT/$game_name/" || return
+                    python3 "$WSQ_UPDATE_HELPER" copy-test "$metadata" "$WSQ_SAVE_ROOT/$game_name" >> "$log" 2>&1 || return
                 fi ;;
             registry)
                 wsq_copy_registry_save || return
@@ -186,9 +249,15 @@ wsq_resume_update() {
                 python3 "$WSQ_UPDATE_HELPER" autorun "$prefix" "$exe_rel" --savedir "${save_rel%/}/" >> "$log" 2>&1 || return ;;
             *) return ;;
         esac
+        if [ "$save_kind" != legacy ]; then
+        python3 "$WSQ_UPDATE_HELPER" restore-scripts "$metadata" >> "$log" 2>&1 || return
         python3 "$WSQ_UPDATE_HELPER" detach "$prefix" "$test_save" >> "$log" 2>&1 || {
             msgbox "$(i18n wsq_update_title)" "$(i18n wsq_update_failed "$prefix" "$log")"; return
         }
+        if [ "$save_kind" = existing ]; then
+            python3 "$WSQ_UPDATE_HELPER" restore-custom "$metadata" >> "$log" 2>&1 || return
+        fi
+        fi
         if [ -n "${WSQ_LAST_SAVE_BACKUP:-}" ]; then
             msgbox "$(i18n wsq_save_title)" "$(i18n wsq_save_backup_done "$WSQ_LAST_SAVE_BACKUP")"
         fi

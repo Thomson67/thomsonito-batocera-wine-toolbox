@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Prepare an isolated game update; preserve launch directives and commit safely."""
 import argparse
+import fnmatch
 import json
 import os
 import re
@@ -75,6 +76,115 @@ def redirect_saves(prefix, old, new):
                     path.symlink_to(replacement, target_is_directory=replacement.is_dir())
 
 
+def launch_executable(prefix):
+    """Resolve the existing CMD without evaluating shell/batch commands."""
+    _, values = directives(prefix)
+    cmd = values.get('CMD', '').strip()
+    match = re.match(r'^"([^"\n]+)"', cmd)
+    if match:
+        executable = match.group(1)
+    else:
+        match = re.match(r'^(.+?\.(?:exe|bat|cmd))(?:\s|$)', cmd, re.I)
+        if not match:
+            return ''
+        executable = match.group(1)
+    directory_value = values.get('DIR', '.').strip().strip('"').replace('\\', '/')
+    directory = Path('drive_c') / directory_value[3:] if directory_value.lower().startswith('c:/') else relative_path(directory_value)
+    executable = executable.replace('\\', '/')
+    if executable.lower().startswith('c:/'):
+        path = Path('drive_c') / executable[3:]
+    else:
+        path = directory / relative_path(executable)
+    absolute = prefix / path
+    if absolute.is_file() and absolute.resolve().is_relative_to(prefix.resolve()) and absolute.name.casefold() != 'autorun.cmd':
+        return path.as_posix()
+    return ''
+
+
+def save_links(prefix, save_root):
+    result = []
+    base = save_root.resolve()
+    for root, dirs, files in os.walk(prefix, followlinks=False):
+        # dosdevices maps Windows drives, not an individual game's save rules.
+        dirs[:] = [name for name in dirs if not (Path(root) == prefix and name == 'dosdevices')]
+        for name in dirs + files:
+            path = Path(root) / name
+            if not path.is_symlink():
+                continue
+            target = path.resolve()
+            if target.is_relative_to(base):
+                result.append(dict(path=path.relative_to(prefix).as_posix(), target=str(target),
+                                   original=os.readlink(path), directory=not target.is_file()))
+    return result
+
+
+def custom_links(data):
+    savedir = relative_path(data['savedir']) if data.get('savedir') else None
+    patterns = data.get('savefiles', '').split(';')
+    result = []
+    for link in data.get('save_links', []):
+        path = Path(link['path'])
+        standard = False
+        if savedir is not None and path.is_relative_to(savedir):
+            relative = path.relative_to(savedir).as_posix()
+            standard = (not data.get('savefiles') or any(fnmatch.fnmatchcase(relative, pattern) for pattern in patterns))
+        if not standard:
+            result.append(link)
+    return result
+
+
+def restore_legacy(prefix, manifest, restore_links=True):
+    data = json.loads(manifest.read_text())
+    links = custom_links(data) if restore_links == 'custom' else data.get('save_links', [])
+    for link in links if restore_links else []:
+        path = prefix / link['path']
+        if not path.parent.resolve().is_relative_to(prefix.resolve()):
+            raise ValueError('save link parent escapes the working prefix')
+        path.parent.mkdir(parents=True, exist_ok=True)
+        if path.is_symlink():
+            path.unlink()
+        elif path.is_dir():
+            path.rmdir()  # Only remove an empty placeholder, never game data.
+        elif path.exists():
+            raise ValueError(f'save link was replaced by game data: {path}')
+        path.symlink_to(link['original'], target_is_directory=link['directory'])
+    for name in data.get('test_scripts', []):
+        path = prefix / name
+        if path.is_file() and not path.is_symlink():
+            text = path.read_text(encoding='utf-8', errors='surrogateescape')
+            for original, replacement in data['script_replacements']:
+                text = text.replace(replacement, original)
+            path.write_text(text, encoding='utf-8', errors='surrogateescape')
+
+
+def stage_legacy(manifest):
+    """Merge only save locations used by this test, never copy the whole root."""
+    data = json.loads(manifest.read_text())
+    shared = Path(data['test_save']) / '.legacy-shared'
+    base = Path(data['save_root'])
+    stage = Path(data['test_save']) / '.legacy-publish'
+    if stage.exists():
+        shutil.rmtree(stage)
+    stage.mkdir()
+    entries = []
+    for child in sorted(shared.iterdir()) if shared.exists() else []:
+        target = base / child.name
+        prepared = stage / child.name
+        if target.is_symlink():
+            raise ValueError('external save destination must not be a symlink')
+        if child.is_dir():
+            if target.exists():
+                shutil.copytree(target, prepared, symlinks=False)
+            shutil.copytree(child, prepared, symlinks=False, dirs_exist_ok=True)
+        elif child.is_file():
+            shutil.copy2(child, prepared)
+        else:
+            raise ValueError('unsupported external save entry')
+        entries.append(dict(target=str(target), prepared=str(prepared)))
+    data['legacy_publish'] = entries
+    save_json(manifest, data)
+
+
 def prepare(prefix, source, archive, save_root, manifest):
     if archive.is_symlink() or not archive.is_file():
         raise ValueError('archive must be a regular file')
@@ -86,6 +196,7 @@ def prepare(prefix, source, archive, save_root, manifest):
         raise ValueError('archive must contain an internal drive_c/game directory')
     source = validate_source(source, root)
     text, values = directives(root)
+    links = save_links(root, save_root)
     savedir = relative_path(values.get('SAVEDIR', '')) if values.get('SAVEDIR') else None
     if savedir is not None and savedir != Path('.') and not (root / savedir).parent.resolve().is_relative_to(root):
         raise ValueError('save-directory parent escapes the prefix')
@@ -108,10 +219,19 @@ def prepare(prefix, source, archive, save_root, manifest):
             'prefix': str(prefix), 'source': str(source),
             'original_save': str(original_save), 'test_save': str(test_save),
             'autorun': text, 'savedir': values.get('SAVEDIR', ''),
-            'savefiles': values.get('SAVEFILES', '')}
+            'savefiles': values.get('SAVEFILES', ''), 'save_root': str(save_root),
+            'save_links': links, 'test_scripts': []}
     save_json(manifest, data)
     # Copy first; a failed copy must leave the extracted game intact.
     shutil.copytree(source, staging, symlinks=True)
+    existing_launch = launch_executable(root)
+    if existing_launch:
+        launch = root / existing_launch
+        if launch.suffix.casefold() in ('.bat', '.cmd') and launch.is_relative_to(game):
+            replacement_launch = staging / launch.relative_to(game)
+            if not replacement_launch.exists():
+                replacement_launch.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(launch, replacement_launch)
     if original_save.is_dir():
         shutil.copytree(original_save, test_save, symlinks=False)
     else:
@@ -133,6 +253,67 @@ def prepare(prefix, source, archive, save_root, manifest):
             shutil.rmtree(game)
         old_game.rename(game)
         raise
+    # Restore custom save links that replacing drive_c/game would otherwise lose.
+    # SAVEDIR links use Batocera's per-ROM test copy; custom links use a separate
+    # root view, including links that point at the shared saves/windows root.
+    shared = test_save / '.legacy-shared'
+    for link in links:
+        target = Path(link['target'])
+        path = root / link['path']
+        if savedir is not None and target.is_relative_to(original_save.resolve()):
+            replacement = test_save / target.relative_to(original_save.resolve())
+        else:
+            relative = target.relative_to(save_root.resolve())
+            replacement = shared / relative
+            if relative != Path('.') and target.exists() and not replacement.exists():
+                replacement.parent.mkdir(parents=True, exist_ok=True)
+                if target.is_dir():
+                    shutil.copytree(target, replacement, symlinks=False)
+                else:
+                    shutil.copy2(target, replacement)
+            else:
+                shared.mkdir(parents=True, exist_ok=True)
+        if not path.parent.resolve().is_relative_to(root):
+            raise ValueError('replacement game redirects the save-link parent')
+        path.parent.mkdir(parents=True, exist_ok=True)
+        if path.is_symlink():
+            path.unlink()
+        elif path.exists():
+            raise ValueError(f'replacement contains data at old save-link location: {path}')
+        path.symlink_to(replacement, target_is_directory=link['directory'])
+    # Literal save-root references in batch launchers must use the same test view.
+    # No command is executed or arbitrary batch expression evaluated here.
+    if links and savedir is None:
+        shared.mkdir(parents=True, exist_ok=True)
+        replacements = [(str(save_root), str(shared)),
+                        (str(save_root).replace('/', '\\'), str(shared).replace('/', '\\'))]
+        candidates = {archive.stem}
+        for path in game.rglob('*'):
+            if path.suffix.casefold() not in ('.bat', '.cmd') or path.is_symlink() or not path.is_file():
+                continue
+            content = path.read_text(encoding='utf-8', errors='surrogateescape')
+            for base in (str(save_root), str(save_root).replace('/', '\\')):
+                for match in re.finditer(re.escape(base) + r'[/\\]([^"\r\n]+)', content):
+                    candidate = re.split(r'[/\\]', match.group(1))[0].strip()
+                    if candidate and candidate not in ('.', '..') and not any(c in candidate for c in '%!><|&'):
+                        candidates.add(candidate)
+        for name in candidates:
+            target = save_root / name
+            destination = shared / name
+            if target.is_dir() and not target.is_symlink() and not destination.exists():
+                shutil.copytree(target, destination, symlinks=False)
+        data['script_replacements'] = replacements
+        for path in game.rglob('*'):
+            if path.suffix.casefold() not in ('.bat', '.cmd') or path.is_symlink() or not path.is_file():
+                continue
+            content = path.read_text(encoding='utf-8', errors='surrogateescape')
+            updated = content
+            for original, replacement in replacements:
+                updated = updated.replace(original, replacement)
+            if updated != content:
+                data['test_scripts'].append(path.relative_to(root).as_posix())
+                path.write_text(updated, encoding='utf-8', errors='surrogateescape')
+        save_json(manifest, data)
     redirect_saves(root, original_save, test_save)
     shutil.rmtree(old_game)
     if embedded.exists():
@@ -149,7 +330,8 @@ def write_autorun(prefix, exe, savedir=None, savefiles=None):
     text, values = directives(root)
     old_cmd = values.get('CMD', '')
     match = re.match(r'^"[^"]*"(.*)$', old_cmd)
-    suffix = match.group(1) if match else (old_cmd.split(' ', 1)[1] if ' ' in old_cmd else '')
+    unquoted = re.match(r'^.+?\.(?:exe|bat|cmd)(\s.*)?$', old_cmd, re.I)
+    suffix = match.group(1) if match else ((unquoted.group(1) or '') if unquoted else '')
     if suffix and not suffix.startswith(' '):
         suffix = ' ' + suffix
     changes = {'DIR': path.parent.relative_to(root).as_posix(), 'CMD': f'"{path.name}"' + suffix}
@@ -225,26 +407,35 @@ def commit(manifest, staged, prepared_save=None):
     except OSError:
         shutil.copy2(archive, backup)
     original_save = Path(data['original_save'])
-    save_backup = None
+    changes = list(data.get('legacy_publish', []))
     if prepared_save is not None:
         if prepared_save.is_symlink() or not prepared_save.is_dir() or prepared_save.parent.resolve() != original_save.parent.resolve() or prepared_save == original_save:
             raise ValueError('prepared saves must be a distinct adjacent directory')
-        if original_save.is_symlink():
-            raise ValueError('original saves must not be a symlink')
-        if original_save.exists():
-            save_backup = original_save.with_name(original_save.name + '.backup-' + datetime.now().strftime('%Y%m%d-%H%M%S-%f'))
-            original_save.rename(save_backup)
-        try:
-            prepared_save.rename(original_save)
-            os.replace(staged, archive)
-        except Exception:
-            if original_save.exists():
-                original_save.rename(prepared_save)
-            if save_backup is not None:
-                save_backup.rename(original_save)
-            raise
-    else:
+        changes.append(dict(target=str(original_save), prepared=str(prepared_save)))
+    swapped = []
+    save_backup = None
+    try:
+        for change in changes:
+            target = Path(change['target']); prepared = Path(change['prepared'])
+            if target.is_symlink() or prepared.is_symlink() or not prepared.exists():
+                raise ValueError('invalid save transaction path')
+            if target.parent.resolve() != Path(data.get('save_root', original_save.parent)).resolve():
+                raise ValueError('save transaction escapes the save root')
+            backup_path = None
+            if target.exists():
+                backup_path = target.with_name(target.name + '.backup-' + datetime.now().strftime('%Y%m%d-%H%M%S-%f'))
+                target.rename(backup_path)
+            swapped.append((target, prepared, backup_path))
+            prepared.rename(target)
+            save_backup = backup_path or save_backup
         os.replace(staged, archive)
+    except Exception:
+        for target, prepared, backup_path in reversed(swapped):
+            if target.exists():
+                target.rename(prepared)
+            if backup_path is not None:
+                backup_path.rename(target)
+        raise
     data.update(committed=True, archive_backup=str(backup), save_backup=str(save_backup or ''))
     save_json(manifest, data)
     return backup
@@ -266,6 +457,15 @@ def main():
     a.add_argument('--backup-dir', type=Path)
     a = sp.add_parser('commit')
     a.add_argument('manifest', type=Path); a.add_argument('staged', type=Path); a.add_argument('--prepared-save', type=Path)
+    for action in ('restore-legacy', 'restore-custom', 'restore-scripts', 'stage-legacy', 'legacy-summary', 'exe'):
+        a = sp.add_parser(action)
+        a.add_argument('prefix' if action == 'exe' else 'manifest', type=Path)
+    a = sp.add_parser('root-link')
+    a.add_argument('manifest', type=Path)
+    a = sp.add_parser('seed-legacy')
+    a.add_argument('manifest', type=Path); a.add_argument('source', type=Path)
+    a = sp.add_parser('copy-test')
+    a.add_argument('manifest', type=Path); a.add_argument('destination', type=Path)
     a = sp.add_parser('value')
     a.add_argument('manifest', type=Path); a.add_argument('key')
     a = p.parse_args()
@@ -275,6 +475,35 @@ def main():
         elif a.action == 'detach': detach_saves(a.prefix, a.save)
         elif a.action == 'config': print(copy_config(a.conf, a.source, a.dest, a.backup_dir))
         elif a.action == 'commit': print(commit(a.manifest, a.staged, a.prepared_save))
+        elif a.action == 'exe': print(launch_executable(a.prefix))
+        elif a.action == 'root-link':
+            data = json.loads(a.manifest.read_text())
+            print(any(Path(link['target']) == Path(data['save_root']).resolve() for link in data.get('save_links', [])))
+        elif a.action == 'seed-legacy':
+            data = json.loads(a.manifest.read_text())
+            base = Path(data['save_root']).resolve()
+            source = a.source.resolve(strict=True)
+            if not source.is_dir() or source.parent != base or a.source.is_symlink():
+                raise ValueError('choose this game folder directly inside the saves/windows root')
+            destination = Path(data['test_save']) / '.legacy-shared' / source.name
+            shutil.copytree(source, destination, symlinks=False, dirs_exist_ok=True)
+        elif a.action == 'copy-test':
+            data = json.loads(a.manifest.read_text())
+            for child in Path(data['test_save']).iterdir():
+                if child.name in ('.legacy-shared', '.legacy-publish'): continue
+                target = a.destination / child.name
+                if child.is_dir(): shutil.copytree(child, target, symlinks=False, dirs_exist_ok=True)
+                else: shutil.copy2(child, target)
+        elif a.action == 'restore-custom':
+            data = json.loads(a.manifest.read_text()); restore_legacy(Path(data['prefix']), a.manifest, 'custom')
+        elif a.action == 'restore-scripts':
+            data = json.loads(a.manifest.read_text()); restore_legacy(Path(data['prefix']), a.manifest, False)
+        elif a.action == 'restore-legacy':
+            data = json.loads(a.manifest.read_text()); restore_legacy(Path(data['prefix']), a.manifest)
+        elif a.action == 'stage-legacy': stage_legacy(a.manifest)
+        elif a.action == 'legacy-summary':
+            data = json.loads(a.manifest.read_text())
+            print('\n'.join(link['path'] + ' -> ' + link['target'] for link in data.get('save_links', [])))
         elif a.action == 'value': print(json.loads(a.manifest.read_text()).get(a.key, ''))
     except (OSError, ValueError) as exc:
         print(str(exc), file=sys.stderr)

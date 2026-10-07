@@ -548,4 +548,15 @@ declare -gA I18N=(
   [wsq_update_build_confirm]="Build the updated archive and replace:\\n%s\\n\\nA full check must pass before replacement. A timestamped backup of the original archive will be kept. Continue?"
   [wsq_update_done]="Update complete:\\n%s\\n\\nOriginal archive backed up:\\n%s\\n\\nWorking prefix:\\n%s\\nTest-save copy retained:\\n%s"
 
+  [wsq_update_exe_prompt]="Executable defined in autorun.cmd:\\n%s\\n\\nKeep this launch command or select another executable from the updated game."
+  [wsq_update_exe_keep]="Use the existing launch command (default)"
+  [wsq_update_exe_other]="Select another executable"
+  [wsq_update_exe_missing]="The existing launch command no longer matches an available file in the updated game. Select a new executable."
+  [wsq_update_links_prompt]="Save links from the original prefix:\\n%s\\n\\nKeep these links by default. A root link may let the game or start.bat create its own subdirectory. Check loading and a new save before confirming."
+  [wsq_update_links_keep]="Keep the existing save links (default)"
+
+  [wsq_update_root_prompt]="A link points to the Windows save root. The folder created by the game may be unknown before launch. Explicitly identifiable folders are copied for testing, but the entire save root is never copied. If your progress is in another folder, select it here to copy it before testing."
+  [wsq_update_root_continue]="Continue with the prepared test saves"
+  [wsq_update_root_copy]="Copy an existing progress folder for testing"
+
 )

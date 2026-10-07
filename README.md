@@ -126,3 +126,5 @@ Select the executable and test launch, controller input, loading your progress a
 A full integrity check must pass before replacement. The old archive, original saves and changes to `batocera.conf` are backed up. Compression failure leaves original saves in place. Resume pending updates from the menu. Test saves remain available; deleting the working prefix is optional at completion.
 
 Allow space for extraction, the updated game copy, test saves and the new archive. `SAVEDIR=` requires Batocera v42 or newer.
+
+Updates first offer the launch command from `autorun.cmd`, preserving a custom `start.bat` when absent from the replacement folder. Another executable can be selected. Without `SAVEDIR=`, existing links to `/userdata/saves/windows` or its subdirectories are detected, restored in the updated game and offered by default. A root link uses a separate test view without copying other games' saves. Literal batch references to the save root are adapted for testing and restored afterwards; computed script names are not evaluated. A known progress folder can be copied before testing. On return, keep the links or choose another location.

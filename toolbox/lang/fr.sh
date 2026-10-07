@@ -548,4 +548,15 @@ declare -gA I18N=(
   [wsq_update_build_confirm]="Créer la nouvelle archive puis remplacer :\\n%s\\n\\nUn contrôle complet doit réussir avant le remplacement. Une sauvegarde horodatée de l’ancienne archive sera conservée. Continuer ?"
   [wsq_update_done]="Mise à jour terminée :\\n%s\\n\\nAncienne archive sauvegardée :\\n%s\\n\\nPréfixe de travail :\\n%s\\nCopie des sauvegardes de test conservée :\\n%s"
 
+  [wsq_update_exe_prompt]="Exécutable défini dans autorun.cmd :\\n%s\\n\\nConservez ce lancement ou choisissez un autre exécutable de la nouvelle version."
+  [wsq_update_exe_keep]="Utiliser le lancement existant (par défaut)"
+  [wsq_update_exe_other]="Choisir un autre exécutable"
+  [wsq_update_exe_missing]="Le lancement existant ne correspond plus à un fichier disponible dans la nouvelle version. Choisissez un nouvel exécutable."
+  [wsq_update_links_prompt]="Liens de sauvegarde du préfixe original :\\n%s\\n\\nCes liens seront conservés par défaut. Un lien vers la racine peut laisser le jeu ou start.bat créer son propre sous-dossier. Vérifiez le chargement et une nouvelle sauvegarde avant confirmation."
+  [wsq_update_links_keep]="Conserver les liens de sauvegarde existants (par défaut)"
+
+  [wsq_update_root_prompt]="Un lien pointe vers la racine des sauvegardes Windows. Le nom créé par le jeu peut être inconnu avant lancement. Les dossiers explicitement identifiables sont copiés pour le test, mais la racine entière ne sera pas copiée. Si votre progression se trouve dans un autre dossier, choisissez-le ici pour en copier le contenu avant le test."
+  [wsq_update_root_continue]="Continuer avec les sauvegardes de test préparées"
+  [wsq_update_root_copy]="Copier un dossier de progression existant pour le test"
+
 )

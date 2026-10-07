@@ -188,4 +188,77 @@ wsq_resume_build
         corrupt.write_bytes(self.archive.read_bytes()[:96])
         self.assertNotEqual(integrity.check(corrupt, 'full', log, cancel), 0)
 
+    def test_default_launch_preserves_custom_batch_wrapper(self):
+        (self.prefix / 'autorun.cmd').write_text('DIR=drive_c/game\nCMD="start.bat" --flag\n')
+        (self.game / 'start.bat').write_text('new.exe\n')
+        self.prepare()
+        self.assertEqual(update.launch_executable(self.prefix), 'drive_c/game/start.bat')
+        self.assertEqual((self.game / 'start.bat').read_text(), 'new.exe\n')
+
+    def test_custom_save_link_is_restored_and_committed_to_its_original_name(self):
+        (self.prefix / 'autorun.cmd').write_text('DIR=drive_c/game\nCMD="old.exe"\n')
+        custom = self.saves / 'NameFromStartBat'; custom.mkdir()
+        (custom / 'slot').write_text('custom original')
+        link = self.game / 'saves'; link.symlink_to(custom)
+        test_save = self.prepare()
+        self.assertEqual(link.resolve(), test_save / '.legacy-shared/NameFromStartBat')
+        (link / 'slot').write_text('custom tested')
+        self.assertEqual((custom / 'slot').read_text(), 'custom original')
+        update.stage_legacy(self.manifest)
+        update.restore_legacy(self.prefix, self.manifest)
+        self.assertEqual(os.readlink(link), str(custom))
+        staged = self.base / 'new.wsquashfs'; staged.write_bytes(b'new archive')
+        update.commit(self.manifest, staged)
+        self.assertEqual((custom / 'slot').read_text(), 'custom tested')
+        self.assertEqual((self.original_save / 'slot').read_text(), 'original')
+        self.assertTrue(list(self.saves.glob('NameFromStartBat.backup-*')))
+
+    def test_root_link_and_batch_paths_use_an_isolated_view(self):
+        (self.prefix / 'autorun.cmd').write_text('DIR=drive_c/game\nCMD="start.bat"\n')
+        custom = self.saves / 'GameCreatedName'; custom.mkdir()
+        (custom / 'slot').write_text('old progress')
+        unrelated = self.saves / 'UnrelatedGame'; unrelated.mkdir()
+        (unrelated / 'huge').write_text('unrelated')
+        batch = f'mkdir "{self.saves}/GameCreatedName"\nnew.exe\n'
+        (self.game / 'start.bat').write_text(batch)
+        link = self.game / 'shared'; link.symlink_to(self.saves)
+        test_save = self.prepare()
+        shared = test_save / '.legacy-shared'
+        self.assertEqual(link.resolve(), shared)
+        self.assertEqual((shared / 'GameCreatedName/slot').read_text(), 'old progress')
+        self.assertFalse((shared / 'UnrelatedGame').exists())
+        self.assertIn(str(shared), (self.game / 'start.bat').read_text())
+        (shared / 'GameCreatedName/slot').write_text('new progress')
+        (shared / 'EngineCreatedName').mkdir()
+        (shared / 'EngineCreatedName/new').write_text('saved by game')
+        update.stage_legacy(self.manifest); update.restore_legacy(self.prefix, self.manifest)
+        self.assertEqual((self.game / 'start.bat').read_text(), batch)
+        self.assertEqual(os.readlink(link), str(self.saves))
+        staged = self.base / 'new.wsquashfs'; staged.write_bytes(b'new archive')
+        update.commit(self.manifest, staged)
+        self.assertEqual((custom / 'slot').read_text(), 'new progress')
+        self.assertEqual((self.saves / 'EngineCreatedName/new').read_text(), 'saved by game')
+        self.assertEqual((unrelated / 'huge').read_text(), 'unrelated')
+
+    def test_mixed_savedir_and_custom_links_keep_their_separate_rules(self):
+        standard = self.prefix / 'drive_c/users/root/Saved'
+        standard.parent.mkdir(parents=True); standard.symlink_to(self.original_save)
+        custom = self.saves / 'CustomOther'; custom.mkdir(); (custom / 'slot').write_text('custom')
+        extra = self.game / 'extra'; extra.symlink_to(custom)
+        test_save = self.prepare()
+        update.stage_legacy(self.manifest)
+        update.detach_saves(self.prefix, test_save)
+        update.restore_legacy(self.prefix, self.manifest, 'custom')
+        self.assertFalse(standard.is_symlink())
+        self.assertEqual(os.readlink(extra), str(custom))
+
+    def test_existing_executable_resolution(self):
+        (self.game / 'Game Title.exe').write_text('exe')
+        (self.prefix / 'autorun.cmd').write_text('DIR=C:\\game\nCMD=Game Title.exe -windowed\n')
+        self.assertEqual(update.launch_executable(self.prefix), 'drive_c/game/Game Title.exe')
+        update.write_autorun(self.prefix, 'drive_c/game/Game Title.exe')
+        self.assertIn('CMD="Game Title.exe" -windowed', (self.prefix / 'autorun.cmd').read_text())
+        (self.prefix / 'autorun.cmd').write_text('DIR=drive_c/game\nCMD="missing.exe"\n')
+        self.assertEqual(update.launch_executable(self.prefix), '')
+
 if __name__ == '__main__': unittest.main()
