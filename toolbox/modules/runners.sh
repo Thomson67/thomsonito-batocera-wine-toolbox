@@ -10,17 +10,35 @@ runner_normalized_name() {
     python3 "$WT_ROOT/helpers/runner_names.py" name "$1"
 }
 
-runner_normalize_installed() {
-    local report
+runner_offer_normalization() {
+    local candidates report rc
+    candidates="$(python3 "$WT_ROOT/helpers/runner_names.py" list "$BATOCERA_CUSTOM_WINE")" || return 1
+    if [ -z "$candidates" ]; then
+        msgbox "$(i18n runner_normalize_title)" "$(i18n runner_normalize_none)"
+        return
+    fi
+    yesno_default_no "$(i18n runner_normalize_title)" "$(i18n runner_normalize_confirm "$candidates")" || return
     report="$(python3 "$WT_ROOT/helpers/runner_names.py" migrate "$BATOCERA_CUSTOM_WINE" \
         /userdata/system/batocera.conf /userdata/system/wine-bottles/windows \
         "$WT_HOME/state/wsquashfs-builder.json" "$WT_HOME/backups/runner-names" 2>&1)"
-    local rc=$?
+    rc=$?
     [ -z "$report" ] || wt_log "$report"
-    if [ "$rc" -ne 0 ]; then
-        msgbox "$WT_TITLE" "$report"
-        return "$rc"
+    if [ "$rc" -eq 0 ]; then
+        msgbox "$(i18n runner_normalize_title)" "$(i18n runner_normalize_done "$report")"
+    else
+        msgbox "$(i18n runner_normalize_title)" "$(i18n runner_normalize_failed "$report")"
     fi
+    return "$rc"
+}
+
+runner_offer_normalization_at_startup() {
+    local marker="$WT_HOME/config/runner-names-offered-v1" candidates
+    [ ! -e "$marker" ] || return 0
+    [ "${WT_AUTO_RESUME_WSQ:-0}" != 1 ] || return 0
+    candidates="$(python3 "$WT_ROOT/helpers/runner_names.py" list "$BATOCERA_CUSTOM_WINE")" || return 0
+    [ -n "$candidates" ] || return 0
+    runner_offer_normalization || true
+    mkdir -p "$WT_HOME/config" && touch "$marker"
 }
 
 runner_api_get() {
@@ -239,8 +257,9 @@ runner_choose_release() {
         state=""
         expected="${name%.tar.xz}"
         expected="${expected%.tar.gz}"
+        local legacy_expected="$expected"
         expected="$(runner_normalized_name "$expected")"
-        if runner_installed "$expected"; then
+        if runner_installed "$expected" || runner_installed "$legacy_expected"; then
             state=" | $(i18n installed)"
         fi
         items+=("$idx" "$expected | $(human_bytes "$size")$state")

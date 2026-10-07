@@ -18,7 +18,8 @@ print("META\t"+starter["version"]+"\t"+install_path)
 for rid in starter["classic_runner_ids"]:
     r=byid[rid]
     target=os.path.join(install_path, canonical(r["name"]))
-    state="installed" if os.path.isdir(target) else "missing"
+    legacy_target=os.path.join(install_path, r.get("legacy_id", r["id"]))
+    state="installed" if os.path.isdir(target) or os.path.isdir(legacy_target) else "missing"
     print("CLASSIC\t%s\t%s\t%s\t%s\t%s\t%s\t%s" % (
         rid, canonical(r["name"]), state, r["file"], r["size_bytes"], r["download_url"], r["sha256"]
     ))

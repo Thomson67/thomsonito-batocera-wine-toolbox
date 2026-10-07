@@ -136,12 +136,20 @@ def main():
     sub = parser.add_subparsers(dest='action', required=True)
     name = sub.add_parser('name')
     name.add_argument('runner')
+    listing = sub.add_parser('list')
+    listing.add_argument('root', type=Path)
     migration = sub.add_parser('migrate')
     for field in ('root', 'conf', 'bottles', 'state', 'backup_dir'):
         migration.add_argument(field, type=Path)
     args = parser.parse_args()
     if args.action == 'name':
         print(canonical(args.runner))
+    elif args.action == 'list':
+        if args.root.is_dir():
+            for path in sorted(args.root.iterdir()):
+                name = canonical(path.name)
+                if path.is_dir() and name != path.name:
+                    print(f'{path.name} -> {name}')
     else:
         migrate(args.root, args.conf, args.bottles, args.state, args.backup_dir)
 

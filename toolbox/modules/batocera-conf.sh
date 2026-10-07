@@ -432,6 +432,7 @@ maintenance_menu() {
             "6" "$(i18n batocera_conf_title)" \
             "7" "$(i18n cleanup_title)" \
             "8" "$(i18n toolbox_uninstall_title)" \
+            "9" "$(i18n runner_normalize_title)" \
             "0" "$(i18n back)")" || return
 
         case "$choice" in
@@ -443,6 +444,7 @@ maintenance_menu() {
             6) batocera_conf_menu ;;
             7) maintenance_cleanup_menu ;;
             8) maintenance_uninstall_toolbox ;;
+            9) runner_offer_normalization ;;
             0|"") return ;;
         esac
     done

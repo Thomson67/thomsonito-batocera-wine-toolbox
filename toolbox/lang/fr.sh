@@ -73,6 +73,11 @@ declare -gA I18N=(
   [starter_preparing_umu]="Préparation d'UMU Runner Toolbox..."
   [starter_umu_unsupported]="UMU Runner Toolbox ne peut pas installer ce runner demandé en mode non interactif : %s"
 
+  [runner_normalize_title]="Uniformiser les noms des runners classiques"
+  [runner_normalize_none]="Tous les runners classiques installés utilisent déjà les noms attendus."
+  [runner_normalize_confirm]="Souhaitez-vous uniformiser les runners classiques suivants ?\n\n%s\n\nLes références dans batocera.conf et les dossiers de préfixes associés seront adaptés. Une sauvegarde des références sera conservée. Les conflits seront ignorés. Les runners UMU restent inchangés.\n\nVous pouvez refuser et lancer cette opération plus tard depuis Maintenance."
+  [runner_normalize_done]="Opération terminée.\n\n%s"
+  [runner_normalize_failed]="La migration n’a pas pu être terminée.\n\n%s"
   [runner_manager_title]="Gestion individuelle des runners"
   [runner_manager_intro]="Installer ou désinstaller individuellement des runners dans /userdata/system/wine/custom."
   [runner_kron4ek_vanilla]="Installer Kron4ek Vanilla (wow64 / amd64 legacy)"
