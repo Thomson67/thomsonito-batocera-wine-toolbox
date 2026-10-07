@@ -368,6 +368,7 @@ wsq_write_autorun() {
 
 wsq_runner_candidates() {
     local path name
+    printf 'system\t__SYSTEM__\n'
     if [ -d "/userdata/system/wine/custom" ]; then
         while IFS= read -r path; do
             [ -d "$path" ] || continue
@@ -377,7 +378,6 @@ wsq_runner_candidates() {
             esac
         done < <(find /userdata/system/wine/custom -mindepth 1 -maxdepth 1 -type d -print 2>/dev/null | sort -f)
     fi
-    printf 'system\t__SYSTEM__\n'
     if [ -d "/userdata/system/wine/custom" ]; then
         while IFS= read -r path; do
             [ -d "$path" ] || continue
@@ -665,7 +665,7 @@ wsq_review_save_candidate() {
     local candidate="$1" choice
     while true; do
         choice="$(menu_select "$(i18n wsq_save_title)" \
-            "$(i18n wsq_candidate_prompt "$(wsq_display_path "$candidate")")" \
+            "$(i18n wsq_candidate_prompt "$(wsq_display_path "$prefix/$candidate")")" \
             "select" "$(i18n wsq_browser_select)" \
             "inspect" "$(i18n wsq_inspect_title)" \
             "browse" "$(i18n wsq_browser_title)" \
@@ -772,23 +772,6 @@ wsq_registry_save() {
     WSQ_SELECTED_SAVE="."
 }
 
-wsq_full_path_menu() {
-    if ! have_dialog; then
-        menu_select "$@"
-        return $?
-    fi
-    local title="$1" body="$2" result rc
-    shift 2
-    wt_clear_tty
-    result="$(dialog --stdout --clear --no-shadow --cr-wrap \
-        --ok-label "$(i18n ok)" --cancel-label "$(i18n cancel)" \
-        --title "$title" --menu "$body" 0 100 9 "$@")"
-    rc=$?
-    wt_clear_tty
-    [ "$rc" -ne 0 ] || printf '%s' "$result"
-    return "$rc"
-}
-
 wsq_select_save_candidate() {
     local prefix="$1" snapshot="$2"
     WSQ_SELECTED_SAVE=""
@@ -804,33 +787,24 @@ wsq_select_save_candidate() {
     done < <(python3 "$WSQ_HELPER" diff "$prefix" "$snapshot")
 
     if [ "${#items[@]}" -gt 0 ]; then
-        local current=1 total=$((idx-1)) body
+        items+=("browse" "$(i18n wsq_browser_title)"
+                "terminal" "$(i18n wsq_browser_terminal)"
+                "retry" "$(i18n wsq_no_save_retry)"
+                "registry" "$(i18n wsq_registry_title)"
+                "cancel" "$(i18n wsq_launch_cancel)")
         while true; do
-            rel="$(sed -n "${current}p" <<< "$rows")"
-            body="$(i18n wsq_candidate_full "$current" "$total" "$(wsq_display_path "$prefix/$rel")")"
-            items=("select" "$(i18n wsq_browser_select)"
-                   "inspect" "$(i18n wsq_inspect_title)")
-            [ "$current" -le 1 ] || items+=("previous" "$(i18n wsq_candidate_previous)")
-            [ "$current" -ge "$total" ] || items+=("next" "$(i18n wsq_candidate_next)")
-            items+=("browse" "$(i18n wsq_browser_title)"
-                    "terminal" "$(i18n wsq_browser_terminal)"
-                    "retry" "$(i18n wsq_no_save_retry)"
-                    "registry" "$(i18n wsq_registry_title)"
-                    "cancel" "$(i18n wsq_launch_cancel)")
-            choice="$(wsq_full_path_menu "$(i18n wsq_save_title)" "$body" "${items[@]}")" || return 1
+            choice="$(menu_select "$(i18n wsq_save_title)" "$(i18n wsq_detected_choices)" "${items[@]}")" || return 1
             case "$choice" in
-                select)
-                    WSQ_SELECTED_SAVE="$rel"
-                    WSQ_SAVE_KIND=directory
-                    return 0 ;;
-                inspect) wsq_inspect_folder "$rel" || true ;;
-                next) [ "$current" -ge "$total" ] || current=$((current+1)) ;;
-                previous) [ "$current" -le 1 ] || current=$((current-1)) ;;
                 browse) wsq_browse_save && return 0 ;;
                 terminal) wsq_browse_save terminal && return 0 ;;
                 retry) wsq_retry_pending; return 1 ;;
                 registry) wsq_registry_save && return 0 ;;
                 cancel) wsq_cancel_pending; return 1 ;;
+                *)
+                    case "$choice" in ''|*[!0-9]*) continue ;; esac
+                    [ "$choice" -ge 1 ] && [ "$choice" -lt "$idx" ] || continue
+                    rel="$(sed -n "${choice}p" <<< "$rows")"
+                    wsq_review_save_candidate "$rel" && return 0 ;;
             esac
         done
     fi
