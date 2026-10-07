@@ -301,4 +301,39 @@ wsq_resume_build
         update.commit(self.manifest, staged)
         self.assertEqual((self.saves / 'Cat Quest/slot').read_text(), 'saved by game')
 
+    def test_update_source_menu_filters_media_and_keeps_browse(self):
+        root = Path(__file__).resolve().parents[1]
+        roms = self.base / 'roms'; roms.mkdir()
+        for name in ('Plain Game', '.hidden', 'images', 'media', 'videos'):
+            (roms / name).mkdir()
+        (roms / 'alias').symlink_to(roms / 'Plain Game')
+        q = shlex.quote
+        setup = f"""
+WT_ROOT={q(str(root / 'toolbox'))}; WT_HOME={q(str(self.base))}
+source "$WT_ROOT/modules/wsquashfs.sh"
+WSQ_WINDOWS_DIR={q(str(roms))}
+i18n() {{ printf '%s' "$1"; }}
+menu_select() {{ printf '%s\\n' "$@" >&2; printf '1'; }}
+wsq_update_select_source
+"""
+        result = subprocess.run(['bash', '-c', setup], capture_output=True, text=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout.strip(), str(roms / 'Plain Game'))
+        self.assertIn('browse', result.stderr)
+        for hidden in ('.hidden', 'images', 'media', 'videos', 'alias'):
+            self.assertNotIn(hidden, result.stderr)
+        prefix = roms / 'A prefix.wine'
+        (prefix / 'drive_c/Named Game').mkdir(parents=True)
+        (prefix / 'system.reg').write_text('registry')
+        (prefix / 'autorun.cmd').write_text('DIR=drive_c/Named Game\nCMD=play.exe\n')
+        result = subprocess.run(['bash', '-c', setup], capture_output=True, text=True)
+        self.assertEqual(result.stdout.strip(), str(prefix / 'drive_c/Named Game'))
+        browse = setup.replace("printf '1';", "printf 'browse';")
+        # Force the text fallback to avoid relying on an installed desktop picker.
+        fallback = 'command() { [ "$*" != "-v yad" ] && builtin command "$@"; }\n'
+        fallback += "input_text() { printf '%s' " + q(str(self.source)) + "; }\nwsq_update_select_source\n"
+        browse = browse.replace('wsq_update_select_source\n', fallback)
+        result = subprocess.run(['bash', '-c', browse], capture_output=True, text=True)
+        self.assertEqual(result.stdout.strip(), str(self.source), result.stderr)
+
 if __name__ == '__main__': unittest.main()

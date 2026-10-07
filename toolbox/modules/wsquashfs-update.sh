@@ -61,6 +61,45 @@ wsq_update_select_executable() {
     wsq_select_executable "$prefix" "$game_dir"
 }
 
+wsq_update_select_source() {
+    local path base choice selected game_dir idx=1
+    local -a folders=() items=()
+    while IFS= read -r path; do
+        [ -d "$path" ] && [ ! -L "$path" ] || continue
+        base="$(basename "$path")"
+        wsq_source_folder_visible "$base" || continue
+        folders+=("$path")
+        items+=("$idx" "$base")
+        idx=$((idx+1))
+    done < <(find "$WSQ_WINDOWS_DIR" -mindepth 1 -maxdepth 1 -type d -print 2>/dev/null | sort -f)
+    items+=(browse "$(i18n wsq_update_source_browse)")
+    choice="$(menu_select "$(i18n wsq_update_source_title)" "$(i18n wsq_update_source_list_prompt)" "${items[@]}")" || return 1
+    case "$choice" in
+        browse)
+    if command -v yad >/dev/null 2>&1; then
+        selected="$(DISPLAY="${DISPLAY:-:0}" LANGUAGE="$WT_LANGUAGE" yad --file-selection --directory \
+            --filename="$WSQ_WINDOWS_DIR/" --title="$(i18n wsq_update_source_title)" --width=1000 --height=700)" || return
+    else
+        selected="$(input_text "$(i18n wsq_update_source_title)" "$(i18n wsq_update_source_prompt)" "$WSQ_WINDOWS_DIR/")" || return
+    fi
+            ;;
+        ''|*[!0-9]*) return 1 ;;
+        *)
+            [ "$choice" -ge 1 ] && [ "$choice" -lt "$idx" ] || return 1
+            selected="${folders[$((choice-1))]}"
+            ;;
+    esac
+    # A listed Wine prefix supplies its game content, rather than another prefix.
+    if [ -d "$selected/drive_c" ] && [ -f "$selected/system.reg" ]; then
+        game_dir="$(python3 "$WSQ_UPDATE_HELPER" game-dir "$selected")" || {
+            msgbox "$(i18n wsq_update_title)" "$(i18n wsq_source_invalid "$selected")"
+            return 1
+        }
+        selected="$selected/$game_dir"
+    fi
+    printf '%s\n' "$selected"
+}
+
 wsq_update_new() {
     wsq_pending_guard || return
     local archive source prefix game_name exe_rel runner snapshot metadata log choice idx=1 rows="" path stamp
@@ -81,12 +120,7 @@ wsq_update_new() {
     case "$choice" in ''|*[!0-9]*) return ;; esac
     [ "$choice" -ge 1 ] && [ "$choice" -lt "$idx" ] || return
     archive="$(sed -n "${choice}p" <<< "$rows")"
-    if command -v yad >/dev/null 2>&1; then
-        source="$(DISPLAY="${DISPLAY:-:0}" LANGUAGE="$WT_LANGUAGE" yad --file-selection --directory \
-            --filename="$WSQ_WINDOWS_DIR/" --title="$(i18n wsq_update_source_title)" --width=1000 --height=700)" || return
-    else
-        source="$(input_text "$(i18n wsq_update_source_title)" "$(i18n wsq_update_source_prompt)" "$WSQ_WINDOWS_DIR/")" || return
-    fi
+    source="$(wsq_update_select_source)" || return
     [ -d "$source" ] || { msgbox "$(i18n wsq_update_title)" "$(i18n wsq_source_invalid "$source")"; return; }
     [ "$(maintenance_detect_wsquashfs_type "$archive")" = wine ] || {
         msgbox "$(i18n wsq_update_title)" "$(i18n wsq_update_prefix_required)"; return

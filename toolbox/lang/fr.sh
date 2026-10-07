@@ -559,4 +559,7 @@ declare -gA I18N=(
   [wsq_update_root_continue]="Continuer avec les sauvegardes de test préparées"
   [wsq_update_root_copy]="Copier un dossier de progression existant pour le test"
 
+  [wsq_update_source_browse]="Parcourir… (choisir un autre dossier)"
+  [wsq_update_source_list_prompt]="Choisissez le dossier contenant la nouvelle version du jeu parmi les dossiers Windows, ou utilisez Parcourir pour un autre emplacement. Les dossiers cachés et de médias sont exclus. Pour un préfixe Wine, le dossier du jeu est repris automatiquement. La source est copiée, pas déplacée."
+
 )

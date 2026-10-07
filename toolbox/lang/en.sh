@@ -559,4 +559,7 @@ declare -gA I18N=(
   [wsq_update_root_continue]="Continue with the prepared test saves"
   [wsq_update_root_copy]="Copy an existing progress folder for testing"
 
+  [wsq_update_source_browse]="Browse… (select another directory)"
+  [wsq_update_source_list_prompt]="Select the updated game from the Windows directories, or Browse for another location. Hidden and media directories are excluded. For a Wine prefix, its game directory is selected automatically. Source files are copied, not moved."
+
 )
