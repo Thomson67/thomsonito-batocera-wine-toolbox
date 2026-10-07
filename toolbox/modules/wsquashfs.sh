@@ -620,6 +620,17 @@ wsq_create_new() {
     exit 0
 }
 
+wsq_recover_invalid_pending() {
+    local choice
+    choice="$(menu_select "$(i18n wsq_resume_title)" "$(i18n wsq_pending_invalid)" \
+        cancel "$(i18n cancel)" back "$(i18n back)")" || return 1
+    [ "$choice" = cancel ] || return 1
+    # Discard only toolbox state, never the archive, saves or working files.
+    rm -f -- "$WSQ_STATE_FILE" "$WSQ_STATE_DIR/wsq-launch-result" \
+        "$WSQ_STATE_DIR/launch-game.request" "$WSQ_STATE_DIR/resume-wsq.request" \
+        "$WSQ_STATE_DIR/restart-es.request"
+}
+
 wsq_cancel_pending() {
     rm -f -- "$snapshot" "$WSQ_STATE_FILE" "$WSQ_STATE_DIR/wsq-launch-result"
     msgbox "$(i18n wsq_resume_title)" "$(i18n wsq_prefix_kept "$prefix")"
@@ -1230,7 +1241,7 @@ wsq_resume_build() {
     runner="$(wsq_state_value runner)"
 
     [ -d "$prefix" ] && [ -s "$snapshot" ] || {
-        msgbox "$(i18n wsq_resume_title)" "$(i18n wsq_pending_invalid)"
+        wsq_recover_invalid_pending
         return
     }
 

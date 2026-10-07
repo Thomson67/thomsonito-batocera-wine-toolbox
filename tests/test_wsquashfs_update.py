@@ -337,6 +337,30 @@ wsq_resume_build
         update.commit(self.manifest, staged)
         self.assertEqual((self.saves / 'Cat Quest/slot').read_text(), 'saved by game')
 
+    def test_deleted_prefix_can_be_discarded_before_new_update(self):
+        root = Path(__file__).resolve().parents[1]
+        state = self.base / 'state'; state.mkdir()
+        pending = state / 'wsquashfs-builder.json'
+        pending.write_text(json.dumps({'prefix': str(self.base / 'deleted.wine'),
+                                      'snapshot': str(self.base / 'snapshot.json')}))
+        q = shlex.quote
+        script = f"""
+WT_ROOT={q(str(root / 'toolbox'))}; WT_HOME={q(str(self.base))}
+source "$WT_ROOT/modules/wsquashfs.sh"
+i18n() {{ printf '%s' "$1"; }}
+menu_select() {{ printf cancel; }}
+wsq_pending_guard
+"""
+        result = subprocess.run(['bash', '-c', script], capture_output=True, text=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertFalse(pending.exists())
+        self.assertEqual(self.archive.read_bytes(), b'old archive')
+        self.assertEqual((self.original_save / 'slot').read_text(), 'original')
+        pending.write_text('{broken json')
+        result = subprocess.run(['bash', '-c', script.replace('wsq_pending_guard', 'wsq_resume_build')],
+                                capture_output=True, text=True)
+        self.assertFalse(pending.exists())
+
     def test_update_source_menu_filters_media_and_keeps_browse(self):
         root = Path(__file__).resolve().parents[1]
         roms = self.base / 'roms'; roms.mkdir()

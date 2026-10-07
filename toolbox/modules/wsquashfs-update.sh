@@ -22,6 +22,13 @@ wsq_update_run() {
 
 wsq_pending_guard() {
     [ -s "$WSQ_STATE_FILE" ] || return 0
+    local prefix snapshot
+    prefix="$(wsq_state_value prefix)"
+    snapshot="$(wsq_state_value snapshot)"
+    if [ ! -d "$prefix" ] || [ ! -s "$snapshot" ]; then
+        wsq_recover_invalid_pending
+        return $?
+    fi
     msgbox "$(i18n wsq_update_title)" "$(i18n wsq_update_pending)"
     return 1
 }
