@@ -62,16 +62,17 @@ wsq_update_select_executable() {
 }
 
 wsq_update_select_source() {
-    local path base choice selected game_dir idx=1
+    local path base choice selected game_dir matched preferred="${1:-}" idx=1
     local -a folders=() items=()
-    while IFS= read -r path; do
+    while IFS=$'\t' read -r path matched; do
         [ -d "$path" ] && [ ! -L "$path" ] || continue
         base="$(basename "$path")"
         wsq_source_folder_visible "$base" || continue
         folders+=("$path")
+        [ "$matched" != 1 ] || base="$base — $(i18n wsq_update_name_match)"
         items+=("$idx" "$base")
         idx=$((idx+1))
-    done < <(find "$WSQ_WINDOWS_DIR" -mindepth 1 -maxdepth 1 -type d -print 2>/dev/null | sort -f)
+    done < <(python3 "$WSQ_UPDATE_HELPER" listing "$WSQ_WINDOWS_DIR" sources --preferred "$preferred")
     items+=(browse "$(i18n wsq_update_source_browse)")
     choice="$(menu_select "$(i18n wsq_update_source_title)" "$(i18n wsq_update_source_list_prompt)" "${items[@]}")" || return 1
     case "$choice" in
@@ -102,17 +103,19 @@ wsq_update_select_source() {
 
 wsq_update_new() {
     wsq_pending_guard || return
-    local archive source prefix game_name exe_rel runner snapshot metadata log choice idx=1 rows="" path stamp
+    local archive source prefix game_name exe_rel runner snapshot metadata log choice idx=1 rows="" path stamp matched label
     local -a items=()
     command -v unsquashfs >/dev/null 2>&1 && command -v mksquashfs >/dev/null 2>&1 || {
         msgbox "$(i18n wsq_update_title)" "$(i18n squash_tools_missing)"; return
     }
-    while IFS= read -r path; do
+    while IFS=$'\t' read -r path matched; do
         [ -n "$path" ] || continue
-        items+=("$idx" "$(basename "$path")")
+        label="${path##*/}"
+        [ "$matched" != 1 ] || label="$label — $(i18n wsq_update_name_match)"
+        items+=("$idx" "$label")
         rows+="$path"$'\n'
         idx=$((idx+1))
-    done < <(find "$WSQ_WINDOWS_DIR" -maxdepth 1 -type f -iname '*.wsquashfs' -print 2>/dev/null | sort -f)
+    done < <(python3 "$WSQ_UPDATE_HELPER" listing "$WSQ_WINDOWS_DIR" archives)
     [ "${#items[@]}" -gt 0 ] || {
         msgbox "$(i18n wsq_update_title)" "$(i18n squash_no_wsquashfs)"; return
     }
@@ -120,7 +123,7 @@ wsq_update_new() {
     case "$choice" in ''|*[!0-9]*) return ;; esac
     [ "$choice" -ge 1 ] && [ "$choice" -lt "$idx" ] || return
     archive="$(sed -n "${choice}p" <<< "$rows")"
-    source="$(wsq_update_select_source)" || return
+    source="$(wsq_update_select_source "${archive##*/}")" || return
     [ -d "$source" ] || { msgbox "$(i18n wsq_update_title)" "$(i18n wsq_source_invalid "$source")"; return; }
     [ "$(maintenance_detect_wsquashfs_type "$archive")" = wine ] || {
         msgbox "$(i18n wsq_update_title)" "$(i18n wsq_update_prefix_required)"; return

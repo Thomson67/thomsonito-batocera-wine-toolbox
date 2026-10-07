@@ -336,4 +336,35 @@ wsq_update_select_source
         result = subprocess.run(['bash', '-c', browse], capture_output=True, text=True)
         self.assertEqual(result.stdout.strip(), str(self.source), result.stderr)
 
+    def test_archive_priority_keeps_all_games_and_uses_exact_names(self):
+        roms = self.base / 'priority'; roms.mkdir()
+        names = ['Alpha.wsquashfs', 'Bravo.wsquashfs', 'Charlie.wsquashfs', 'Delta.wsquashfs', 'Images.wsquashfs']
+        for name in names: (roms / name).write_bytes(b'not opened')
+        for name in ('bravo.wine', 'CHARLIE.pc', 'Delta Deluxe', 'images', '.Alpha'):
+            (roms / name).mkdir()
+        with patch.object(update.os, 'walk', side_effect=AssertionError('must not recurse')):
+            rows = update.update_listing(roms, 'archives')
+        self.assertEqual([Path(path).name for path, _ in rows], ['Bravo.wsquashfs', 'Charlie.wsquashfs', 'Alpha.wsquashfs', 'Delta.wsquashfs', 'Images.wsquashfs'])
+        self.assertEqual([matched for _, matched in rows], [True, True, False, False, False])
+        self.assertEqual(len(rows), len(names))
+        sources = update.update_listing(roms, 'sources', 'Charlie.wsquashfs')
+        self.assertEqual(Path(sources[0][0]).name, 'CHARLIE.pc')
+        self.assertTrue(sources[0][1])
+        self.assertNotIn('images', [Path(path).name for path, _ in sources])
+
+    def test_matching_ignores_trailing_tags_but_keeps_edition_names(self):
+        roms = self.base / 'tags'; roms.mkdir()
+        archive = roms / 'Horizon Zero Dawn Remastered[Wine-9.17][Hidraw].wsquashfs'
+        archive.write_bytes(b'no archive inspection')
+        matching = roms / 'Horizon Zero Dawn Remastered'; matching.mkdir()
+        other = roms / 'Horizon Zero Dawn'; other.mkdir()
+        rows = update.update_listing(roms, 'archives')
+        self.assertEqual(rows, [(str(archive), True)])
+        sources = update.update_listing(roms, 'sources', archive.name)
+        self.assertEqual(sources[0], (str(matching), True))
+        self.assertEqual(sources[1], (str(other), False))
+        self.assertEqual(update.game_name('Game [GE-Proton-11-7][Hidraw].wine'), 'game')
+        self.assertNotEqual(update.game_name('Game Definitive Edition.wsquashfs'), update.game_name('Game'))
+        self.assertNotEqual(update.game_name('Game 2[Wine-9.17].wsquashfs'), update.game_name('Game'))
+
 if __name__ == '__main__': unittest.main()

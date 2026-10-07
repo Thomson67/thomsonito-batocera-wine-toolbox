@@ -11,6 +11,34 @@ from datetime import datetime
 from pathlib import Path
 
 
+def game_name(name):
+    for suffix in ('.wsquashfs', '.wine', '.pc'):
+        if name.casefold().endswith(suffix):
+            name = name[:-len(suffix)]
+            break
+    name = re.sub(r'(?:\s*\[[^\[\]]*\])+\s*$', '', name)
+    return ' '.join(name.split()).casefold()
+
+
+def update_listing(directory, kind, preferred=''):
+    """One shallow scan: compare exact game names, not game contents."""
+    entries = list(os.scandir(directory))
+    ignored = {'media', 'medias', 'médias', 'image', 'images', 'video', 'videos', 'vidéos',
+               'manual', 'manuals', 'music', 'musiques', 'marquee', 'marquees', 'thumbnail',
+               'thumbnails', 'screenshot', 'screenshots', 'fanart', 'fanarts', 'boxart',
+               'boxarts', 'boxback', 'boxbacks', 'wheel', 'wheels', 'mix', 'mixes',
+               'titleshot', 'titleshots', 'cover', 'covers', 'snap', 'snaps',
+               'downloaded_images', 'downloaded_videos'}
+    folders = [entry for entry in entries if entry.is_dir(follow_symlinks=False)
+               and not entry.name.startswith('.') and entry.name.casefold() not in ignored]
+    names = {game_name(entry.name) for entry in folders}
+    candidates = folders if kind == 'sources' else [entry for entry in entries
+        if entry.is_file(follow_symlinks=False) and entry.name.casefold().endswith('.wsquashfs')]
+    rows = [(entry.path, game_name(entry.name) == game_name(preferred) if kind == 'sources'
+             else game_name(entry.name) in names) for entry in candidates]
+    return sorted(rows, key=lambda row: (not row[1], Path(row[0]).name.casefold(), row[0]))
+
+
 def signature(path):
     st = path.stat()
     return [st.st_dev, st.st_ino, st.st_size, st.st_mtime_ns]
@@ -460,6 +488,8 @@ def commit(manifest, staged, prepared_save=None):
 def main():
     p = argparse.ArgumentParser(description=__doc__)
     sp = p.add_subparsers(dest='action', required=True)
+    a = sp.add_parser('listing')
+    a.add_argument('directory', type=Path); a.add_argument('kind', choices=('archives', 'sources')); a.add_argument('--preferred', default='')
     a = sp.add_parser('prepare')
     for name in ('prefix', 'source', 'archive', 'save_root', 'manifest'):
         a.add_argument(name, type=Path)
@@ -486,7 +516,9 @@ def main():
     a.add_argument('manifest', type=Path); a.add_argument('key')
     a = p.parse_args()
     try:
-        if a.action == 'prepare': prepare(a.prefix, a.source, a.archive, a.save_root, a.manifest)
+        if a.action == 'listing':
+            for path, matched in update_listing(a.directory, a.kind, a.preferred): print(f'{path}\t{int(matched)}')
+        elif a.action == 'prepare': prepare(a.prefix, a.source, a.archive, a.save_root, a.manifest)
         elif a.action == 'autorun': write_autorun(a.prefix, a.exe, a.savedir, a.savefiles)
         elif a.action == 'detach': detach_saves(a.prefix, a.save)
         elif a.action == 'config': print(copy_config(a.conf, a.source, a.dest, a.backup_dir))
