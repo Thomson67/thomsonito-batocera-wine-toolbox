@@ -1457,12 +1457,32 @@ wsq_integrity_check() {
 }
 
 wsq_creation_documentation() {
-    local document
+    local document columns lines width height
+    columns="$(tput cols 2>/dev/null || printf '104')"
+    lines="$(tput lines 2>/dev/null || printf '28')"
+    case "$columns" in ''|*[!0-9]*) columns=104 ;; esac
+    case "$lines" in ''|*[!0-9]*) lines=28 ;; esac
+    width=$((columns-4))
+    height=$((lines-4))
+    [ "$width" -le 100 ] || width=100
+    [ "$height" -le 24 ] || height=24
+    [ "$width" -ge 20 ] || width=20
+    [ "$height" -ge 8 ] || height=8
     document="$(mktemp /tmp/uwt-wsquashfs-guide.XXXXXX)" || return
-    printf '%b\n' "$(i18n wsq_creation_guide)" > "$document"
+    printf '%b\n' "$(i18n wsq_creation_guide)" | python3 -c '
+import sys
+import textwrap
+width = int(sys.argv[1])
+for line in sys.stdin.read().splitlines():
+    print(textwrap.fill(line, width=width, break_long_words=True,
+                        break_on_hyphens=False) if line else "")
+' "$((width-6))" > "$document" || {
+        rm -f -- "$document"
+        return 1
+    }
     if have_dialog; then
         dialog --clear --no-shadow --exit-label "$(i18n back)" \
-            --title "$(i18n wsq_creation_documentation)" --textbox "$document" 24 100
+            --title "$(i18n wsq_creation_documentation)" --textbox "$document" "$height" "$width"
     else
         cat -- "$document"
     fi
