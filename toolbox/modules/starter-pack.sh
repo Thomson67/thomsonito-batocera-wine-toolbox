@@ -117,7 +117,7 @@ install_classic_runner_row() {
 install_starter_tokens() {
     local selected="$1" failures=0 selected_classic_download=0
     local kind id name state file size url sha token
-    local need_umu=0 selected_count=0 free estimate
+    local need_umu=0 selected_count=0 umu_selected_count=0 umu_mode="" free estimate
 
     [ -n "$selected" ] || return 0
 
@@ -135,11 +135,12 @@ install_starter_tokens() {
                     break
                 done <<< "$(starter_status_tsv)"
                 ;;
-            UMU:*) need_umu=1 ;;
+            UMU:*) need_umu=1; umu_selected_count=$((umu_selected_count+1)) ;;
         esac
     done <<< "$selected"
 
     [ "$selected_count" -gt 0 ] || return 0
+    [ "$umu_selected_count" -le 1 ] || umu_mode=batch
 
     estimate=$(( selected_classic_download * 4 + 536870912 ))
     free="$(free_bytes_userdata)"
@@ -173,7 +174,7 @@ install_starter_tokens() {
             UMU:*)
                 id="${token#UMU:}"
                 if [ "$need_umu" -eq 1 ] && umu_toolbox_installed; then
-                    install_umu_runner "$id" || {
+                    install_umu_runner "$id" "$umu_mode" || {
                         echo "$(i18n umu_runner_failed "$id")" >&2
                         failures=$((failures+1))
                     }
