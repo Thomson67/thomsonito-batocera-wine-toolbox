@@ -201,6 +201,8 @@ def find_exes(prefix: Path):
         rel_root = root_p.relative_to(prefix)
         for filename in files:
             low = filename.casefold()
+            if low == "autorun.cmd":
+                continue
             if not low.endswith((".exe", ".bat", ".cmd")):
                 continue
             if any(x in low for x in EXCLUDED_EXE_NAMES):
