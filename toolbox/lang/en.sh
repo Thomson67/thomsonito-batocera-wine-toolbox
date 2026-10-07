@@ -365,6 +365,9 @@ declare -gA I18N=(
   [update_success]="Update completed successfully.\n\nInstalled release: %s\n\nThe Toolbox will now restart."
 
   [wsq_title]="WSquashFS Management"
+  [wsq_version_warning]="WARNING: save externalization with SAVEDIR= requires Batocera v42 or later. It does not work on v41 or earlier."
+  [wsq_archive_name_prompt]="Destination archive:\n%s\n\nKeep this name or choose another name."
+  [wsq_archive_name_keep]="Keep the proposed name"
   [wsq_intro]="Create, compress, extract and prepare Windows games for WSquashFS."
   [wsq_create_action]="Create a WSquashFS from a game folder"
   [wsq_resume_action]="Resume a pending build"

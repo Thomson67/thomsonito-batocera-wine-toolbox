@@ -55,7 +55,7 @@ wsq_select_source_game() {
         return 1
     fi
 
-    choice="$(menu_select "$(i18n wsq_create_title)" "$(i18n wsq_credit)\n\n$(i18n wsq_source_prompt)" "${items[@]}")" || return 1
+    choice="$(menu_select "$(i18n wsq_create_title)" "$(i18n wsq_credit)\n\n$(i18n wsq_version_warning)\n\n$(i18n wsq_source_prompt)" "${items[@]}")" || return 1
     sed -n "${choice}p" <<< "$rows"
 }
 
@@ -1011,14 +1011,32 @@ wsq_prepare_existing_archive() {
     local choice stamp backup
 
     WSQ_LAST_ARCHIVE_BACKUP=""
+    WSQ_ARCHIVE_TARGET="$archive"
+    WSQ_ARCHIVE_ACTION=created
 
-    [ -e "$archive" ] || return 0
+    if [ ! -e "$archive" ] && [ ! -L "$archive" ]; then
+        if [ "${2:-}" = choose ]; then
+            choice="$(menu_select "$(i18n squash_rename_title)" "$(i18n wsq_archive_name_prompt "$archive")" \
+                1 "$(i18n wsq_archive_name_keep)" 3 "$(i18n squash_create_renamed)" 0 "$(i18n cancel)")" || return 10
+            case "$choice" in
+                1) return 0 ;;
+                3)
+                    maintenance_choose_renamed_wsquashfs "$archive" || return 10
+                    WSQ_ARCHIVE_TARGET="$MAINTENANCE_SELECTED_ARCHIVE"
+                    WSQ_ARCHIVE_ACTION=rename
+                    return 0 ;;
+                *) return 10 ;;
+            esac
+        fi
+        return 0
+    fi
     [ -f "$archive" ] && [ ! -L "$archive" ] || return 4
 
     choice="$(menu_select "$(i18n wsq_archive_conflict_title)" \
         "$(i18n wsq_archive_conflict_body "$archive")" \
         "1" "$(i18n wsq_archive_conflict_backup)" \
         "2" "$(i18n wsq_archive_conflict_replace)" \
+        "3" "$(i18n squash_create_renamed)" \
         "0" "$(i18n cancel)")" || return 10
 
     case "$choice" in
@@ -1037,15 +1055,23 @@ wsq_prepare_existing_archive() {
                 esac
             done
             mv -- "$archive" "$backup" || return 5
+            WSQ_ARCHIVE_ACTION=backup
             WSQ_LAST_ARCHIVE_BACKUP="$backup"
             wt_log "WSquashFS: existing archive backed up: $archive -> $backup"
             return 0
             ;;
         2)
+            WSQ_ARCHIVE_ACTION=replace
             # Keep the current archive in place while mksquashfs builds and
             # validates a temporary file. maintenance_squash_wine() replaces
             # the destination only after the new archive has passed validation.
             wt_log "WSquashFS: existing archive will be atomically replaced after validation: $archive"
+            return 0
+            ;;
+        3)
+            maintenance_choose_renamed_wsquashfs "$archive" || return 10
+            WSQ_ARCHIVE_TARGET="$MAINTENANCE_SELECTED_ARCHIVE"
+            WSQ_ARCHIVE_ACTION=rename
             return 0
             ;;
         0|"")
@@ -1246,7 +1272,7 @@ wsq_resume_build() {
     fi
     if yesno "$(i18n wsq_create_title)" "$build_prompt"; then
         archive="${prefix%.wine}.wsquashfs"
-        wsq_prepare_existing_archive "$archive"
+        wsq_prepare_existing_archive "$archive" choose
         local archive_rc=$?
         if [ "$archive_rc" -ne 0 ]; then
             case "$archive_rc" in
@@ -1265,6 +1291,25 @@ wsq_resume_build() {
             esac
             return
         fi
+        archive="$WSQ_ARCHIVE_TARGET"
+        local final_game_name
+        final_game_name="$(basename "$archive" .wsquashfs)"
+        if [ "$final_game_name" != "$game_name" ]; then
+            dest="$WSQ_SAVE_ROOT/$final_game_name"
+            wsq_save_destination_prepare "$dest"
+            local save_rc=$?
+            if [ "$save_rc" -ne 0 ]; then
+                [ "$save_rc" -eq 10 ] || msgbox "$(i18n wsq_save_title)" "$(i18n wsq_save_move_failed "$dest")"
+                return
+            fi
+            cp -a -- "$WSQ_SAVE_ROOT/$game_name/." "$dest/" || {
+                msgbox "$(i18n wsq_save_title)" "$(i18n wsq_save_move_failed "$dest")"
+                return
+            }
+            if [ -n "${WSQ_LAST_SAVE_BACKUP:-}" ]; then
+                msgbox "$(i18n wsq_save_title)" "$(i18n wsq_save_backup_done "$WSQ_LAST_SAVE_BACKUP")"
+            fi
+        fi
         local cleanup_rc=0
         if [ "$save_kind" != registry ]; then
             wsq_cleanup_internal_savedir "$prefix" "$save_rel"
@@ -1280,7 +1325,7 @@ wsq_resume_build() {
         fi
 
         if maintenance_squash_wine "$prefix" "$archive"; then
-            wsq_finalize_runner_config "$game_name" "$runner" "$prefix" || {
+            wsq_finalize_runner_config "$final_game_name" "$runner" "$prefix" || {
                 msgbox "$(i18n wsq_create_title)" "$(i18n wsq_runner_finalize_failed "$archive")"
                 return
             }
@@ -1294,7 +1339,7 @@ wsq_resume_build() {
                 "$(i18n squash_delete_source_confirm "$(basename "$prefix")")"; then
                 maintenance_delete_wine_dir_symlink_safe "$prefix" || true
             fi
-            msgbox "$(i18n wsq_create_title)" "$(i18n wsq_build_done "$archive" "$WSQ_SAVE_ROOT/$game_name")"
+            msgbox "$(i18n wsq_create_title)" "$(i18n wsq_build_done "$archive" "$WSQ_SAVE_ROOT/$final_game_name")"
             wsq_restart_emulationstation_deferred || true
             wsq_post_build_menu
             return $?
@@ -1314,7 +1359,7 @@ wsquashfs_menu() {
     while true; do
         local choice pending=""
         [ -s "$WSQ_STATE_FILE" ] && pending="$(i18n wsq_pending_marker)"
-        choice="$(menu_select "$(i18n wsq_title)" "$(i18n wsq_intro)" \
+        choice="$(menu_select "$(i18n wsq_title)" "$(i18n wsq_intro)\n\n$(i18n wsq_version_warning)" \
             "1" "$(i18n wsq_create_action)" \
             "2" "$(i18n wsq_resume_action) $pending" \
             "3" "$(i18n squash_wine)" \

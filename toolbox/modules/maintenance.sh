@@ -680,13 +680,13 @@ maintenance_choose_renamed_wsquashfs() {
 
         candidate="$parent/$entered"
 
-        if [ -e "$candidate" ]; then
+        if [ -e "$candidate" ] || [ -L "$candidate" ]; then
             msgbox "$(i18n squash_rename_title)" "$(i18n squash_rename_exists "$(basename "$candidate")")"
             default_name="$(basename "$(maintenance_next_wsquashfs_name "$candidate")")"
             continue
         fi
 
-        printf '%s' "$candidate"
+        MAINTENANCE_SELECTED_ARCHIVE="$candidate"
         return 0
     done
 }
@@ -918,48 +918,30 @@ maintenance_select_and_squash() {
         target="$dest"
         success=0
 
-        if [ -e "$dest" ]; then
-            choice="$(menu_select "$(i18n squash_conflict_title)" \
-                "$(i18n squash_conflict_body "$(basename "$dest")")" \
-                "1" "$(i18n squash_replace_existing)" \
-                "2" "$(i18n squash_create_renamed)" \
-                "0" "$(i18n cancel)")" || {
-                    skipped=$((skipped+1))
-                    continue
-                }
-
-            case "$choice" in
-                1)
-                    if maintenance_squash_wine "$path" "$target"; then
-                        replaced=$((replaced+1))
-                        success=1
-                    else
-                        failed=$((failed+1))
-                    fi
-                    ;;
-                2)
-                    target="$(maintenance_choose_renamed_wsquashfs "$dest")" || {
-                        skipped=$((skipped+1))
-                        continue
-                    }
-                    if maintenance_squash_wine "$path" "$target"; then
-                        renamed=$((renamed+1))
-                        success=1
-                    else
-                        failed=$((failed+1))
-                    fi
-                    ;;
-                *)
-                    skipped=$((skipped+1))
-                    ;;
-            esac
-        else
-            if maintenance_squash_wine "$path" "$target"; then
-                created=$((created+1))
-                success=1
+        wsq_prepare_existing_archive "$dest"
+        local archive_rc=$?
+        if [ "$archive_rc" -ne 0 ]; then
+            if [ "$archive_rc" -eq 10 ]; then
+                skipped=$((skipped+1))
             else
                 failed=$((failed+1))
+                msgbox "$(i18n squash_title)" "$(i18n wsq_archive_conflict_failed "$dest")"
             fi
+            continue
+        fi
+        target="$WSQ_ARCHIVE_TARGET"
+        if maintenance_squash_wine "$path" "$target"; then
+            case "$WSQ_ARCHIVE_ACTION" in
+                rename) renamed=$((renamed+1)) ;;
+                replace|backup) replaced=$((replaced+1)) ;;
+                *) created=$((created+1)) ;;
+            esac
+            success=1
+            if [ -n "$WSQ_LAST_ARCHIVE_BACKUP" ]; then
+                msgbox "$(i18n squash_title)" "$(i18n wsq_archive_backup_done "$WSQ_LAST_ARCHIVE_BACKUP")"
+            fi
+        else
+            failed=$((failed+1))
         fi
 
         [ "$success" -eq 1 ] && maintenance_offer_source_deletion "$path"
