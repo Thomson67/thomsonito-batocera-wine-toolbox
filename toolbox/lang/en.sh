@@ -530,15 +530,15 @@ declare -gA I18N=(
   [wsq_update_intro]="Replace the existing game directory with a directory containing the new game version. Keep the prefix and launch directives. Test the game and review its saves before recompression. The original archive is backed up before replacement."
   [wsq_update_pending]="A creation or update is already pending. Resume it from the menu or cancel it in the wizard before starting another task."
   [wsq_update_source_title]="Choose the directory containing the new game version"
-  [wsq_update_source_prompt]="Choose the directory directly containing the updated game files. For a Wine prefix, choose drive_c/game. The source is copied, not moved."
+  [wsq_update_source_prompt]="Choose the directory directly containing the updated game files. For a Wine prefix, select its game-content directory. The source directory will be moved into the test prefix under the original game directory name."
   [wsq_update_prefix_required]="This workflow requires a Wine prefix with an identifiable dedicated game directory. Prefix-free .pc archives are not supported here."
-  [wsq_update_confirm]="Archive:\\n%s\\n\\nNew game version:\\n%s\\n\\nTest prefix:\\n%s\\n\\nThe source and original archive stay intact. Existing saves will be copied to a separate test location. Allow space for extraction, the new game copy and recompression. Continue?"
+  [wsq_update_confirm]="Archive:\\n%s\\n\\nNew game version:\\n%s\\n\\nTest prefix:\\n%s\\n\\nThe original archive stays intact. The source directory will be moved into the test prefix and will no longer remain at its current location. The old game directory is kept as .bak until launch validation. Original start.bat scripts and save links are restored. Existing saves use a separate test copy. Allow space for extraction and recompression. Continue?"
   [wsq_update_extract]="Extracting the test prefix. The original archive is retained."
-  [wsq_update_copy]="Copying the new game version and preparing isolated test saves. This may take several minutes."
+  [wsq_update_copy]="Moving the new game version and preparing isolated test saves. This may take several minutes."
   [wsq_update_validate]="Fully checking the new archive before replacement. Data is read without another extraction."
   [wsq_update_elapsed]="Operation in progress — %s seconds elapsed."
   [wsq_update_failed]="The operation did not complete. Working prefix retained:\\n%s\\n\\nReport:\\n%s\\nAlso consult the session log. The original archive or its backup is retained."
-  [wsq_update_kept]="Stopped here. The original archive and source directory remain available. Working prefix:\\n%s"
+  [wsq_update_kept]="Stopped here. The original archive remains available. The updated source was moved into the working prefix; the old game directory remains as .bak until launch validation. Working prefix:\\n%s"
   [wsq_update_test]="The test uses the new version in:\\n%s\\n\\nThe original game runner and options are copied. Check launch, controller, loading your progress and creating a save. Test saves are separate from the original game saves."
   [wsq_update_save_title]="Review saves after the game update"
   [wsq_update_save_prompt]="Previous save rules:\\n%s\\n\\nCheck that progress loads and a new save appears in the same location. Inspect the previous location, review detected directories or choose another directory."
@@ -560,8 +560,10 @@ declare -gA I18N=(
   [wsq_update_root_copy]="Copy an existing progress folder for testing"
 
   [wsq_update_source_browse]="Browse… (select another directory)"
-  [wsq_update_source_list_prompt]="Select the updated game from the Windows directories, or Browse for another location. Hidden and media directories are excluded. For a Wine prefix, its game directory is selected automatically. Source files are copied, not moved."
+  [wsq_update_source_list_prompt]="Select the updated game from the Windows directories, or Browse for another location. Hidden and media directories are excluded. For a Wine prefix, its game directory is selected automatically. The source directory is moved under the original game directory name."
 
   [wsq_update_name_match]="matching game folder available"
+
+  [wsq_update_remove_old]="Launch validated: removing the old game directory (.bak) before recompression."
 
 )

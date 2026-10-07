@@ -90,10 +90,11 @@ def validate_source(source, prefix):
     return source
 
 
-def redirect_saves(prefix, old, new):
+def redirect_saves(prefix, old, new, excluded=None):
     """Never let the test prefix retain a link to the original game's saves."""
     old = old.resolve()
     for root, dirs, files in os.walk(prefix, followlinks=False):
+        dirs[:] = [name for name in dirs if Path(root) / name != excluded]
         for name in dirs + files:
             path = Path(root) / name
             if path.is_symlink():
@@ -254,28 +255,20 @@ def prepare(prefix, source, archive, save_root, manifest):
         location = root / savedir
         if location.is_symlink() and not location.resolve().is_relative_to(original_save.resolve()):
             raise ValueError('existing save link does not point to this game save directory')
-    staging = root / '.uwt-update-game'
-    old_game = root / '.uwt-update-old-game'
+    old_game = game.with_name(game.name + '.bak')
     embedded = root / '.uwt-update-embedded-save'
-    if any(p.exists() or p.is_symlink() for p in (staging, old_game, embedded)):
+    if any(p.exists() or p.is_symlink() for p in (old_game, embedded)):
         raise ValueError('an unfinished preparation is already present')
+    if source.stat().st_dev != game.parent.stat().st_dev:
+        raise ValueError('game source and prefix must be on the same filesystem for a move without copying')
+    existing_launch = launch_executable(root)
     data = {'archive': str(archive), 'archive_signature': signature(archive),
-            'prefix': str(prefix), 'source': str(source), 'game_dir': game.relative_to(root).as_posix(),
+            'prefix': str(prefix), 'source': str(source), 'game_dir': game.relative_to(root).as_posix(), 'game_backup': str(old_game),
             'original_save': str(original_save), 'test_save': str(test_save),
             'autorun': text, 'savedir': values.get('SAVEDIR', ''),
             'savefiles': values.get('SAVEFILES', ''), 'save_root': str(save_root),
             'save_links': links, 'test_scripts': []}
     save_json(manifest, data)
-    # Copy first; a failed copy must leave the extracted game intact.
-    shutil.copytree(source, staging, symlinks=True)
-    existing_launch = launch_executable(root)
-    if existing_launch:
-        launch = root / existing_launch
-        if launch.suffix.casefold() in ('.bat', '.cmd') and launch.is_relative_to(game):
-            replacement_launch = staging / launch.relative_to(game)
-            if not replacement_launch.exists():
-                replacement_launch.parent.mkdir(parents=True, exist_ok=True)
-                shutil.copy2(launch, replacement_launch)
     if original_save.is_dir():
         shutil.copytree(original_save, test_save, symlinks=False)
     else:
@@ -286,17 +279,39 @@ def prepare(prefix, source, archive, save_root, manifest):
             shutil.copytree(location, embedded, symlinks=True)
     game.rename(old_game)
     try:
-        staging.rename(game)
-        if embedded.exists():
-            location = root / savedir
-            if location.is_symlink() or not location.parent.resolve().is_relative_to(root):
-                raise ValueError('replacement game redirects the savedir outside the prefix')
-            shutil.copytree(embedded, location, symlinks=True, dirs_exist_ok=True)
-    except Exception:
-        if game.exists():
-            shutil.rmtree(game)
+        # Path.rename never falls back to an implicit cross-filesystem copy.
+        source.rename(game)
+    except OSError:
         old_game.rename(game)
         raise
+    # Original start.bat scripts take precedence, even if the new game supplies
+    # another start.bat. Keep each one at its original relative location.
+    launchers = []
+    for directory, _, files in os.walk(old_game, followlinks=False):
+        for filename in files:
+            old_path = Path(directory) / filename
+            if filename.casefold() == 'start.bat' and not old_path.is_symlink():
+                launchers.append(old_path.relative_to(old_game))
+    if existing_launch:
+        launch = root / existing_launch
+        if launch.suffix.casefold() in ('.bat', '.cmd') and launch.is_relative_to(game):
+            relative = launch.relative_to(game)
+            if relative not in launchers:
+                launchers.append(relative)
+    for relative in launchers:
+        old_path = old_game / relative
+        if not old_path.is_file() or old_path.is_symlink():
+            continue
+        replacement = game / relative
+        if not replacement.parent.resolve().is_relative_to(game.resolve()) or replacement.is_symlink():
+            raise ValueError('replacement redirects an original batch launcher')
+        replacement.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(old_path, replacement)
+    if embedded.exists():
+        location = root / savedir
+        if location.is_symlink() or not location.parent.resolve().is_relative_to(root):
+            raise ValueError('replacement game redirects the savedir outside the prefix')
+        shutil.copytree(embedded, location, symlinks=True, dirs_exist_ok=True)
     # Restore custom save links that replacing drive_c/game would otherwise lose.
     # SAVEDIR links use Batocera's per-ROM test copy; custom links use a separate
     # root view, including links that point at the shared saves/windows root.
@@ -322,6 +337,8 @@ def prepare(prefix, source, archive, save_root, manifest):
         path.parent.mkdir(parents=True, exist_ok=True)
         if path.is_symlink():
             path.unlink()
+        elif path.is_dir():
+            path.rmdir()  # Restore the old link only over an empty placeholder.
         elif path.exists():
             raise ValueError(f'replacement contains data at old save-link location: {path}')
         path.symlink_to(replacement, target_is_directory=link['directory'])
@@ -358,10 +375,25 @@ def prepare(prefix, source, archive, save_root, manifest):
                 data['test_scripts'].append(path.relative_to(root).as_posix())
                 path.write_text(updated, encoding='utf-8', errors='surrogateescape')
         save_json(manifest, data)
-    redirect_saves(root, original_save, test_save)
-    shutil.rmtree(old_game)
+    redirect_saves(root, original_save, test_save, old_game)
     if embedded.exists():
         shutil.rmtree(embedded)
+
+
+def finish_game(manifest):
+    data = json.loads(manifest.read_text())
+    if data.get('game_backup_removed'):
+        return
+    root = Path(data['prefix']).resolve()
+    game = root / relative_path(data['game_dir'])
+    expected = game.with_name(game.name + '.bak')
+    backup = Path(data.get('game_backup', expected))
+    if backup != expected or not backup.parent.resolve().is_relative_to(root) or backup.is_symlink():
+        raise ValueError('invalid old-game backup directory')
+    if backup.exists():
+        shutil.rmtree(backup)
+    data['game_backup_removed'] = True
+    save_json(manifest, data)
 
 
 def write_autorun(prefix, exe, savedir=None, savefiles=None):
@@ -503,7 +535,7 @@ def main():
     a.add_argument('--backup-dir', type=Path)
     a = sp.add_parser('commit')
     a.add_argument('manifest', type=Path); a.add_argument('staged', type=Path); a.add_argument('--prepared-save', type=Path)
-    for action in ('restore-legacy', 'restore-custom', 'restore-scripts', 'stage-legacy', 'legacy-summary', 'exe', 'game-dir'):
+    for action in ('finish-game', 'restore-legacy', 'restore-custom', 'restore-scripts', 'stage-legacy', 'legacy-summary', 'exe', 'game-dir'):
         a = sp.add_parser(action)
         a.add_argument('prefix' if action in ('exe', 'game-dir') else 'manifest', type=Path)
     a = sp.add_parser('root-link')
@@ -543,6 +575,7 @@ def main():
                 target = a.destination / child.name
                 if child.is_dir(): shutil.copytree(child, target, symlinks=False, dirs_exist_ok=True)
                 else: shutil.copy2(child, target)
+        elif a.action == 'finish-game': finish_game(a.manifest)
         elif a.action == 'restore-custom':
             data = json.loads(a.manifest.read_text()); restore_legacy(Path(data['prefix']), a.manifest, 'custom')
         elif a.action == 'restore-scripts':

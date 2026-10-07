@@ -530,15 +530,15 @@ declare -gA I18N=(
   [wsq_update_intro]="Remplacez le dossier du jeu existant dans le préfixe par la nouvelle version du jeu. Le préfixe et les directives de lancement sont conservés. Un test et une vérification des sauvegardes précèdent la recompression. L’ancienne archive est sauvegardée avant remplacement."
   [wsq_update_pending]="Une création ou mise à jour est déjà en attente. Reprenez-la depuis le menu ou annulez-la dans l’assistant avant de commencer un autre travail."
   [wsq_update_source_title]="Choisir le dossier de la nouvelle version du jeu"
-  [wsq_update_source_prompt]="Choisissez le dossier contenant directement les fichiers du jeu mis à jour. Pour un préfixe Wine, choisissez son dossier de fichiers du jeu (souvent drive_c/game). La source sera copiée, pas déplacée."
+  [wsq_update_source_prompt]="Choisissez le dossier contenant directement les fichiers du jeu mis à jour. Pour un préfixe Wine, choisissez son dossier de fichiers du jeu (souvent drive_c/game). Le dossier source sera déplacé dans le préfixe de test, sous le nom du dossier original."
   [wsq_update_prefix_required]="Cette fonction nécessite une archive contenant un préfixe Wine avec un dossier de jeu identifiable. Les archives .pc sans préfixe ne sont pas prises en charge par ce parcours."
-  [wsq_update_confirm]="Archive :\\n%s\\n\\nNouvelle version :\\n%s\\n\\nPréfixe de test :\\n%s\\n\\nLa source et l’archive originale restent intactes. Les sauvegardes existantes seront copiées dans un emplacement de test distinct. Prévoyez l’espace pour l’extraction, la copie du nouveau jeu et la recompression. Continuer ?"
+  [wsq_update_confirm]="Archive :\\n%s\\n\\nNouvelle version :\\n%s\\n\\nPréfixe de test :\\n%s\\n\\nL’archive originale reste intacte. Le dossier source sera déplacé dans le préfixe de test : il ne restera plus à son emplacement actuel. L’ancien dossier du jeu sera conservé en .bak jusqu’à validation du lancement. Le start.bat original et les liens de sauvegarde seront repris. Les sauvegardes de test seront séparées. Prévoyez l’espace pour l’extraction et la recompression. Continuer ?"
   [wsq_update_extract]="Extraction du préfixe de test. L’archive originale est conservée."
-  [wsq_update_copy]="Copie de la nouvelle version et préparation des sauvegardes de test. Cette opération peut prendre plusieurs minutes."
+  [wsq_update_copy]="Déplacement de la nouvelle version et préparation des sauvegardes de test. Cette opération peut prendre plusieurs minutes."
   [wsq_update_validate]="Contrôle complet de la nouvelle archive avant remplacement. Les données sont lues sans extraction supplémentaire."
   [wsq_update_elapsed]="Opération en cours — %s secondes écoulées."
   [wsq_update_failed]="L’opération n’a pas abouti. Le préfixe de travail est conservé :\\n%s\\n\\nRapport :\\n%s\\nConsultez aussi le log de la session. L’archive originale ou sa sauvegarde est conservée."
-  [wsq_update_kept]="Le travail s’arrête ici. L’archive originale et le dossier source restent conservés. Préfixe de travail :\\n%s"
+  [wsq_update_kept]="Le travail s’arrête ici. L’archive originale reste conservée. Le dossier mis à jour a été déplacé dans le préfixe de travail ; l’ancien dossier est conservé en .bak tant que le lancement n’est pas validé. Préfixe de travail :\\n%s"
   [wsq_update_test]="Le test utilisera la nouvelle version dans :\\n%s\\n\\nLe runner et les options du jeu original sont repris. Vérifiez le lancement, la manette, le chargement de votre progression et créez une sauvegarde. Les sauvegardes de test sont séparées de celles du jeu original."
   [wsq_update_save_title]="Vérifier les sauvegardes après mise à jour"
   [wsq_update_save_prompt]="Règles de sauvegarde de l’ancienne version :\\n%s\\n\\nVérifiez que la progression se charge et qu’une nouvelle sauvegarde apparaît au même endroit. Vous pouvez inspecter l’ancien emplacement, chercher les dossiers détectés ou choisir un autre dossier."
@@ -560,8 +560,10 @@ declare -gA I18N=(
   [wsq_update_root_copy]="Copier un dossier de progression existant pour le test"
 
   [wsq_update_source_browse]="Parcourir… (choisir un autre dossier)"
-  [wsq_update_source_list_prompt]="Choisissez le dossier contenant la nouvelle version du jeu parmi les dossiers Windows, ou utilisez Parcourir pour un autre emplacement. Les dossiers cachés et de médias sont exclus. Pour un préfixe Wine, le dossier du jeu est repris automatiquement. La source est copiée, pas déplacée."
+  [wsq_update_source_list_prompt]="Choisissez le dossier contenant la nouvelle version du jeu parmi les dossiers Windows, ou utilisez Parcourir pour un autre emplacement. Les dossiers cachés et de médias sont exclus. Pour un préfixe Wine, le dossier du jeu est repris automatiquement. Le dossier source sera déplacé sous le nom du dossier original."
 
   [wsq_update_name_match]="dossier du même nom disponible"
+
+  [wsq_update_remove_old]="Lancement validé : suppression de l’ancien dossier du jeu (.bak) avant recompression."
 
 )

@@ -119,12 +119,14 @@ Wine/UMU runners, games, saves and bottles are preserved.
 
 ## Update a WSquashFS (test version)
 
-In WSquashFS Management, Update follows Create. Select a Wine-prefix archive and a directory containing the updated game files directly. The source is copied into the existing game directory identified from `autorun.cmd` (often `drive_c/game`) of a separate test prefix. `.pc` archives without a Wine prefix are not supported.
+In WSquashFS Management, Update follows Create. Select a Wine-prefix archive and a directory containing the updated game files directly. The source directory is moved into the existing game directory identified from `autorun.cmd` (often `drive_c/game`) of a separate test prefix. `.pc` archives without a Wine prefix are not supported.
 
 Select the executable and test launch, controller input, loading your progress and saving again. The original runner and game options are copied; testing uses a separate save copy. On return, confirm the previous save rules or select another location through detection or the graphical browser.
 
 A full integrity check must pass before replacement. The old archive, original saves and changes to `batocera.conf` are backed up. Compression failure leaves original saves in place. Resume pending updates from the menu. Test saves remain available; deleting the working prefix is optional at completion.
 
-Allow space for extraction, the updated game copy, test saves and the new archive. `SAVEDIR=` requires Batocera v42 or newer.
+Allow space for extraction, test saves and the new archive. `SAVEDIR=` requires Batocera v42 or newer.
 
-Updates first offer the launch command from `autorun.cmd`, preserving a custom `start.bat` when absent from the replacement folder. Another executable can be selected. Without `SAVEDIR=`, existing links to `/userdata/saves/windows` or its subdirectories are detected, restored in the updated game and offered by default. A root link uses a separate test view without copying other games' saves. Literal batch references to the save root are adapted for testing and restored afterwards; computed script names are not evaluated. A known progress folder can be copied before testing. On return, keep the links or choose another location.
+Updates first offer the launch command from `autorun.cmd`, restoring original `start.bat` scripts at the same relative locations in the replacement folder. Another executable can be selected. Without `SAVEDIR=`, existing links to `/userdata/saves/windows` or its subdirectories are detected, restored in the updated game and offered by default. A root link uses a separate test view without copying other games' saves. Literal batch references to the save root are adapted for testing and restored afterwards; computed script names are not evaluated. A known progress folder can be copied before testing. On return, keep the links or choose another location.
+
+Before the move, the old game directory is renamed `<name>.bak`. The updated directory retains the original name; the source directory disappears from its former location. The `.bak` remains until the game launch is validated, then is removed before recompression. Save links inside the old game directory are restored at the same locations. The move requires the same filesystem and never falls back to an implicit copy. Keeping existing save rules no longer requires an additional confirmation.

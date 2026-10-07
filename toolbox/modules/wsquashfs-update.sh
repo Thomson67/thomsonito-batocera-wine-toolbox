@@ -204,7 +204,6 @@ wsq_update_review_save() {
                 cancel "$(i18n wsq_launch_cancel)")" || return 1
             case "$choice" in
                 keep)
-                    yesno_default_no "$(i18n wsq_update_save_title)" "$(i18n wsq_update_save_confirm)" || continue
                     WSQ_SAVE_KIND=legacy; WSQ_SELECTED_SAVE=""; return 0 ;;
                 detect) wsq_select_save_candidate "$prefix" "$snapshot" && return 0 ;;
                 browse) wsq_browse_save && return 0 ;;
@@ -228,7 +227,6 @@ wsq_update_review_save() {
             cancel "$(i18n wsq_launch_cancel)")" || return 1
         case "$choice" in
             keep)
-                yesno_default_no "$(i18n wsq_update_save_title)" "$(i18n wsq_update_save_confirm)" || continue
                 WSQ_SAVE_KIND=existing; WSQ_SELECTED_SAVE="$savedir"; return 0 ;;
             inspect)
                 local normalized
@@ -262,6 +260,11 @@ wsq_resume_update() {
         wsq_update_state phase committed archive_backup "$(python3 "$WSQ_UPDATE_HELPER" value "$metadata" archive_backup)" || return
     fi
     if [ "$phase" != ready ] && [ "$phase" != committed ]; then
+        # wsq_resume_build has already validated the game launch at this point.
+        if ! wsq_update_run "$(i18n wsq_update_title)" "$(i18n wsq_update_remove_old)" "$log" \
+            python3 "$WSQ_UPDATE_HELPER" finish-game "$metadata"; then
+            msgbox "$(i18n wsq_update_title)" "$(i18n wsq_update_failed "$prefix" "$log")"; return
+        fi
         wsq_update_review_save "$metadata" || return
         save_kind="$WSQ_SAVE_KIND"; save_rel="$WSQ_SELECTED_SAVE"
         case "$save_kind" in

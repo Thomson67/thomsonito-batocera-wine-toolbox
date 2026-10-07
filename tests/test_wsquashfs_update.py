@@ -40,7 +40,8 @@ class UpdateTests(unittest.TestCase):
         self.assertEqual(save_link.resolve(), test_save)
         (save_link / 'slot').write_text('tested')
         self.assertEqual((self.original_save / 'slot').read_text(), 'original')
-        self.assertEqual((self.source / 'new.exe').read_bytes(), b'new')
+        self.assertFalse(self.source.exists())
+        self.assertEqual((self.game / 'new.exe').read_bytes(), b'new')
         self.assertFalse((self.game / 'old.exe').exists())
         update.write_autorun(self.prefix, 'drive_c/game/new.exe')
         autorun = (self.prefix / 'autorun.cmd').read_text()
@@ -172,6 +173,7 @@ wsq_resume_build
         run('mksquashfs', str(self.prefix), str(self.archive), '-noappend', '-processors', '1')
         test_save = self.prepare()
         update.write_autorun(self.prefix, 'drive_c/game/new.exe')
+        update.finish_game(self.manifest)
         staged = self.base / 'new.wsquashfs'
         run('mksquashfs', str(self.prefix), str(staged), '-noappend', '-processors', '1')
         log = self.base / 'integrity.log'; cancel = self.base / 'cancel'
@@ -366,5 +368,39 @@ wsq_update_select_source
         self.assertEqual(update.game_name('Game [GE-Proton-11-7][Hidraw].wine'), 'game')
         self.assertNotEqual(update.game_name('Game Definitive Edition.wsquashfs'), update.game_name('Game'))
         self.assertNotEqual(update.game_name('Game 2[Wine-9.17].wsquashfs'), update.game_name('Game'))
+
+    def test_update_moves_game_without_copying_and_retains_bak_until_validation(self):
+        inode = (self.source / 'new.exe').stat().st_ino
+        (self.game / 'start.bat').write_text('original launcher')
+        (self.source / 'start.bat').write_text('incoming launcher')
+        custom = self.saves / 'Custom'; custom.mkdir()
+        link = self.game / 'saves'; link.symlink_to(custom)
+        self.prepare()
+        backup = self.game.with_name('game.bak')
+        self.assertTrue((backup / 'old.exe').exists())
+        self.assertEqual((backup / 'start.bat').read_text(), 'original launcher')
+        self.assertEqual(os.readlink(backup / 'saves'), str(custom))
+        self.assertFalse(self.source.exists())
+        self.assertEqual((self.game / 'new.exe').stat().st_ino, inode)
+        self.assertEqual((self.game / 'start.bat').read_text(), 'original launcher')
+        self.assertTrue((self.game / 'saves').is_symlink())
+        update.finish_game(self.manifest)
+        self.assertFalse(backup.exists())
+        self.assertTrue((self.game / 'new.exe').exists())
+        update.finish_game(self.manifest)  # Resume is idempotent.
+
+    def test_failed_move_restores_old_game_and_does_not_copy_source(self):
+        import errno
+        original = Path.rename
+        def rename(path, target):
+            if path == self.source:
+                raise OSError(errno.EXDEV, 'different filesystem')
+            return original(path, target)
+        with patch.object(Path, 'rename', rename):
+            with self.assertRaises(OSError): self.prepare()
+        self.assertEqual((self.game / 'old.exe').read_bytes(), b'old')
+        self.assertEqual((self.source / 'new.exe').read_bytes(), b'new')
+        self.assertFalse(self.game.with_name('game.bak').exists())
+        self.assertEqual(self.archive.read_bytes(), b'old archive')
 
 if __name__ == '__main__': unittest.main()
