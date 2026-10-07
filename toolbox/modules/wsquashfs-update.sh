@@ -56,7 +56,9 @@ wsq_update_select_executable() {
     else
         msgbox "$(i18n wsq_executable_title)" "$(i18n wsq_update_exe_missing)"
     fi
-    wsq_select_executable "$prefix"
+    local game_dir
+    game_dir="$(python3 "$WSQ_UPDATE_HELPER" game-dir "$prefix")" || return 1
+    wsq_select_executable "$prefix" "$game_dir"
 }
 
 wsq_update_new() {

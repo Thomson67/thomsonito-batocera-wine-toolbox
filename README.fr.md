@@ -113,7 +113,7 @@ Les runners Wine/UMU, les jeux, les sauvegardes et les Wine bottles sont conserv
 
 ## Mettre à jour un WSquashFS (version de test)
 
-Dans Gestion des WSquashFS, l’option suit immédiatement la création. Sélectionnez une archive contenant un préfixe Wine et un dossier contenant directement les fichiers de la nouvelle version du jeu. La source est copiée dans `drive_c/game` d’un préfixe de test distinct. Les archives de type `.pc` sans préfixe Wine ne sont pas prises en charge.
+Dans Gestion des WSquashFS, l’option suit immédiatement la création. Sélectionnez une archive contenant un préfixe Wine et un dossier contenant directement les fichiers de la nouvelle version du jeu. La source est copiée dans le dossier du jeu identifié par `autorun.cmd` (souvent `drive_c/game`) d’un préfixe de test distinct. Les archives de type `.pc` sans préfixe Wine ne sont pas prises en charge.
 
 Sélectionnez l’exécutable, puis testez le lancement, la manette, le chargement de votre progression et une nouvelle sauvegarde. Le runner et les options du jeu sont repris ; le test utilise une copie des sauvegardes. Au retour, confirmez les règles de sauvegarde existantes ou choisissez un autre emplacement avec la détection ou l’explorateur.
 

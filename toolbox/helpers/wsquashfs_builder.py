@@ -186,8 +186,10 @@ def clean_game_name(name: str) -> str:
     return re.sub(r"\s+", " ", name).strip()
 
 
-def find_exes(prefix: Path):
-    game_dir = prefix / "drive_c" / "game"
+def find_exes(prefix: Path, game_relative="drive_c/game"):
+    game_dir = prefix / game_relative
+    if not game_dir.resolve().is_relative_to(prefix.resolve()):
+        raise ValueError("game directory escapes the prefix")
     rows = []
     if not game_dir.is_dir():
         return rows
@@ -343,7 +345,7 @@ def diff_snapshots(prefix: Path, before, after):
 
 
 def cmd_exes(args):
-    for score, rel in find_exes(Path(args.prefix)):
+    for score, rel in find_exes(Path(args.prefix), args.game_dir):
         print(f"{score}\t{rel}")
 
 
@@ -369,6 +371,7 @@ def main():
 
     p = sub.add_parser("exes")
     p.add_argument("prefix")
+    p.add_argument("--game-dir", default="drive_c/game")
     p.set_defaults(func=cmd_exes)
 
     p = sub.add_parser("snapshot")

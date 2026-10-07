@@ -101,6 +101,22 @@ def launch_executable(prefix):
     return ''
 
 
+def game_directory(prefix):
+    """Keep the archive's existing layout rather than forcing drive_c/game."""
+    _, values = directives(prefix)
+    value = values.get('DIR', '').strip().strip('"').replace('\\', '/')
+    directory = Path('drive_c') / value[3:] if value.lower().startswith('c:/') else relative_path(value)
+    if directory.parts and directory.parts[0] == 'drive_c' and len(directory.parts) > 1:
+        if directory.parts[1].casefold() not in ('windows', 'users', 'programdata', 'program files', 'program files (x86)'):
+            candidate = prefix / Path(*directory.parts[:2])
+            if candidate.is_dir() and not candidate.is_symlink():
+                return candidate
+    candidate = prefix / 'drive_c/game'
+    if candidate.is_dir() and not candidate.is_symlink():
+        return candidate
+    raise ValueError('cannot identify a dedicated game directory from autorun.cmd')
+
+
 def save_links(prefix, save_root):
     result = []
     base = save_root.resolve()
@@ -191,9 +207,9 @@ def prepare(prefix, source, archive, save_root, manifest):
     if prefix.is_symlink() or not prefix.is_dir():
         raise ValueError('working prefix must be a real directory')
     root = prefix.resolve()
-    game = root / 'drive_c/game'
+    game = game_directory(root)
     if (root / 'drive_c').is_symlink() or not game.is_dir() or game.is_symlink():
-        raise ValueError('archive must contain an internal drive_c/game directory')
+        raise ValueError('archive must contain an internal game directory')
     source = validate_source(source, root)
     text, values = directives(root)
     links = save_links(root, save_root)
@@ -216,7 +232,7 @@ def prepare(prefix, source, archive, save_root, manifest):
     if any(p.exists() or p.is_symlink() for p in (staging, old_game, embedded)):
         raise ValueError('an unfinished preparation is already present')
     data = {'archive': str(archive), 'archive_signature': signature(archive),
-            'prefix': str(prefix), 'source': str(source),
+            'prefix': str(prefix), 'source': str(source), 'game_dir': game.relative_to(root).as_posix(),
             'original_save': str(original_save), 'test_save': str(test_save),
             'autorun': text, 'savedir': values.get('SAVEDIR', ''),
             'savefiles': values.get('SAVEFILES', ''), 'save_root': str(save_root),
@@ -457,9 +473,9 @@ def main():
     a.add_argument('--backup-dir', type=Path)
     a = sp.add_parser('commit')
     a.add_argument('manifest', type=Path); a.add_argument('staged', type=Path); a.add_argument('--prepared-save', type=Path)
-    for action in ('restore-legacy', 'restore-custom', 'restore-scripts', 'stage-legacy', 'legacy-summary', 'exe'):
+    for action in ('restore-legacy', 'restore-custom', 'restore-scripts', 'stage-legacy', 'legacy-summary', 'exe', 'game-dir'):
         a = sp.add_parser(action)
-        a.add_argument('prefix' if action == 'exe' else 'manifest', type=Path)
+        a.add_argument('prefix' if action in ('exe', 'game-dir') else 'manifest', type=Path)
     a = sp.add_parser('root-link')
     a.add_argument('manifest', type=Path)
     a = sp.add_parser('seed-legacy')
@@ -475,6 +491,7 @@ def main():
         elif a.action == 'detach': detach_saves(a.prefix, a.save)
         elif a.action == 'config': print(copy_config(a.conf, a.source, a.dest, a.backup_dir))
         elif a.action == 'commit': print(commit(a.manifest, a.staged, a.prepared_save))
+        elif a.action == 'game-dir': print(game_directory(a.prefix).relative_to(a.prefix).as_posix())
         elif a.action == 'exe': print(launch_executable(a.prefix))
         elif a.action == 'root-link':
             data = json.loads(a.manifest.read_text())

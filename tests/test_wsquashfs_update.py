@@ -261,4 +261,44 @@ wsq_resume_build
         (self.prefix / 'autorun.cmd').write_text('DIR=drive_c/game\nCMD="missing.exe"\n')
         self.assertEqual(update.launch_executable(self.prefix), '')
 
+    def test_named_game_directory_and_mario_batch_layout(self):
+        name = 'Super Mario Bros Remastered'
+        game = self.prefix / 'drive_c' / name
+        self.game.rename(game); self.game = game
+        (self.prefix / 'autorun.cmd').write_text(f'DIR=drive_c/{name}\nCMD=start.bat\n')
+        batch = f'@echo off\nmkdir "z:{str(self.saves).replace(chr(47), chr(92))}\\{name}"\nstart /wait "" ".\\SMB1R.exe"'
+        (game / 'start.bat').write_text(batch)
+        save = self.saves / name; save.mkdir(); (save / 'slot').write_text('progress')
+        link = self.prefix / 'drive_c/users/root/AppData/Roaming/SMB1R'
+        link.parent.mkdir(parents=True); link.symlink_to(save)
+        (self.source / 'SMB1R.exe').write_text('new mario executable')
+        test_save = self.prepare()
+        self.assertEqual(update.game_directory(self.prefix), game)
+        self.assertEqual(update.launch_executable(self.prefix), f'drive_c/{name}/start.bat')
+        self.assertTrue((game / 'SMB1R.exe').exists())
+        self.assertIn(str(test_save).replace('/', '\\'), (game / 'start.bat').read_text())
+        update.stage_legacy(self.manifest); update.restore_legacy(self.prefix, self.manifest)
+        self.assertEqual((game / 'start.bat').read_text(), batch)
+        self.assertEqual(os.readlink(link), str(save))
+
+    def test_cat_quest_named_directory_and_two_root_links(self):
+        game = self.prefix / 'drive_c/Cat Quest'
+        self.game.rename(game); self.game = game
+        (self.prefix / 'autorun.cmd').write_text('DIR=drive_c/Cat Quest\nCMD="Cat Quest.exe"\n')
+        (self.source / 'Cat Quest.exe').write_text('updated cat quest')
+        links = []
+        for user in ('root', 'steamuser'):
+            link = self.prefix / f'drive_c/users/{user}/AppData/LocalLow/The Gentlebros Pte_ Ltd_'
+            link.parent.mkdir(parents=True); link.symlink_to(self.saves); links.append(link)
+        test_save = self.prepare(); shared = test_save / '.legacy-shared'
+        self.assertEqual(update.game_directory(self.prefix), game)
+        self.assertEqual(update.launch_executable(self.prefix), 'drive_c/Cat Quest/Cat Quest.exe')
+        for link in links: self.assertEqual(link.resolve(), shared)
+        (shared / 'Cat Quest').mkdir(); (shared / 'Cat Quest/slot').write_text('saved by game')
+        update.stage_legacy(self.manifest); update.restore_legacy(self.prefix, self.manifest)
+        for link in links: self.assertEqual(os.readlink(link), str(self.saves))
+        staged = self.base / 'new.wsquashfs'; staged.write_bytes(b'new archive')
+        update.commit(self.manifest, staged)
+        self.assertEqual((self.saves / 'Cat Quest/slot').read_text(), 'saved by game')
+
 if __name__ == '__main__': unittest.main()
