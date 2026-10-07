@@ -526,7 +526,7 @@ declare -gA I18N=(
 
   [settings_language]="Language"
   [settings_title]="Settings"
-  [wsq_update_title]="Update a WSquashFS"
+  [wsq_update_title]="Update a WSquashFS (beta)"
   [wsq_update_intro]="Replace the existing game directory with a directory containing the new game version. Keep the prefix and launch directives. Test the game and review its saves before recompression. At completion, choose backup and replacement or direct replacement."
   [wsq_update_pending]="A creation or update is already pending. Resume it from the menu or cancel it in the wizard before starting another task."
   [wsq_update_source_title]="Choose the directory containing the new game version"
@@ -539,7 +539,7 @@ declare -gA I18N=(
   [wsq_update_elapsed]="Operation in progress — %s seconds elapsed."
   [wsq_update_failed]="The operation did not complete. Working prefix retained:\\n%s\\n\\nReport:\\n%s\\nAlso consult the session log. The original archive or its backup is retained."
   [wsq_update_kept]="Stopped here. The original archive remains available. The updated source was moved into the working prefix; the old game directory remains as .bak until launch validation. Working prefix:\\n%s"
-  [wsq_update_test]="The test uses the new version in:\\n%s\\n\\nThe original game runner and options are copied. Check launch, controller, loading your progress and creating a save. Test saves are separate from the original game saves."
+  [wsq_update_test]="The test uses the new version in:\\n%s\\n\\nThe original game runner and options are copied. Check launch, controller, loading your progress and creating a save."
   [wsq_update_save_title]="Review saves after the game update"
   [wsq_update_save_prompt]="Previous save rules:\\n%s\\n\\nCheck that progress loads and a new save appears in the same location. Inspect the previous location, review detected directories or choose another directory."
   [wsq_update_save_keep]="Keep the existing save rules"
