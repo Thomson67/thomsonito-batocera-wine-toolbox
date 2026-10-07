@@ -572,4 +572,12 @@ declare -gA I18N=(
   [wsq_update_done_replace]="Mise à jour terminée, WSquashFS remplacé :\\n%s\\n\\nPréfixe de travail :\\n%s\\nCopie des sauvegardes de test conservée :\\n%s"
 
 
+  [wsq_update_prefix_conflict_title]="Dossier Wine de test déjà présent"
+  [wsq_update_prefix_conflict]="Le dossier de test existe déjà :\\n%s\\n\\nVous pouvez le remplacer, choisir un autre nom pour le nouveau préfixe, ou quitter. Les réglages ES du WSquashFS sont prioritaires ; à défaut, ceux du dossier Wine sont repris."
+  [wsq_update_prefix_replace]="Remplacer le dossier Wine existant"
+  [wsq_update_prefix_rename]="Choisir un autre nom pour le préfixe Wine"
+  [wsq_update_prefix_name_prompt]="Nom du nouveau dossier de test (extension .wine ajoutée si nécessaire)."
+  [wsq_update_prefix_source_overlap]="Le dossier choisi pour la nouvelle version se trouve dans ce préfixe. Choisissez un autre nom de préfixe pour conserver la source pendant l’extraction."
+
+
 )

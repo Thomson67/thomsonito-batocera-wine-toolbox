@@ -246,7 +246,8 @@ def prepare(prefix, source, archive, save_root, manifest):
     if savedir is not None and savedir != Path('.') and not (root / savedir).parent.resolve().is_relative_to(root):
         raise ValueError('save-directory parent escapes the prefix')
     original_save = save_root / archive.stem
-    test_save = save_root / prefix.stem
+    same_rom_name = prefix.stem == archive.stem
+    test_save = save_root / ('.uwt-test-' + manifest.stem) if same_rom_name else save_root / prefix.stem
     if test_save.exists() or test_save.is_symlink():
         raise ValueError('test-save destination already exists')
     if original_save.is_symlink():
@@ -267,7 +268,7 @@ def prepare(prefix, source, archive, save_root, manifest):
             'original_save': str(original_save), 'test_save': str(test_save),
             'autorun': text, 'savedir': values.get('SAVEDIR', ''),
             'savefiles': values.get('SAVEFILES', ''), 'save_root': str(save_root),
-            'save_links': links, 'test_scripts': []}
+            'save_links': links, 'test_scripts': [], 'same_rom_name': same_rom_name}
     save_json(manifest, data)
     if original_save.is_dir():
         shutil.copytree(original_save, test_save, symlinks=False)
@@ -376,6 +377,37 @@ def prepare(prefix, source, archive, save_root, manifest):
                 path.write_text(updated, encoding='utf-8', errors='surrogateescape')
         save_json(manifest, data)
     redirect_saves(root, original_save, test_save, old_game)
+    if same_rom_name and savedir is not None:
+        # A stable .wine name shares Batocera's save basename with the archive.
+        # Disable its automatic save redirect for this test only, and install
+        # explicit links to the isolated copy (including SAVEFILES registries).
+        location = root / savedir
+        if not location.parent.resolve().is_relative_to(root) and savedir != Path('.'):
+            raise ValueError('test save parent escapes the prefix')
+        if values.get('SAVEFILES'):
+            location.mkdir(parents=True, exist_ok=True)
+            for pattern in values['SAVEFILES'].split(';'):
+                if not pattern.strip(): continue
+                relative_path(pattern)
+                for entry in location.glob(pattern):
+                    if not entry.is_file(): continue
+                    relative = entry.relative_to(location)
+                    target = test_save / relative
+                    target.parent.mkdir(parents=True, exist_ok=True)
+                    if not target.exists(): shutil.copy2(entry, target)
+                    if entry.resolve() != target.resolve():
+                        entry.unlink(); entry.symlink_to(target)
+        else:
+            if location == root or game.is_relative_to(location):
+                raise ValueError('SAVEDIR cannot redirect the whole prefix or game for this test')
+            if location.is_symlink():
+                location.unlink()
+            elif location.exists():
+                shutil.copytree(location, test_save, symlinks=False, dirs_exist_ok=True)
+                shutil.rmtree(location)
+            location.parent.mkdir(parents=True, exist_ok=True)
+            location.symlink_to(test_save, target_is_directory=True)
+        rewrite_save_rules(root, '', '')
     if embedded.exists():
         shutil.rmtree(embedded)
 
@@ -394,6 +426,16 @@ def finish_game(manifest):
         shutil.rmtree(backup)
     data['game_backup_removed'] = True
     save_json(manifest, data)
+
+
+def rewrite_save_rules(prefix, savedir, savefiles):
+    text, _ = directives(prefix)
+    lines = [line for line in text.splitlines() if line.split('=', 1)[0].strip().upper() not in ('SAVEDIR', 'SAVEFILES')]
+    if savedir: lines.append('SAVEDIR=' + savedir)
+    if savefiles: lines.append('SAVEFILES=' + savefiles)
+    tmp = prefix / 'autorun.cmd.uwt-saves'
+    tmp.write_text('\n'.join(lines) + '\n', encoding='utf-8', errors='surrogateescape')
+    os.replace(tmp, prefix / 'autorun.cmd')
 
 
 def write_autorun(prefix, exe, savedir=None, savefiles=None):
@@ -445,7 +487,7 @@ def detach_saves(prefix, save):
                 raise ValueError(f'unresolved save link: {path}')
 
 
-def copy_config(conf, source, dest, backup_dir=None):
+def copy_config(conf, source, dest, backup_dir=None, preserve_existing=False):
     if any(c in source + dest for c in '\n\r=#"'):
         raise ValueError('unsupported ROM name in configuration')
     if not conf.exists():
@@ -454,6 +496,8 @@ def copy_config(conf, source, dest, backup_dir=None):
     old = f'windows["{source}"].'
     new = f'windows["{dest}"].'
     selected = [line.strip()[len(old):] for line in lines if line.lstrip().startswith(old)]
+    if preserve_existing and not selected:
+        selected = [line.strip()[len(new):] for line in lines if line.lstrip().startswith(new)]
     if backup_dir:
         backup_dir.mkdir(parents=True, exist_ok=True)
         backup = backup_dir / ('batocera.conf.update-' + datetime.now().strftime('%Y%m%d-%H%M%S-%f'))
@@ -534,10 +578,10 @@ def main():
     a.add_argument('prefix', type=Path); a.add_argument('save', type=Path)
     a = sp.add_parser('config')
     a.add_argument('conf', type=Path); a.add_argument('source'); a.add_argument('dest')
-    a.add_argument('--backup-dir', type=Path)
+    a.add_argument('--backup-dir', type=Path); a.add_argument('--preserve-existing', action='store_true')
     a = sp.add_parser('commit')
     a.add_argument('manifest', type=Path); a.add_argument('staged', type=Path); a.add_argument('--prepared-save', type=Path); a.add_argument('--replace', action='store_true')
-    for action in ('finish-game', 'restore-legacy', 'restore-custom', 'restore-scripts', 'stage-legacy', 'legacy-summary', 'exe', 'game-dir'):
+    for action in ('restore-save-rules', 'finish-game', 'restore-legacy', 'restore-custom', 'restore-scripts', 'stage-legacy', 'legacy-summary', 'exe', 'game-dir'):
         a = sp.add_parser(action)
         a.add_argument('prefix' if action in ('exe', 'game-dir') else 'manifest', type=Path)
     a = sp.add_parser('root-link')
@@ -555,7 +599,7 @@ def main():
         elif a.action == 'prepare': prepare(a.prefix, a.source, a.archive, a.save_root, a.manifest)
         elif a.action == 'autorun': write_autorun(a.prefix, a.exe, a.savedir, a.savefiles)
         elif a.action == 'detach': detach_saves(a.prefix, a.save)
-        elif a.action == 'config': print(copy_config(a.conf, a.source, a.dest, a.backup_dir))
+        elif a.action == 'config': print(copy_config(a.conf, a.source, a.dest, a.backup_dir, a.preserve_existing))
         elif a.action == 'commit': print(commit(a.manifest, a.staged, a.prepared_save, not a.replace))
         elif a.action == 'game-dir': print(game_directory(a.prefix).relative_to(a.prefix).as_posix())
         elif a.action == 'exe': print(launch_executable(a.prefix))
@@ -577,6 +621,22 @@ def main():
                 target = a.destination / child.name
                 if child.is_dir(): shutil.copytree(child, target, symlinks=False, dirs_exist_ok=True)
                 else: shutil.copy2(child, target)
+        elif a.action == 'restore-save-rules':
+            data = json.loads(a.manifest.read_text())
+            if data.get('same_rom_name'):
+                root = Path(data['prefix'])
+                location = root / relative_path(data.get('savedir', '.'))
+                test = Path(data['test_save'])
+                for pattern in data.get('savefiles', '').split(';'):
+                    if not pattern.strip(): continue
+                    relative_path(pattern)
+                    for entry in location.glob(pattern):
+                        if not entry.is_file(): continue
+                        target = test / entry.relative_to(location)
+                        if entry.resolve() != target.resolve():
+                            target.parent.mkdir(parents=True, exist_ok=True)
+                            shutil.copy2(entry, target)
+                rewrite_save_rules(root, data.get('savedir', ''), data.get('savefiles', ''))
         elif a.action == 'finish-game': finish_game(a.manifest)
         elif a.action == 'restore-custom':
             data = json.loads(a.manifest.read_text()); restore_legacy(Path(data['prefix']), a.manifest, 'custom')

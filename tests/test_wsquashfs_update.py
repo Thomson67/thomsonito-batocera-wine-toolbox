@@ -31,7 +31,7 @@ class UpdateTests(unittest.TestCase):
 
     def prepare(self):
         update.prepare(self.prefix, self.source, self.archive, self.saves, self.manifest)
-        return self.saves / self.prefix.stem
+        return Path(json.loads(self.manifest.read_text())['test_save'])
 
     def test_save_isolation_and_launch_arguments(self):
         save_link = self.prefix / 'drive_c/users/root/Saved'
@@ -426,5 +426,81 @@ wsq_update_select_source
 
     def test_shell_direct_replacement_keeps_save_transaction_arguments(self):
         self.test_shell_compression_failure_can_resume_without_touching_original_saves(final_mode='replace')
+
+    def test_stable_prefix_name_keeps_savedir_test_isolated(self):
+        new_prefix = self.base / 'Game.wine'
+        self.prefix.rename(new_prefix); self.prefix = new_prefix; self.game = new_prefix / 'drive_c/game'
+        update.prepare(self.prefix, self.source, self.archive, self.saves, self.manifest)
+        data = json.loads(self.manifest.read_text()); test_save = Path(data['test_save'])
+        self.assertNotEqual(test_save, self.original_save)
+        save_link = self.prefix / 'drive_c/users/root/Saved'
+        self.assertEqual(save_link.resolve(), test_save)
+        self.assertNotIn('SAVEDIR=', (self.prefix / 'autorun.cmd').read_text())
+        (save_link / 'slot').write_text('test progress')
+        self.assertEqual((self.original_save / 'slot').read_text(), 'original')
+        update.rewrite_save_rules(self.prefix, data['savedir'], data['savefiles'])
+        update.detach_saves(self.prefix, test_save)
+        self.assertIn('SAVEDIR=drive_c/users/root/Saved', (self.prefix / 'autorun.cmd').read_text())
+        self.assertFalse(save_link.is_symlink())
+
+    def test_stable_prefix_registry_rules_are_restored_after_testing(self):
+        new_prefix = self.base / 'Game.wine'
+        self.prefix.rename(new_prefix); self.prefix = new_prefix; self.game = new_prefix / 'drive_c/game'
+        (self.original_save / 'user.reg').write_text('original registry')
+        (self.prefix / 'user.reg').write_text('archive registry')
+        (self.prefix / 'autorun.cmd').write_text('DIR=drive_c/game\nCMD=old.exe\nSAVEDIR=.\nSAVEFILES=user.reg\n')
+        update.prepare(self.prefix, self.source, self.archive, self.saves, self.manifest)
+        data = json.loads(self.manifest.read_text()); test_save = Path(data['test_save'])
+        self.assertEqual((self.prefix / 'user.reg').resolve(), test_save / 'user.reg')
+        self.assertNotIn('SAVEFILES=', (self.prefix / 'autorun.cmd').read_text())
+        (self.prefix / 'user.reg').write_text('tested registry')
+        self.assertEqual((self.original_save / 'user.reg').read_text(), 'original registry')
+        subprocess.run([sys.executable, str(Path(update.__file__)), 'restore-save-rules', str(self.manifest)], check=True)
+        update.detach_saves(self.prefix, test_save)
+        self.assertFalse((self.prefix / 'user.reg').is_symlink())
+        self.assertIn('SAVEFILES=user.reg', (self.prefix / 'autorun.cmd').read_text())
+        self.assertEqual((self.prefix / 'user.reg').read_text(), 'tested registry')
+
+    def test_archive_settings_take_priority_and_wine_settings_are_fallback(self):
+        conf = self.base / 'batocera.conf'
+        conf.write_text('windows["Game.wsquashfs"].wine-runner=ArchiveRunner\nwindows["Game.wine"].wine-runner=OldWineRunner\nwindows["Game.wine"].hidraw=1\n')
+        self.assertEqual(update.copy_config(conf, 'Game.wsquashfs', 'Game.wine', preserve_existing=True), 'ArchiveRunner')
+        self.assertIn('windows["Game.wine"].wine-runner=ArchiveRunner', conf.read_text())
+        self.assertNotIn('windows["Game.wine"].hidraw=1', conf.read_text())
+        conf.write_text('windows["Game.wine"].wine-runner=OldWineRunner\nwindows["Game.wine"].hidraw=1\n')
+        self.assertEqual(update.copy_config(conf, 'Game.wsquashfs', 'Game.wine', preserve_existing=True), 'OldWineRunner')
+        self.assertIn('windows["Game.wine"].hidraw=1', conf.read_text())
+
+    def test_stable_prefix_target_collision_choices(self):
+        root = Path(__file__).resolve().parents[1]
+        target = self.base / 'Game.wine'
+        q = shlex.quote
+        setup = f"""
+WT_ROOT={q(str(root / 'toolbox'))}; WT_HOME={q(str(self.base))}
+source "$WT_ROOT/modules/wsquashfs.sh"
+i18n() {{ printf '%s' "$1"; }}
+msgbox() {{ :; }}
+menu_select() {{ printf '%s' "$CHOICE"; }}
+input_text() {{ printf 'Renamed'; }}
+wsq_update_prefix_target {q(str(self.archive))} {q(str(self.source))}
+"""
+        result = subprocess.run(['bash', '-c', setup], capture_output=True, text=True)
+        self.assertEqual(result.stdout.strip(), str(target))
+        target.mkdir(); (target / 'keep').write_text('untouched')
+        for choice, expected in [('replace', target), ('rename', self.base / 'Renamed.wine')]:
+            result = subprocess.run(['bash', '-c', setup], env=dict(os.environ, CHOICE=choice), capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(result.stdout.strip(), str(expected))
+            self.assertEqual((target / 'keep').read_text(), 'untouched')
+        result = subprocess.run(['bash', '-c', setup], env=dict(os.environ, CHOICE='cancel'), capture_output=True, text=True)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(result.stdout, '')
+
+    def test_shell_stable_prefix_restores_save_rules_before_final_archive(self):
+        new_prefix = self.base / 'Game.wine'
+        self.prefix.rename(new_prefix); self.prefix = new_prefix; self.game = new_prefix / 'drive_c/game'
+        self.test_shell_compression_failure_can_resume_without_touching_original_saves()
+        self.assertIn('SAVEDIR=drive_c/users/root/Saved', (self.prefix / 'autorun.cmd').read_text())
+        self.assertFalse((self.prefix / 'drive_c/users/root/Saved').is_symlink())
 
 if __name__ == '__main__': unittest.main()

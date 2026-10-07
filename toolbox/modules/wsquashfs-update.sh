@@ -101,6 +101,37 @@ wsq_update_select_source() {
     printf '%s\n' "$selected"
 }
 
+wsq_update_prefix_target() {
+    local archive="$1" source="$2" target="${1%.*}.wine" choice name source_real target_real
+    while [ -e "$target" ] || [ -L "$target" ]; do
+        choice="$(menu_select "$(i18n wsq_update_prefix_conflict_title)" \
+            "$(i18n wsq_update_prefix_conflict "$target")" \
+            replace "$(i18n wsq_update_prefix_replace)" \
+            rename "$(i18n wsq_update_prefix_rename)" \
+            cancel "$(i18n cancel)")" || return 1
+        case "$choice" in
+            replace)
+                source_real="$(readlink -f -- "$source")" || return 1
+                target_real="$(readlink -f -- "$target")" || return 1
+                case "$source_real" in
+                    "$target_real"|"$target_real"/*)
+                        msgbox "$(i18n wsq_update_title)" "$(i18n wsq_update_prefix_source_overlap)"; continue ;;
+                esac
+                [ -d "$target" ] && [ ! -L "$target" ] || {
+                    msgbox "$(i18n wsq_update_title)" "$(i18n wsq_source_invalid "$target")"; continue
+                }
+                break ;;
+            rename)
+                name="$(input_text "$(i18n wsq_update_prefix_conflict_title)" "$(i18n wsq_update_prefix_name_prompt)" "$(basename "${archive%.*}")-update.wine")" || continue
+                case "$name" in ''|.|..|*/*|*$'\n'*|*$'\r'*|*$'\t'*) continue ;; esac
+                [ "${name: -5}" = .wine ] || name="$name.wine"
+                target="$(dirname "$archive")/$name" ;;
+            *) return 1 ;;
+        esac
+    done
+    printf '%s\n' "$target"
+}
+
 wsq_update_new() {
     wsq_pending_guard || return
     local archive source prefix game_name exe_rel runner snapshot metadata log choice idx=1 rows="" path stamp matched label
@@ -130,10 +161,14 @@ wsq_update_new() {
     }
     game_name="$(basename "$archive")"; game_name="${game_name%.*}"
     stamp="$(date '+%Y%m%d-%H%M%S')-$$"
-    prefix="$(dirname "$archive")/${game_name}.update-${stamp}.wine"
-    [ ! -e "$prefix" ] && [ ! -L "$prefix" ] || return
+    prefix="$(wsq_update_prefix_target "$archive" "$source")" || return
     yesno_default_no "$(i18n wsq_update_title)" \
         "$(i18n wsq_update_confirm "$(wsq_display_path "$archive")" "$(wsq_display_path "$source")" "$(wsq_display_path "$prefix")")" || return
+    if [ -e "$prefix" ]; then
+        maintenance_delete_wine_dir_symlink_safe "$prefix" || {
+            msgbox "$(i18n wsq_update_title)" "$(i18n wsq_source_invalid "$prefix")"; return
+        }
+    fi
     mkdir -p "$WSQ_STATE_DIR" "$WT_LOG_DIR" || return
     metadata="$WSQ_STATE_DIR/wsquashfs-update-$stamp.json"
     log="$WT_LOG_DIR/wsquashfs-integrity-update-$stamp.log"
@@ -154,7 +189,7 @@ wsq_update_new() {
         msgbox "$(i18n wsq_update_title)" "$(i18n wsq_update_failed "$prefix" "$log")"; return
     }
     runner="$(python3 "$WSQ_UPDATE_HELPER" config "$WSQ_CONF" "$(basename "$archive")" "$(basename "$prefix")" \
-        --backup-dir "$WSQ_STATE_DIR/config-backups" 2>> "$log")" || {
+        --backup-dir "$WSQ_STATE_DIR/config-backups" --preserve-existing 2>> "$log")" || {
         msgbox "$(i18n wsq_update_title)" "$(i18n wsq_update_failed "$prefix" "$log")"; return
     }
     if [ "$(python3 "$WSQ_UPDATE_HELPER" root-link "$metadata")" = True ]; then
@@ -273,6 +308,7 @@ wsq_resume_update() {
                 python3 "$WSQ_UPDATE_HELPER" restore-legacy "$metadata" >> "$log" 2>&1 || return
                 ;;
             existing)
+                python3 "$WSQ_UPDATE_HELPER" restore-save-rules "$metadata" >> "$log" 2>&1 || return
                 python3 "$WSQ_UPDATE_HELPER" stage-legacy "$metadata" >> "$log" 2>&1 || return
                 # A test uses its own copy; never empty existing saves because
                 # the new version failed to produce any data.

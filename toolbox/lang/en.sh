@@ -572,4 +572,12 @@ declare -gA I18N=(
   [wsq_update_done_replace]="Update complete, WSquashFS replaced:\\n%s\\n\\nWorking prefix:\\n%s\\nRetained test save copy:\\n%s"
 
 
+  [wsq_update_prefix_conflict_title]="Test Wine directory already exists"
+  [wsq_update_prefix_conflict]="The test directory already exists:\\n%s\\n\\nReplace it, choose another name for the new prefix, or quit. WSquashFS ES settings take priority; otherwise existing Wine directory settings are reused."
+  [wsq_update_prefix_replace]="Replace the existing Wine directory"
+  [wsq_update_prefix_rename]="Choose another name for the Wine prefix"
+  [wsq_update_prefix_name_prompt]="New test directory name (.wine is added if needed)."
+  [wsq_update_prefix_source_overlap]="The updated game source is inside this prefix. Choose another prefix name to preserve the source during extraction."
+
+
 )
