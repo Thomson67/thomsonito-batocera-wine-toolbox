@@ -236,9 +236,8 @@ PY
 
 runner_choose_release() {
     local source="$1" title="$2"
-    local rows="" tag name url size extra expected state choice
+    local rows="" choice
     local -a items=()
-    local idx=1
 
     case "$source" in
         kron4ek-vanilla) rows="$(runner_release_rows_kron4ek vanilla)" || true ;;
@@ -252,19 +251,42 @@ runner_choose_release() {
         return 1
     fi
 
-    while IFS=$'\t' read -r tag name url size extra; do
-        [ -n "$tag" ] || continue
-        state=""
-        expected="${name%.tar.xz}"
-        expected="${expected%.tar.gz}"
-        local legacy_expected="$expected"
-        expected="$(runner_normalized_name "$expected")"
-        if runner_installed "$expected" || runner_installed "$legacy_expected"; then
-            state=" | $(i18n installed)"
-        fi
-        items+=("$idx" "$expected | $(human_bytes "$size")$state")
-        idx=$((idx+1))
-    done <<< "$rows"
+    # Format the entire menu in one process: large release lists must not
+    # spawn a Python interpreter for every name and every size.
+    mapfile -d '' -t items < <(
+        python3 - "$WT_ROOT/helpers" "$BATOCERA_CUSTOM_WINE" "$(i18n installed)" 3<<< "$rows" <<'PY'
+import os
+import sys
+from pathlib import Path
+
+sys.path.insert(0, sys.argv[1])
+from runner_names import canonical
+
+root = Path(sys.argv[2])
+installed_label = sys.argv[3]
+for index, line in enumerate(os.fdopen(3), 1):
+    fields = line.rstrip("\n").split("\t")
+    if len(fields) < 4 or not fields[0]:
+        continue
+    legacy = fields[1]
+    for suffix in (".tar.xz", ".tar.gz"):
+        if legacy.endswith(suffix):
+            legacy = legacy[:-len(suffix)]
+    name = canonical(legacy)
+    size = float(fields[3])
+    for unit in ("B", "KiB", "MiB", "GiB", "TiB"):
+        if size < 1024 or unit == "TiB":
+            readable = f"{int(size)} B" if unit == "B" else f"{size:.1f} {unit}"
+            break
+        size /= 1024
+    state = f" | {installed_label}" if (root / name).is_dir() or (root / legacy).is_dir() else ""
+    sys.stdout.write(f"{index}\0{name} | {readable}{state}\0")
+PY
+    )
+    if [ "${#items[@]}" -eq 0 ]; then
+        msgbox "$title" "$(i18n runner_fetch_failed)"
+        return 1
+    fi
 
     choice="$(menu_select "$title" "$(i18n runner_choose_version)" "${items[@]}" "0" "$(i18n back)")" || return 1
     [ "$choice" != "0" ] && [ -n "$choice" ] || return 1
