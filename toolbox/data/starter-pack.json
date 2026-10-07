@@ -1,24 +1,19 @@
 {
   "schema_version": 1,
-  "name": "Wine Runner Starter Pack",
+  "name": "Thomsonito Runner Starter Pack",
   "version": "2026.10",
-  "description": "Recommended classic Wine runners for Batocera plus a small UMU baseline delegated to UMU Runner Toolbox.",
+  "description": "Recommended classic Wine runners for Batocera. Proton/UMU runners are managed separately by UMU Runner Toolbox.",
   "classic_runner_ids": [
-    "ge-custom-v40",
-    "wine-10.0-amd64",
-    "wine-11.17-amd64-wow64",
-    "wine-11.5-amd64-wow64",
-    "wine-9.17-amd64",
-    "wine-proton-9.0-4-amd64",
-    "wine-proton-exp-10.0-amd64",
-    "wine-tkg-10.17-amd64",
-    "wine-tkg-11.5-amd64-wow64",
-    "wine-tkg-v41"
+    "GE-Custom-v40",
+    "Vanilla-10.0",
+    "Vanilla-11.17",
+    "Vanilla-11.5",
+    "Vanilla-9.17",
+    "Vanilla-Proton-9.0-4",
+    "Vanilla-Proton-exp-10.0",
+    "TKG-10.17",
+    "TKG-11.5",
+    "TKG-v41"
   ],
-  "umu_runner_ids": [
-    "GE-Proton9-27-UMU",
-    "GE-Proton10-10-UMU",
-    "GE-Proton10-25-UMU",
-    "proton-EM-10.0-37-HDR-UMU"
-  ]
+  "umu_runner_ids": []
 }
