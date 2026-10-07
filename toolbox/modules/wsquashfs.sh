@@ -1355,6 +1355,82 @@ wsq_templates_info() {
     msgbox "$(i18n wsq_templates_title)" "$(i18n wsq_templates_info "$WSQ_TEMPLATES_DIR")"
 }
 
+wsq_integrity_check() {
+    local mode selected rows="" path id idx=1 log work cancel pid rc start elapsed choice result=""
+    local -a items=()
+    command -v unsquashfs >/dev/null 2>&1 || {
+        msgbox "$(i18n wsq_integrity_title)" "$(i18n squash_tools_missing)"
+        return
+    }
+    while IFS= read -r path; do
+        [ -n "$path" ] || continue
+        items+=("$idx" "$(basename "$path")" off)
+        rows+="$path"$'\n'
+        idx=$((idx+1))
+    done < <(find "$WSQ_WINDOWS_DIR" -mindepth 1 -maxdepth 1 -type f -iname '*.wsquashfs' -print 2>/dev/null | sort -f)
+    [ "${#items[@]}" -gt 0 ] || {
+        msgbox "$(i18n wsq_integrity_title)" "$(i18n squash_no_wsquashfs)"
+        return
+    }
+    selected="$(checklist_select "$(i18n wsq_integrity_title)" "$(i18n wsq_integrity_select)" "${items[@]}")" || return
+    [ -n "$selected" ] || return
+    mode="$(menu_select "$(i18n wsq_integrity_title)" "$(i18n wsq_integrity_modes)" \
+        full "$(i18n wsq_integrity_full)" quick "$(i18n wsq_integrity_quick)" 0 "$(i18n cancel)")" || return
+    case "$mode" in full|quick) ;; *) return ;; esac
+    mkdir -p "$WT_LOG_DIR" || return
+    work="$(mktemp -d /tmp/uwt-integrity.XXXXXX)" || return
+    cancel="$work/cancel"
+    log="$(mktemp "$WT_LOG_DIR/wsquashfs-integrity-$(date +%Y%m%d-%H%M%S)-XXXXXX.log")" || { rm -rf -- "$work"; return; }
+    idx=0
+    while IFS= read -r id; do
+        case "$id" in ''|*[!0-9]*) continue ;; esac
+        path="$(sed -n "${id}p" <<< "$rows")"
+        [ -n "$path" ] || continue
+        idx=$((idx+1))
+        start=$SECONDS
+        python3 "$WT_ROOT/helpers/wsquashfs_integrity.py" "$mode" "$path" "$log" "$cancel" &
+        pid=$!
+        while kill -0 "$pid" 2>/dev/null; do
+            elapsed=$((SECONDS-start))
+            if have_dialog; then
+                dialog --clear --no-shadow --ok-label "$(i18n wsq_integrity_wait)" --cancel-label "$(i18n cancel)" \
+                    --title "$(i18n wsq_integrity_title)" \
+                    --pause "$(i18n wsq_integrity_running "$idx" "$(basename "$path")" "$elapsed")" 14 96 1
+                rc=$?
+                if [ "$rc" -ne 0 ]; then
+                    touch "$cancel"
+                    break
+                fi
+            else
+                printf '%s\n' "$(i18n wsq_integrity_running "$idx" "$(basename "$path")" "$elapsed")"
+                sleep 1
+            fi
+        done
+        wait "$pid"
+        rc=$?
+        if [ -e "$cancel" ]; then
+            result+="$(basename "$path") : $(i18n wsq_integrity_cancelled)"$'\n'
+            break
+        fi
+        case "$rc" in
+            0) choice="$(i18n wsq_integrity_ok)" ;;
+            3) choice="$(i18n wsq_integrity_unsupported)" ;;
+            *) choice="$(i18n wsq_integrity_error)" ;;
+        esac
+        result+="$(basename "$path") : $choice"$'\n'
+    done <<< "$selected"
+    rm -rf -- "$work"
+    printf '\n%s\n' "$result" >> "$log"
+    msgbox "$(i18n wsq_integrity_title)" "$(i18n wsq_integrity_result "$result" "$log")"
+    if yesno "$(i18n wsq_integrity_title)" "$(i18n wsq_integrity_view_log)"; then
+        if have_dialog; then
+            dialog --clear --no-shadow --exit-label "$(i18n back)" --title "$(i18n wsq_integrity_title)" --textbox "$log" 24 100
+        else
+            cat -- "$log"
+        fi
+    fi
+}
+
 wsquashfs_menu() {
     while true; do
         local choice pending=""
@@ -1365,6 +1441,7 @@ wsquashfs_menu() {
             "3" "$(i18n squash_wine)" \
             "4" "$(i18n unsquash_wine)" \
             "5" "$(i18n wsq_templates_title)" \
+            "6" "$(i18n wsq_integrity_title)" \
             "0" "$(i18n back)")" || return
 
         case "$choice" in
@@ -1373,6 +1450,7 @@ wsquashfs_menu() {
             3) maintenance_select_and_squash ;;
             4) maintenance_select_and_unsquash ;;
             5) wsq_templates_info ;;
+            6) wsq_integrity_check ;;
             0|"") return ;;
         esac
     done
