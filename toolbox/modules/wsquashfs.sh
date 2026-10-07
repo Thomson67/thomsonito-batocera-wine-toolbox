@@ -515,6 +515,7 @@ wsq_restart_emulationstation_deferred() {
 
 wsq_request_game_launch() {
     local rom="$1"
+    python3 "$WSQ_UPDATE_HELPER" profiles "$rom" >> "${WT_SESSION_LOG:-/dev/null}" 2>&1 || return 1
     mkdir -p "$WSQ_STATE_DIR"
     rm -f -- "$WSQ_STATE_DIR/wsq-launch-result"
     printf '%s\n' "$rom" > "$WSQ_STATE_DIR/launch-game.request"

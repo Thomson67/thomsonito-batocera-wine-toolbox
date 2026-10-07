@@ -33,6 +33,38 @@ class UpdateTests(unittest.TestCase):
         update.prepare(self.prefix, self.source, self.archive, self.saves, self.manifest)
         return Path(json.loads(self.manifest.read_text())['test_save'])
 
+    def test_root_alias_keeps_steamuser_without_merging(self):
+        users = self.prefix / 'drive_c/users'
+        root = users / 'root'; root.mkdir(parents=True)
+        steam = users / 'steamuser'; steam.mkdir()
+        (root / 'duplicate').write_text('old')
+        kept = steam / 'profile'; kept.write_text('steam')
+        inode = kept.stat().st_ino
+        external = self.base / 'external'; external.mkdir()
+        (external / 'slot').write_text('save')
+        (root / 'save').symlink_to(external)
+        update.ensure_root_alias(self.prefix)
+        self.assertEqual(os.readlink(root), 'steamuser')
+        self.assertEqual(kept.stat().st_ino, inode)
+        self.assertFalse((steam / 'duplicate').exists())
+        self.assertEqual((external / 'slot').read_text(), 'save')
+        update.ensure_root_alias(self.prefix)
+        self.assertEqual(kept.stat().st_ino, inode)
+
+    def test_root_only_profile_is_renamed_without_copy(self):
+        root = self.prefix / 'drive_c/users/root'; root.mkdir(parents=True)
+        file = root / 'profile'; file.write_text('profile')
+        inode = file.stat().st_ino
+        update.ensure_root_alias(self.prefix)
+        self.assertEqual(os.readlink(root), 'steamuser')
+        self.assertEqual(file.stat().st_ino, inode)
+
+    def test_missing_profiles_are_created(self):
+        update.ensure_root_alias(self.prefix)
+        users = self.prefix / 'drive_c/users'
+        self.assertEqual(os.readlink(users / 'root'), 'steamuser')
+        self.assertTrue((users / 'steamuser').is_dir())
+
     def test_save_isolation_and_launch_arguments(self):
         save_link = self.prefix / 'drive_c/users/root/Saved'
         save_link.parent.mkdir(parents=True); save_link.symlink_to(self.original_save)
@@ -216,7 +248,7 @@ wsq_resume_build
         self.assertEqual((self.original_save / 'slot').read_text(), 'original')
         self.assertTrue(list(self.saves.glob('NameFromStartBat.backup-*')))
 
-    def test_root_link_and_batch_paths_use_an_isolated_view(self):
+    def test_root_link_and_batch_paths_are_preserved(self):
         (self.prefix / 'autorun.cmd').write_text('DIR=drive_c/game\nCMD="start.bat"\n')
         custom = self.saves / 'GameCreatedName'; custom.mkdir()
         (custom / 'slot').write_text('old progress')
@@ -226,10 +258,11 @@ wsq_resume_build
         (self.game / 'start.bat').write_text(batch)
         link = self.game / 'shared'; link.symlink_to(self.saves)
         test_save = self.prepare()
-        shared = test_save / '.legacy-shared'
+        shared = self.saves
         self.assertEqual(link.resolve(), shared)
         self.assertEqual((shared / 'GameCreatedName/slot').read_text(), 'old progress')
-        self.assertFalse((shared / 'UnrelatedGame').exists())
+        self.assertTrue((shared / 'UnrelatedGame').exists())
+        self.assertFalse((test_save / '.legacy-shared').exists())
         self.assertIn(str(shared), (self.game / 'start.bat').read_text())
         (shared / 'GameCreatedName/slot').write_text('new progress')
         (shared / 'EngineCreatedName').mkdir()
@@ -293,7 +326,7 @@ wsq_resume_build
         for user in ('root', 'steamuser'):
             link = self.prefix / f'drive_c/users/{user}/AppData/LocalLow/The Gentlebros Pte_ Ltd_'
             link.parent.mkdir(parents=True); link.symlink_to(self.saves); links.append(link)
-        test_save = self.prepare(); shared = test_save / '.legacy-shared'
+        test_save = self.prepare(); shared = self.saves
         self.assertEqual(update.game_directory(self.prefix), game)
         self.assertEqual(update.launch_executable(self.prefix), 'drive_c/Cat Quest/Cat Quest.exe')
         for link in links: self.assertEqual(link.resolve(), shared)

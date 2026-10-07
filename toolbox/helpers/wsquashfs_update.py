@@ -39,6 +39,30 @@ def update_listing(directory, kind, preferred=''):
     return sorted(rows, key=lambda row: (not row[1], Path(row[0]).name.casefold(), row[0]))
 
 
+def ensure_root_alias(prefix):
+    root = prefix.resolve(strict=True)
+    users = root / 'drive_c/users'
+    if not users.resolve().is_relative_to(root):
+        raise ValueError('Wine users directory escapes the prefix')
+    users.mkdir(parents=True, exist_ok=True)
+    steam = users / 'steamuser'
+    alias = users / 'root'
+    if steam.is_symlink() or (steam.exists() and not steam.is_dir()):
+        raise ValueError('steamuser must be an internal real directory')
+    if alias.is_symlink() and alias.resolve() == steam.resolve():
+        steam.mkdir(exist_ok=True)
+        return
+    if not steam.exists() and alias.is_dir() and not alias.is_symlink():
+        alias.rename(steam)  # No copy is needed if only root exists.
+    else:
+        steam.mkdir(exist_ok=True)
+        if alias.is_symlink() or alias.is_file():
+            alias.unlink()
+        elif alias.exists():
+            shutil.rmtree(alias)  # Do not follow save links inside the old profile.
+    alias.symlink_to('steamuser', target_is_directory=True)
+
+
 def signature(path):
     st = path.stat()
     return [st.st_dev, st.st_ino, st.st_size, st.st_mtime_ns]
@@ -165,6 +189,13 @@ def save_links(prefix, save_root):
 
 def custom_links(data):
     savedir = relative_path(data['savedir']) if data.get('savedir') else None
+    if savedir is not None:
+        prefix = Path(data['prefix']).resolve()
+        profile = prefix / 'drive_c/users/root'
+        if profile.is_symlink() and profile.resolve() == prefix / 'drive_c/users/steamuser':
+            parts = savedir.parts
+            if parts[:3] == ('drive_c', 'users', 'root'):
+                savedir = Path('drive_c/users/steamuser', *parts[3:])
     patterns = data.get('savefiles', '').split(';')
     result = []
     for link in data.get('save_links', []):
@@ -236,6 +267,7 @@ def prepare(prefix, source, archive, save_root, manifest):
     if prefix.is_symlink() or not prefix.is_dir():
         raise ValueError('working prefix must be a real directory')
     root = prefix.resolve()
+    ensure_root_alias(root)
     game = game_directory(root)
     if (root / 'drive_c').is_symlink() or not game.is_dir() or game.is_symlink():
         raise ValueError('archive must contain an internal game directory')
@@ -320,7 +352,9 @@ def prepare(prefix, source, archive, save_root, manifest):
     for link in links:
         target = Path(link['target'])
         path = root / link['path']
-        if savedir is not None and target.is_relative_to(original_save.resolve()):
+        if target == save_root.resolve():
+            replacement = Path(link['original'])
+        elif savedir is not None and target.is_relative_to(original_save.resolve()):
             replacement = test_save / target.relative_to(original_save.resolve())
         else:
             relative = target.relative_to(save_root.resolve())
@@ -345,7 +379,7 @@ def prepare(prefix, source, archive, save_root, manifest):
         path.symlink_to(replacement, target_is_directory=link['directory'])
     # Literal save-root references in batch launchers must use the same test view.
     # No command is executed or arbitrary batch expression evaluated here.
-    if links and savedir is None:
+    if links and savedir is None and not any(Path(link['target']) == save_root.resolve() for link in links):
         shared.mkdir(parents=True, exist_ok=True)
         replacements = [(str(save_root), str(shared)),
                         (str(save_root).replace('/', '\\'), str(shared).replace('/', '\\'))]
@@ -581,9 +615,9 @@ def main():
     a.add_argument('--backup-dir', type=Path); a.add_argument('--preserve-existing', action='store_true')
     a = sp.add_parser('commit')
     a.add_argument('manifest', type=Path); a.add_argument('staged', type=Path); a.add_argument('--prepared-save', type=Path); a.add_argument('--replace', action='store_true')
-    for action in ('restore-save-rules', 'finish-game', 'restore-legacy', 'restore-custom', 'restore-scripts', 'stage-legacy', 'legacy-summary', 'exe', 'game-dir'):
+    for action in ('profiles', 'restore-save-rules', 'finish-game', 'restore-legacy', 'restore-custom', 'restore-scripts', 'stage-legacy', 'legacy-summary', 'exe', 'game-dir'):
         a = sp.add_parser(action)
-        a.add_argument('prefix' if action in ('exe', 'game-dir') else 'manifest', type=Path)
+        a.add_argument('prefix' if action in ('exe', 'game-dir', 'profiles') else 'manifest', type=Path)
     a = sp.add_parser('root-link')
     a.add_argument('manifest', type=Path)
     a = sp.add_parser('seed-legacy')
@@ -602,6 +636,7 @@ def main():
         elif a.action == 'config': print(copy_config(a.conf, a.source, a.dest, a.backup_dir, a.preserve_existing))
         elif a.action == 'commit': print(commit(a.manifest, a.staged, a.prepared_save, not a.replace))
         elif a.action == 'game-dir': print(game_directory(a.prefix).relative_to(a.prefix).as_posix())
+        elif a.action == 'profiles': ensure_root_alias(a.prefix)
         elif a.action == 'exe': print(launch_executable(a.prefix))
         elif a.action == 'root-link':
             data = json.loads(a.manifest.read_text())

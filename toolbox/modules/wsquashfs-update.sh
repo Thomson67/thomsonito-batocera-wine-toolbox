@@ -192,25 +192,6 @@ wsq_update_new() {
         --backup-dir "$WSQ_STATE_DIR/config-backups" --preserve-existing 2>> "$log")" || {
         msgbox "$(i18n wsq_update_title)" "$(i18n wsq_update_failed "$prefix" "$log")"; return
     }
-    if [ "$(python3 "$WSQ_UPDATE_HELPER" root-link "$metadata")" = True ]; then
-        while true; do
-            choice="$(menu_select "$(i18n wsq_update_save_title)" "$(i18n wsq_update_root_prompt)" \
-                continue "$(i18n wsq_update_root_continue)" \
-                copy "$(i18n wsq_update_root_copy)")" || return
-            [ "$choice" != continue ] || break
-            [ "$choice" = copy ] || return
-            if command -v yad >/dev/null 2>&1; then
-                path="$(DISPLAY="${DISPLAY:-:0}" yad --file-selection --directory --filename="$WSQ_SAVE_ROOT/" \
-                    --title="$(i18n wsq_update_root_copy)" --width=1000 --height=700)" || continue
-            else
-                path="$(input_text "$(i18n wsq_update_root_copy)" "$(i18n wsq_update_root_prompt)" "$WSQ_SAVE_ROOT/")" || continue
-            fi
-            if ! wsq_update_run "$(i18n wsq_update_title)" "$(i18n wsq_update_copy)" "$log" \
-                python3 "$WSQ_UPDATE_HELPER" seed-legacy "$metadata" "$path"; then
-                msgbox "$(i18n wsq_update_title)" "$(i18n wsq_update_failed "$prefix" "$log")"
-            fi
-        done
-    fi
     snapshot="$WSQ_STATE_DIR/wsquashfs-before-$stamp.json"
     python3 "$WSQ_HELPER" snapshot "$prefix" "$snapshot" >> "$log" 2>&1 || {
         msgbox "$(i18n wsq_update_title)" "$(i18n wsq_update_failed "$prefix" "$log")"; return
