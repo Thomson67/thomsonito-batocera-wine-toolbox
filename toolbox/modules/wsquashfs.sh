@@ -55,7 +55,7 @@ wsq_select_source_game() {
         return 1
     fi
 
-    choice="$(menu_select "$(i18n wsq_create_title)" "$(i18n wsq_credit)\n\n$(i18n wsq_version_warning)\n\n$(i18n wsq_source_prompt)" "${items[@]}")" || return 1
+    choice="$(menu_select "$(i18n wsq_create_title)" "$(i18n wsq_credit)\n\n$(i18n wsq_create_purpose)\n\n$(i18n wsq_version_warning)\n\n$(i18n wsq_source_prompt)" "${items[@]}")" || return 1
     sed -n "${choice}p" <<< "$rows"
 }
 
@@ -1456,6 +1456,19 @@ wsq_integrity_check() {
     fi
 }
 
+wsq_creation_documentation() {
+    local document
+    document="$(mktemp /tmp/uwt-wsquashfs-guide.XXXXXX)" || return
+    printf '%b\n' "$(i18n wsq_creation_guide)" > "$document"
+    if have_dialog; then
+        dialog --clear --no-shadow --exit-label "$(i18n back)" \
+            --title "$(i18n wsq_creation_documentation)" --textbox "$document" 24 100
+    else
+        cat -- "$document"
+    fi
+    rm -f -- "$document"
+}
+
 wsquashfs_menu() {
     while true; do
         local choice pending=""
@@ -1467,6 +1480,7 @@ wsquashfs_menu() {
             "4" "$(i18n unsquash_wine)" \
             "5" "$(i18n wsq_templates_title)" \
             "6" "$(i18n wsq_integrity_title)" \
+            "7" "$(i18n wsq_creation_documentation)" \
             "0" "$(i18n back)")" || return
 
         case "$choice" in
@@ -1476,6 +1490,7 @@ wsquashfs_menu() {
             4) maintenance_select_and_unsquash ;;
             5) wsq_templates_info ;;
             6) wsq_integrity_check ;;
+            7) wsq_creation_documentation ;;
             0|"") return ;;
         esac
     done
