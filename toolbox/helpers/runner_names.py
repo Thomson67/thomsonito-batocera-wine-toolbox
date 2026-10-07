@@ -17,6 +17,9 @@ def canonical(name):
     match = re.fullmatch(r'GE-Proton-?(\d+)-(\d+)(-UMU)?', name, re.I)
     if match:
         return f'GE-Proton-{match[1]}-{match[2]}{match[3] or ""}'
+    match = re.fullmatch(r'wine-proton-(exp-)?(\d+(?:[.-]\d+)*)-amd64(?:-wow64)?', name, re.I)
+    if match:
+        return f'Vanilla-Proton-{match[1] or ""}{match[2]}'
     for pattern, family in (
         (r'wine-(\d+(?:\.\d+)+)-staging-tkg-amd64(?:-wow64)?', 'TKG'),
         (r'wine-tkg-(\d+(?:\.\d+)+)-amd64(?:-wow64)?', 'TKG'),

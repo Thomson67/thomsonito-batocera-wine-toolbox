@@ -379,6 +379,7 @@ runner_family_label() {
         *-UMU) printf '%s' "UMU" ;;
         GE-Proton*) printf '%s' "GE-Proton" ;;
         TKG-*|wine-*-staging-tkg-amd64-wow64|wine-*-staging-tkg-amd64|wine-tkg-*) printf '%s' "Kron4ek TKG" ;;
+        Vanilla-Proton-*|wine-proton-*-amd64-wow64|wine-proton-*-amd64) printf '%s' "Kron4ek Proton" ;;
         Vanilla-*|wine-*-amd64-wow64|wine-*-amd64) printf '%s' "Kron4ek Vanilla" ;;
         *) printf '%s' "$(i18n runner_other_family)" ;;
     esac
