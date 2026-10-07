@@ -103,9 +103,15 @@ wt_update_install_tag() {
         }
     done < <(find "$root" -type f -name '*.sh' -print)
 
-    python3 -m py_compile "$root/toolbox/helpers/batocera_conf_transfer.py" || {
+    if ! python3 - "$root/toolbox" <<'PYTHON'
+from pathlib import Path
+import sys
+for path in Path(sys.argv[1]).rglob("*.py"):
+    compile(path.read_bytes(), str(path), "exec")
+PYTHON
+    then
         rm -rf "$tmp"; msgbox "$(i18n update_title)" "$(i18n update_package_invalid)"; return 1;
-    }
+    fi
 
     backup="$(wt_update_backup_current "$current")" || {
         rm -rf "$tmp"; msgbox "$(i18n update_title)" "$(i18n update_backup_failed)"; return 1;

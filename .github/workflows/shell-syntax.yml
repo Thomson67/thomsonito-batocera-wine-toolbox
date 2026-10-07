@@ -1,53 +1,15 @@
-name: Shell syntax check
+name: Source and regression checks
 
 on:
   push:
-    branches:
-      - test
-    paths:
-      - 'toolbox/modules/wsquashfs.sh'
-      - 'toolbox/lib/common.sh'
-      - 'toolbox/lib/download.sh'
-      - 'toolbox/lang/fr.sh'
-      - 'toolbox/lang/en.sh'
-      - '.github/workflows/shell-syntax.yml'
+    branches: [test, main]
+    paths: ['**.sh', '**.py', 'VERSION', '.github/workflows/**']
   pull_request:
-    paths:
-      - 'toolbox/modules/wsquashfs.sh'
-      - 'toolbox/lib/common.sh'
-      - 'toolbox/lib/download.sh'
-      - 'toolbox/lang/fr.sh'
-      - 'toolbox/lang/en.sh'
-      - '.github/workflows/shell-syntax.yml'
   workflow_dispatch:
 
 jobs:
-  wsquashfs:
+  checks:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: bash -n toolbox/modules/wsquashfs.sh
-
-  common:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - run: bash -n toolbox/lib/common.sh
-
-  download:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - run: bash -n toolbox/lib/download.sh
-
-  lang-fr:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - run: bash -n toolbox/lang/fr.sh
-
-  lang-en:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - run: bash -n toolbox/lang/en.sh
+      - run: python3 -m unittest discover -s tests -v
