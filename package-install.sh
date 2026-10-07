@@ -75,7 +75,7 @@ rm -rf -- "$OLD_DEST" "$OLD_LOG_DIR" "$OLD_BACKUP_DIR"
 
 rm -f -- "$OLD_PORT" "$OLD_PORT.keys" "$OLD_MANGOHUD_HOOK" "$OLD_DXVK_HOOK"
 
-mkdir -p "$DEST" "$PORTS" "$SCRIPTS" "$LOG_DIR" "$BACKUP_DIR"
+mkdir -p "$DEST" "$DEST/templates" "$PORTS" "$SCRIPTS" "$LOG_DIR" "$BACKUP_DIR"
 rm -rf "$DEST/toolbox"
 cp -a "$SRC/toolbox" "$DEST/toolbox"
 cp -a "$SRC/VERSION" "$DEST/VERSION"

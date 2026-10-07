@@ -5,8 +5,10 @@ RUNNERS_DATA="$WT_ROOT/data/runners.json"
 STARTER_STAGE="$WT_HOME/staging/starter-pack"
 
 starter_status_tsv() {
-    python3 - "$STARTER_DATA" "$RUNNERS_DATA" <<'PY'
+    python3 - "$STARTER_DATA" "$RUNNERS_DATA" "$WT_ROOT/helpers" <<'PY'
 import json, os, sys
+sys.path.insert(0, sys.argv[3])
+from runner_names import canonical
 starter=json.load(open(sys.argv[1], encoding="utf-8"))
 catalog=json.load(open(sys.argv[2], encoding="utf-8"))
 byid={r["id"]:r for r in catalog["runners"]}
@@ -15,13 +17,14 @@ install_path=catalog.get("install_path","/userdata/system/wine/custom")
 print("META\t"+starter["version"]+"\t"+install_path)
 for rid in starter["classic_runner_ids"]:
     r=byid[rid]
-    target=os.path.join(install_path, r["name"])
-    state="installed" if os.path.isdir(target) else "missing"
+    target=os.path.join(install_path, canonical(r["name"]))
+    legacy_target=os.path.join(install_path, r.get("legacy_id", r["id"]))
+    state="installed" if os.path.isdir(target) or os.path.isdir(legacy_target) else "missing"
     print("CLASSIC\t%s\t%s\t%s\t%s\t%s\t%s\t%s" % (
-        rid, r["name"], state, r["file"], r["size_bytes"], r["download_url"], r["sha256"]
+        rid, canonical(r["name"]), state, r["file"], r["size_bytes"], r["download_url"], r["sha256"]
     ))
 for rid in starter.get("umu_runner_ids", []):
-    target=os.path.join("/userdata/system/wine/custom", rid)
+    target=os.path.join("/userdata/system/wine/custom", canonical(rid))
     state="installed" if os.path.isdir(target) else "missing"
     print("UMU\t%s\t%s" % (rid, state))
 PY
@@ -114,7 +117,7 @@ install_classic_runner_row() {
 install_starter_tokens() {
     local selected="$1" failures=0 selected_classic_download=0
     local kind id name state file size url sha token
-    local need_umu=0 selected_count=0 free estimate
+    local need_umu=0 selected_count=0 umu_selected_count=0 umu_mode="" free estimate
 
     [ -n "$selected" ] || return 0
 
@@ -132,11 +135,12 @@ install_starter_tokens() {
                     break
                 done <<< "$(starter_status_tsv)"
                 ;;
-            UMU:*) need_umu=1 ;;
+            UMU:*) need_umu=1; umu_selected_count=$((umu_selected_count+1)) ;;
         esac
     done <<< "$selected"
 
     [ "$selected_count" -gt 0 ] || return 0
+    [ "$umu_selected_count" -le 1 ] || umu_mode=batch
 
     estimate=$(( selected_classic_download * 4 + 536870912 ))
     free="$(free_bytes_userdata)"
@@ -170,7 +174,7 @@ install_starter_tokens() {
             UMU:*)
                 id="${token#UMU:}"
                 if [ "$need_umu" -eq 1 ] && umu_toolbox_installed; then
-                    install_umu_runner "$id" || {
+                    install_umu_runner "$id" "$umu_mode" || {
                         echo "$(i18n umu_runner_failed "$id")" >&2
                         failures=$((failures+1))
                     }

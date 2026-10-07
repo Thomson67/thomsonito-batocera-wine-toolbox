@@ -10,7 +10,7 @@ X86_LAYER_FILE="$LEGACY_LAYER_DIR/MangoHud.ultimate-wine-toolbox.x86.json"
 MANGOHUD_RUNTIME="$ROOT/runtime/mangohud"
 MANGOHUD32_LIB="$MANGOHUD_RUNTIME/lib32/mangohud/libMangoHud.so"
 MANGOHUD64_LIB="$MANGOHUD_RUNTIME/lib64/mangohud/libMangoHud.so"
-MANGOHUD_PV_RO="$MANGOHUD_RUNTIME"
+MANGOHUD_UMU_EXTRA_RO="$MANGOHUD_RUNTIME"
 MANGOHUD_PRELOAD="libMangoHud_shim.so"
 MANGOHUD_LIBPATH_PREFIX="$MANGOHUD_RUNTIME/lib64/mangohud:$MANGOHUD_RUNTIME/lib32/mangohud"
 LOG_DIR="/userdata/system/logs/ultimate-wine-toolbox"
@@ -25,7 +25,10 @@ event="${1:-}"
 system="${2:-}"
 rom="${5:-}"
 
-[ "$event" = "gameStart" ] || exit 0
+case "$event" in
+    gameStart|gameStop) ;;
+    *) exit 0 ;;
+esac
 [ "$system" = "windows" ] || exit 0
 [ -n "$rom" ] || exit 0
 hook_log "event=$event system=$system rom=$rom"
@@ -125,15 +128,22 @@ if [ -s "$OVERRIDE_FILE" ]; then
     override="$(awk -F '\t' -v p="$rom" '$2==p {v=$1} END{print v}' "$OVERRIDE_FILE")"
 fi
 
-case "$override" in
-    on) desired=1 ;;
-    off) desired=0 ;;
-    *) desired="$global_state" ;;
-esac
+if [ "$event" = "gameStop" ]; then
+    # MangoHud ENV entries are runtime-only. Always remove the entries managed
+    # by Ultimate when the game exits so .wine/.pc prefixes remain clean and a
+    # later WSquashFS build cannot embed MangoHud runtime settings.
+    desired=0
+else
+    case "$override" in
+        on) desired=1 ;;
+        off) desired=0 ;;
+        *) desired="$global_state" ;;
+    esac
+fi
 
 legacy_mangohud=0
 detected_major="$(batocera_major)"
-hook_log "batocera_major=${detected_major:-unknown} global=$global_state override=${override:-inherit} desired=$desired"
+hook_log "batocera_major=${detected_major:-unknown} global=$global_state override=${override:-inherit} desired=$desired event=$event"
 
 if [ "$desired" = "1" ]; then
     ensure_x86_vulkan_layer
@@ -158,11 +168,16 @@ if is_legacy_mangohud_batocera; then
     fi
 fi
 
+hud_profile=default
+[ ! -s "$CONFIG_DIR/mangohud-profile" ] || hud_profile="$(head -n1 "$CONFIG_DIR/mangohud-profile")"
+case "$hud_profile" in minimal|detailed) ;; *) hud_profile=default ;; esac
+hook_log "display_profile=$hud_profile"
+
 rewrite_autorun() {
     local file="$1" state="$2" legacy="$3"
     [ -f "$file" ] || return 1
 
-    python3 - "$file" "$state" "$legacy" "$MANGOHUD_PRELOAD" "$MANGOHUD_LIBPATH_PREFIX" "$MANGOHUD_PV_RO" <<'PY'
+    python3 - "$file" "$state" "$legacy" "$MANGOHUD_PRELOAD" "$MANGOHUD_LIBPATH_PREFIX" "$MANGOHUD_UMU_EXTRA_RO" "$hud_profile" <<'PY'
 import re, sys
 from pathlib import Path
 
@@ -171,7 +186,12 @@ enabled=sys.argv[2] == "1"
 legacy=sys.argv[3] == "1"
 managed_preload=sys.argv[4]
 managed_libpath_prefix=sys.argv[5]
-managed_pv_ro=sys.argv[6]
+managed_umu_extra_ro=sys.argv[6]
+profile_configs = {
+    "minimal": "fps_only=1,frametime=0,frame_timing=0",
+    "detailed": "fps,cpu_stats,gpu_stats,cpu_temp,gpu_temp,ram,vram,frametime,frame_timing",
+}
+profile_config = profile_configs.get(sys.argv[7], "")
 
 try:
     text=path.read_text(encoding="utf-8", errors="replace")
@@ -183,6 +203,8 @@ out=[]
 found=False
 
 def clean_payload(payload):
+    for config in profile_configs.values():
+        payload = re.sub(r"(^|\s)MANGOHUD_CONFIG=" + re.escape(config) + r"(?=\s|$)", " ", payload)
     payload=re.sub(r'(^|\s)MANGOHUD=[^\s]+', ' ', payload)
     payload=re.sub(r'(^|\s)MANGOHUD_DLSYM=[^\s]+', ' ', payload)
 
@@ -201,13 +223,17 @@ def clean_payload(payload):
             payload
         )
 
-    # Remove only the library search path created by the Toolbox.
+    # Remove only an LD_LIBRARY_PATH token that contains Ultimate's
+    # managed MangoHud prefix. Keep unrelated user-defined LD_LIBRARY_PATH
+    # assignments untouched.
     payload=re.sub(
-        r'(^|\s)LD_LIBRARY_PATH=(?:[\'"])?' + re.escape(managed_libpath_prefix) + r'(?::(?:"?\$\{?LD_LIBRARY_PATH(?::-)?\}?"?))?(?:[\'"])?(?=\s|$)',
+        r'(^|\s)LD_LIBRARY_PATH=[^\s]*' + re.escape(managed_libpath_prefix) + r'[^\s]*(?=\s|$)',
         ' ',
         payload
     )
+    # Remove the legacy Ultimate-managed pressure-vessel form during migration.
     payload=re.sub(r'(^|\s)PRESSURE_VESSEL_FILESYSTEMS_RO=[^\s]+', ' ', payload)
+    payload=re.sub(r'(^|\s)UMU_BATOCERA_EXTRA_RO=[^\s]+', ' ', payload)
     return re.sub(r'\s+', ' ', payload).strip()
 
 for line in lines:
@@ -215,12 +241,14 @@ for line in lines:
         payload=clean_payload(line[4:])
         if enabled:
             payload=(payload + " " if payload else "") + "MANGOHUD=1"
+            if profile_config:
+                payload += " MANGOHUD_CONFIG=" + profile_config
             # Match MangoHud's official wrapper: preload plain filenames and
             # let the dynamic linker select the matching 32/64-bit library.
             if not re.search(r'(^|\s)LD_LIBRARY_PATH=', payload):
                 payload += " LD_LIBRARY_PATH=\'" + managed_libpath_prefix + "\':\"${LD_LIBRARY_PATH:-}\""
-            if not re.search(r'(^|\s)PRESSURE_VESSEL_FILESYSTEMS_RO=', payload):
-                payload += " PRESSURE_VESSEL_FILESYSTEMS_RO=\'" + managed_pv_ro + "\':\"${PRESSURE_VESSEL_FILESYSTEMS_RO:-}\""
+            if not re.search(r'(^|\s)UMU_BATOCERA_EXTRA_RO=', payload):
+                payload += " UMU_BATOCERA_EXTRA_RO=\'" + managed_umu_extra_ro + "\':\"${UMU_BATOCERA_EXTRA_RO:-}\""
             if not re.search(r'(^|\s)LD_PRELOAD=', payload):
                 payload += " LD_PRELOAD='" + managed_preload + "'"
         if payload:
@@ -231,8 +259,10 @@ for line in lines:
 
 if enabled and not found:
     payload="MANGOHUD=1"
+    if profile_config:
+        payload += " MANGOHUD_CONFIG=" + profile_config
     payload += " LD_LIBRARY_PATH=\'" + managed_libpath_prefix + "\':\"${LD_LIBRARY_PATH:-}\""
-    payload += " PRESSURE_VESSEL_FILESYSTEMS_RO=\'" + managed_pv_ro + "\':\"${PRESSURE_VESSEL_FILESYSTEMS_RO:-}\""
+    payload += " UMU_BATOCERA_EXTRA_RO=\'" + managed_umu_extra_ro + "\':\"${UMU_BATOCERA_EXTRA_RO:-}\""
     payload += " LD_PRELOAD='" + managed_preload + "'"
     insert_at=0
     for i,line in enumerate(out):

@@ -159,6 +159,31 @@ mangohud_disable_individual_menu() {
         msgbox "$(i18n mangohud_disable_individual)" "$(i18n mangohud_disable_individual_partial)"
     fi
 }
+mangohud_profile_state() {
+    local profile=default
+    [ ! -s "$MANGOHUD_CONFIG_DIR/mangohud-profile" ] || profile="$(head -n1 "$MANGOHUD_CONFIG_DIR/mangohud-profile")"
+    case "$profile" in minimal|detailed) ;; *) profile=default ;; esac
+    printf '%s' "$profile"
+}
+
+mangohud_profile_menu() {
+    local choice current profile tmp
+    local -a items=()
+    current="$(mangohud_profile_state)"
+    items+=("$current" "$(i18n "mangohud_profile_$current")")
+    for profile in default minimal detailed; do
+        [ "$profile" = "$current" ] || items+=("$profile" "$(i18n "mangohud_profile_$profile")")
+    done
+    choice="$(menu_select "$(i18n mangohud_profile_title)" "$(i18n mangohud_profile_prompt)" \
+        "${items[@]}" 0 "$(i18n back)")" || return
+    case "$choice" in default|minimal|detailed) ;; *) return ;; esac
+    mkdir -p "$MANGOHUD_CONFIG_DIR" || return
+    tmp="$(mktemp "$MANGOHUD_CONFIG_DIR/.mangohud-profile.XXXXXX")" || return
+    printf '%s\n' "$choice" > "$tmp"
+    mv -f -- "$tmp" "$MANGOHUD_CONFIG_DIR/mangohud-profile" || { rm -f -- "$tmp"; return; }
+    msgbox "$(i18n mangohud_profile_title)" "$(i18n mangohud_profile_applied "$(i18n "mangohud_profile_$choice")")"
+}
+
 mangohud_menu() {
     while true; do
         local choice
@@ -168,6 +193,7 @@ mangohud_menu() {
             "2" "$(i18n mangohud_disable_global)" \
             "3" "$(i18n mangohud_per_game)" \
             "4" "$(i18n mangohud_disable_individual)" \
+            "5" "$(i18n mangohud_profile_title)" \
             "0" "$(i18n back)")" || return
 
         case "$choice" in
@@ -175,6 +201,7 @@ mangohud_menu() {
             2) mangohud_set_global 0 ;;
             3) mangohud_game_menu ;;
             4) mangohud_disable_individual_menu ;;
+            5) mangohud_profile_menu ;;
             0|"") return ;;
         esac
     done

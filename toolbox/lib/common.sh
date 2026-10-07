@@ -130,6 +130,22 @@ menu_select() {
     fi
 }
 
+directory_select() {
+    local title="$1" prompt="$2" initial="${3:-/userdata/roms/windows/}"
+
+    if have_dialog; then
+        wt_clear_tty
+        local result rc
+        result="$(dialog --stdout --clear --no-shadow             --ok-label "$(i18n ok)" --cancel-label "$(i18n cancel)"             --title "$title" --dselect "$initial" 22 100)"
+        rc=$?
+        wt_clear_tty
+        [ "$rc" -eq 0 ] && printf '%s' "${result%/}"
+        return "$rc"
+    fi
+
+    input_text "$title" "$prompt" "${initial%/}"
+}
+
 input_text() {
     local title="$1" prompt="$2" initial="${3:-}"
 

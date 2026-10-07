@@ -25,6 +25,20 @@ Created by **Thomsonito**.
 - automatic backups before destructive `batocera.conf` operations
 - native Batocera Ports launcher and Pad2Key support
 
+## New in v0.2.0
+
+- Guided WSquashFS creation with external saves, game testing and automatic resume.
+- Graphical save-folder selection, inspection and a `user.reg` alternative.
+- Archive backup/replacement and renaming, quick/full integrity checks and a built-in guide.
+- Minimal, default and detailed MangoHud profiles.
+- Optional runner-name migration with reference backups, and uninterrupted multi-runner UMU installation.
+
+Save externalization through `SAVEDIR=` requires **Batocera v42 or later**. Full integrity checks require unsquashfs `-pf` support.
+
+WSquashFS creation is based on **DreamerCG**’s script.
+
+[Full release notes](release-notes/v0.2.0.md)
+
 ## Installation
 
 Run as `root` on Batocera.

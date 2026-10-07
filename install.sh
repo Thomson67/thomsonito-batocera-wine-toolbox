@@ -35,7 +35,12 @@ install_tree() {
 
   [ -s "$root/toolbox/helpers/batocera_conf_transfer.py" ] ||     fail "helper batocera_conf_transfer.py absent." "batocera_conf_transfer.py helper is missing."
 
-  python3 -m py_compile "$root/toolbox/helpers/batocera_conf_transfer.py" ||     fail "erreur de syntaxe dans batocera_conf_transfer.py" "syntax error in batocera_conf_transfer.py"
+  python3 - "$root/toolbox" <<'PYTHON' || fail "erreur de syntaxe dans les helpers Python." "syntax error in Python helpers."
+from pathlib import Path
+import sys
+for path in Path(sys.argv[1]).rglob("*.py"):
+    compile(path.read_bytes(), str(path), "exec")
+PYTHON
 
   chmod +x "$root/package-install.sh"
   exec "$root/package-install.sh"

@@ -6,6 +6,41 @@ RUNNER_CACHE_TTL=21600
 KRON4EK_REPO="Kron4ek/Wine-Builds"
 GE_REPO="GloriousEggroll/proton-ge-custom"
 
+runner_normalized_name() {
+    python3 "$WT_ROOT/helpers/runner_names.py" name "$1"
+}
+
+runner_offer_normalization() {
+    local candidates report rc
+    candidates="$(python3 "$WT_ROOT/helpers/runner_names.py" list "$BATOCERA_CUSTOM_WINE")" || return 1
+    if [ -z "$candidates" ]; then
+        msgbox "$(i18n runner_normalize_title)" "$(i18n runner_normalize_none)"
+        return
+    fi
+    yesno_default_no "$(i18n runner_normalize_title)" "$(i18n runner_normalize_confirm "$candidates")" || return
+    report="$(python3 "$WT_ROOT/helpers/runner_names.py" migrate "$BATOCERA_CUSTOM_WINE" \
+        /userdata/system/batocera.conf /userdata/system/wine-bottles/windows \
+        "$WT_HOME/state/wsquashfs-builder.json" "$WT_HOME/backups/runner-names" 2>&1)"
+    rc=$?
+    [ -z "$report" ] || wt_log "$report"
+    if [ "$rc" -eq 0 ]; then
+        msgbox "$(i18n runner_normalize_title)" "$(i18n runner_normalize_done "$report")"
+    else
+        msgbox "$(i18n runner_normalize_title)" "$(i18n runner_normalize_failed "$report")"
+    fi
+    return "$rc"
+}
+
+runner_offer_normalization_at_startup() {
+    local marker="$WT_HOME/config/runner-names-offered-v1" candidates
+    [ ! -e "$marker" ] || return 0
+    [ "${WT_AUTO_RESUME_WSQ:-0}" != 1 ] || return 0
+    candidates="$(python3 "$WT_ROOT/helpers/runner_names.py" list "$BATOCERA_CUSTOM_WINE")" || return 0
+    [ -n "$candidates" ] || return 0
+    runner_offer_normalization || true
+    mkdir -p "$WT_HOME/config" && touch "$marker"
+}
+
 runner_api_get() {
     local url="$1"
     curl -fsSL --retry 2 --connect-timeout 10 --max-time 30         -H "Accept: application/vnd.github+json"         -H "User-Agent: Ultimate-Wine-Toolbox"         "$url"
@@ -201,9 +236,8 @@ PY
 
 runner_choose_release() {
     local source="$1" title="$2"
-    local rows="" tag name url size extra expected state choice
+    local rows="" choice
     local -a items=()
-    local idx=1
 
     case "$source" in
         kron4ek-vanilla) rows="$(runner_release_rows_kron4ek vanilla)" || true ;;
@@ -217,17 +251,42 @@ runner_choose_release() {
         return 1
     fi
 
-    while IFS=$'\t' read -r tag name url size extra; do
-        [ -n "$tag" ] || continue
-        state=""
-        expected="${name%.tar.xz}"
-        expected="${expected%.tar.gz}"
-        if runner_installed "$expected"; then
-            state=" | $(i18n installed)"
-        fi
-        items+=("$idx" "$tag | $(human_bytes "$size")$state")
-        idx=$((idx+1))
-    done <<< "$rows"
+    # Format the entire menu in one process: large release lists must not
+    # spawn a Python interpreter for every name and every size.
+    mapfile -d '' -t items < <(
+        python3 - "$WT_ROOT/helpers" "$BATOCERA_CUSTOM_WINE" "$(i18n installed)" 3<<< "$rows" <<'PY'
+import os
+import sys
+from pathlib import Path
+
+sys.path.insert(0, sys.argv[1])
+from runner_names import canonical
+
+root = Path(sys.argv[2])
+installed_label = sys.argv[3]
+for index, line in enumerate(os.fdopen(3), 1):
+    fields = line.rstrip("\n").split("\t")
+    if len(fields) < 4 or not fields[0]:
+        continue
+    legacy = fields[1]
+    for suffix in (".tar.xz", ".tar.gz"):
+        if legacy.endswith(suffix):
+            legacy = legacy[:-len(suffix)]
+    name = canonical(legacy)
+    size = float(fields[3])
+    for unit in ("B", "KiB", "MiB", "GiB", "TiB"):
+        if size < 1024 or unit == "TiB":
+            readable = f"{int(size)} B" if unit == "B" else f"{size:.1f} {unit}"
+            break
+        size /= 1024
+    state = f" | {installed_label}" if (root / name).is_dir() or (root / legacy).is_dir() else ""
+    sys.stdout.write(f"{index}\0{name} | {readable}{state}\0")
+PY
+    )
+    if [ "${#items[@]}" -eq 0 ]; then
+        msgbox "$title" "$(i18n runner_fetch_failed)"
+        return 1
+    fi
 
     choice="$(menu_select "$title" "$(i18n runner_choose_version)" "${items[@]}" "0" "$(i18n back)")" || return 1
     [ "$choice" != "0" ] && [ -n "$choice" ] || return 1
@@ -312,7 +371,7 @@ runner_install_archive() {
     fi
 
     candidate="$(find "$extract" -mindepth 1 -maxdepth 1 -type d | head -n1)"
-    target="$BATOCERA_CUSTOM_WINE/$(basename "$candidate")"
+    target="$BATOCERA_CUSTOM_WINE/$(runner_normalized_name "$(basename "$candidate")")"
 
     if [ -e "$target" ]; then
         rm -rf "$stage"
@@ -360,8 +419,9 @@ runner_family_label() {
     case "$name" in
         *-UMU) printf '%s' "UMU" ;;
         GE-Proton*) printf '%s' "GE-Proton" ;;
-        wine-*-staging-tkg-amd64-wow64|wine-*-staging-tkg-amd64|wine-tkg-*) printf '%s' "Kron4ek TKG" ;;
-        wine-*-amd64-wow64|wine-*-amd64) printf '%s' "Kron4ek Vanilla" ;;
+        TKG-*|wine-*-staging-tkg-amd64-wow64|wine-*-staging-tkg-amd64|wine-tkg-*) printf '%s' "Kron4ek TKG" ;;
+        Vanilla-Proton-*|wine-proton-*-amd64-wow64|wine-proton-*-amd64) printf '%s' "Kron4ek Proton" ;;
+        Vanilla-*|wine-*-amd64-wow64|wine-*-amd64) printf '%s' "Kron4ek Vanilla" ;;
         *) printf '%s' "$(i18n runner_other_family)" ;;
     esac
 }
