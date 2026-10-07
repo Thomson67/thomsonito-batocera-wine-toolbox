@@ -116,3 +116,13 @@ https://github.com/Thomson67/ultimate-wine-toolbox/releases
 Installing Ultimate Wine Toolbox over an older development build automatically migrates the useful Toolbox state to the new paths and removes the old launcher, hooks and runtime directories only after the migration succeeds.
 
 Wine/UMU runners, games, saves and bottles are preserved.
+
+## Update a WSquashFS (test version)
+
+In WSquashFS Management, Update follows Create. Select a Wine-prefix archive and a directory containing the updated game files directly. The source is copied into `drive_c/game` of a separate test prefix. `.pc` archives without a Wine prefix are not supported.
+
+Select the executable and test launch, controller input, loading your progress and saving again. The original runner and game options are copied; testing uses a separate save copy. On return, confirm the previous save rules or select another location through detection or the graphical browser.
+
+A full integrity check must pass before replacement. The old archive, original saves and changes to `batocera.conf` are backed up. Compression failure leaves original saves in place. Resume pending updates from the menu. Test saves remain available; deleting the working prefix is optional at completion.
+
+Allow space for extraction, the updated game copy, test saves and the new archive. `SAVEDIR=` requires Batocera v42 or newer.

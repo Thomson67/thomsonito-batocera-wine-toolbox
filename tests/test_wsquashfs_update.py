@@ -1,0 +1,191 @@
+"""Update transaction and save isolation regressions, using temporary paths only."""
+import json
+import os
+import subprocess
+import shlex
+import shutil
+from pathlib import Path
+import sys
+import tempfile
+import unittest
+from unittest.mock import patch
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'toolbox/helpers'))
+import wsquashfs_update as update
+import wsquashfs_integrity as integrity
+
+class UpdateTests(unittest.TestCase):
+    def setUp(self):
+        t = tempfile.TemporaryDirectory(); self.addCleanup(t.cleanup)
+        self.base = Path(t.name)
+        self.archive = self.base / 'Game.wsquashfs'; self.archive.write_bytes(b'old archive')
+        self.prefix = self.base / 'Game.update-test.wine'
+        self.game = self.prefix / 'drive_c/game'; self.game.mkdir(parents=True)
+        (self.game / 'old.exe').write_bytes(b'old')
+        (self.prefix / 'autorun.cmd').write_text('ENV=FOO=bar\nLANG=fr_FR\nDIR=drive_c/game\nCMD="old.exe" --launch\nSAVEDIR=drive_c/users/root/Saved\n')
+        self.source = self.base / 'replacement'; self.source.mkdir()
+        (self.source / 'new.exe').write_bytes(b'new')
+        self.saves = self.base / 'saves'; self.original_save = self.saves / 'Game'
+        self.original_save.mkdir(parents=True)
+        (self.original_save / 'slot').write_text('original')
+        self.manifest = self.base / 'metadata.json'
+
+    def prepare(self):
+        update.prepare(self.prefix, self.source, self.archive, self.saves, self.manifest)
+        return self.saves / self.prefix.stem
+
+    def test_save_isolation_and_launch_arguments(self):
+        save_link = self.prefix / 'drive_c/users/root/Saved'
+        save_link.parent.mkdir(parents=True); save_link.symlink_to(self.original_save)
+        test_save = self.prepare()
+        self.assertEqual(save_link.resolve(), test_save)
+        (save_link / 'slot').write_text('tested')
+        self.assertEqual((self.original_save / 'slot').read_text(), 'original')
+        self.assertEqual((self.source / 'new.exe').read_bytes(), b'new')
+        self.assertFalse((self.game / 'old.exe').exists())
+        update.write_autorun(self.prefix, 'drive_c/game/new.exe')
+        autorun = (self.prefix / 'autorun.cmd').read_text()
+        for line in ('ENV=FOO=bar', 'LANG=fr_FR', 'CMD="new.exe" --launch'):
+            self.assertIn(line, autorun)
+        update.detach_saves(self.prefix, test_save)
+        self.assertFalse(save_link.is_symlink()); self.assertEqual(list(save_link.iterdir()), [])
+        self.assertEqual((test_save / 'slot').read_text(), 'tested')
+
+    def test_copy_failure_preserves_game(self):
+        with patch.object(update.shutil, 'copytree', side_effect=OSError('disk full')):
+            with self.assertRaises(OSError): self.prepare()
+        self.assertEqual((self.game / 'old.exe').read_bytes(), b'old')
+        self.assertEqual(self.archive.read_bytes(), b'old archive')
+
+    def test_embedded_save_survives_game_replacement(self):
+        (self.prefix / 'autorun.cmd').write_text('SAVEDIR=drive_c/game/Saved\n')
+        (self.game / 'Saved').mkdir(); (self.game / 'Saved/slot').write_text('embedded')
+        self.prepare()
+        self.assertEqual((self.game / 'Saved/slot').read_text(), 'embedded')
+
+    def test_registry_links_become_portable_files(self):
+        (self.original_save / 'user.reg').write_text('registry')
+        (self.prefix / 'autorun.cmd').write_text('SAVEDIR=.\nSAVEFILES=user.reg\n')
+        (self.prefix / 'user.reg').symlink_to(self.original_save / 'user.reg')
+        test_save = self.prepare()
+        update.detach_saves(self.prefix, test_save)
+        self.assertFalse((self.prefix / 'user.reg').is_symlink())
+        self.assertEqual((self.prefix / 'user.reg').read_text(), 'registry')
+
+    def test_unsafe_sources_are_refused(self):
+        (self.source / 'outside').symlink_to(self.original_save)
+        with self.assertRaises(ValueError): self.prepare()
+        self.assertTrue((self.game / 'old.exe').exists())
+        (self.source / 'outside').unlink()
+        with self.assertRaises(ValueError): update.validate_source(self.prefix, self.prefix)
+
+    def test_config_backup_and_all_game_options(self):
+        conf = self.base / 'batocera.conf'
+        conf.write_text('# comment\nwindows.dxvk=1\nwindows["Game.wsquashfs"].wine-runner=UMU\nwindows["Game.wsquashfs"].custom=42\n')
+        backup = self.base / 'backups'
+        self.assertEqual(update.copy_config(conf, 'Game.wsquashfs', self.prefix.name, backup), 'UMU')
+        self.assertIn(f'windows["{self.prefix.name}"].custom=42', conf.read_text())
+        self.assertEqual(len(list(backup.iterdir())), 1)
+        self.assertIn('windows.dxvk=1', conf.read_text())
+
+    def test_commit_preserves_original_archive_and_saves(self):
+        self.prepare(); staged = self.base / 'replacement.wsquashfs'; staged.write_bytes(b'new archive')
+        prepared = self.saves / 'validated'; prepared.mkdir(); (prepared / 'slot').write_text('new save')
+        backup = update.commit(self.manifest, staged, prepared)
+        self.assertEqual(backup.read_bytes(), b'old archive')
+        self.assertEqual(self.archive.read_bytes(), b'new archive')
+        self.assertEqual((self.original_save / 'slot').read_text(), 'new save')
+        data = json.loads(self.manifest.read_text())
+        self.assertEqual((Path(data['save_backup']) / 'slot').read_text(), 'original')
+        self.assertTrue(data['committed'])
+
+    def test_archive_changed_refuses_both_replacements(self):
+        self.prepare(); self.archive.write_bytes(b'changed archive')
+        staged = self.base / 'new.wsquashfs'; staged.write_bytes(b'new')
+        prepared = self.saves / 'validated'; prepared.mkdir()
+        with self.assertRaises(ValueError): update.commit(self.manifest, staged, prepared)
+        self.assertEqual(self.archive.read_bytes(), b'changed archive')
+        self.assertEqual((self.original_save / 'slot').read_text(), 'original')
+
+    def test_failed_archive_swap_restores_original_saves(self):
+        self.prepare(); staged = self.base / 'new.wsquashfs'; staged.write_bytes(b'new')
+        prepared = self.saves / 'validated'; prepared.mkdir(); (prepared / 'slot').write_text('new save')
+        with patch.object(update.os, 'replace', side_effect=OSError('write error')):
+            with self.assertRaises(OSError): update.commit(self.manifest, staged, prepared)
+        self.assertEqual(self.archive.read_bytes(), b'old archive')
+        self.assertEqual((self.original_save / 'slot').read_text(), 'original')
+        self.assertEqual((prepared / 'slot').read_text(), 'new save')
+
+    def test_shell_compression_failure_can_resume_without_touching_original_saves(self):
+        test_save = self.prepare()
+        (test_save / 'slot').write_text('tested save')
+        root = Path(__file__).resolve().parents[1]
+        state_dir = self.base / 'state'; state_dir.mkdir()
+        state = state_dir / 'wsquashfs-builder.json'
+        snapshot = state_dir / 'before.json'; snapshot.write_text('{}')
+        log = self.base / 'update.log'; log.touch()
+        state.write_text(json.dumps(dict(prefix=str(self.prefix), game_name='Game', snapshot=str(snapshot), exe_rel='drive_c/game/new.exe', runner='__SYSTEM__', mode='update', metadata=str(self.manifest), phase='testing', update_log=str(log))))
+        tools = self.base / 'bin'; tools.mkdir()
+        unsquash = tools / 'unsquashfs'
+        unsquash.write_text('#!/bin/sh\nif [ "$1" = -help ]; then echo "-pf pseudo-file"; fi\nexit 0\n')
+        unsquash.chmod(0o755)
+        q = shlex.quote
+        script = f"""
+WT_ROOT={q(str(root / 'toolbox'))}
+WT_HOME={q(str(self.base))}
+source "$WT_ROOT/modules/wsquashfs.sh"
+WSQ_STATE_DIR={q(str(state_dir))}; WSQ_STATE_FILE={q(str(state))}
+WSQ_SAVE_ROOT={q(str(self.saves))}; WSQ_CONF={q(str(self.base / 'batocera.conf'))}
+have_dialog() {{ return 1; }}
+wt_clear_tty() {{ :; }}
+i18n() {{ printf '%s' "$1"; }}
+msgbox() {{ :; }}
+wsq_review_launch() {{ :; }}
+wsq_update_review_save() {{ WSQ_SAVE_KIND=existing; WSQ_SELECTED_SAVE=drive_c/users/root/Saved; }}
+yesno_default_no() {{ [ "$1" != squash_delete_source_title ]; }}
+wsq_restart_emulationstation_deferred() {{ :; }}
+wsq_post_build_menu() {{ :; }}
+maintenance_squash_wine() {{ return 1; }}
+wsq_resume_build
+python3 - {q(str(self.archive))} {q(str(self.original_save / 'slot'))} "$WSQ_STATE_FILE" <<'CHECK'
+import json, sys
+from pathlib import Path
+assert Path(sys.argv[1]).read_bytes() == b'old archive'
+assert Path(sys.argv[2]).read_text() == 'original'
+assert json.loads(Path(sys.argv[3]).read_text())['phase'] == 'ready'
+CHECK
+[ "$?" = 0 ] || exit 3
+maintenance_squash_wine() {{ printf 'new archive' > "$2"; }}
+wsq_resume_build
+"""
+        result = subprocess.run(['bash', '-c', script], env=dict(os.environ, PATH=str(tools) + ':' + os.environ['PATH']), capture_output=True, text=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertFalse(state.exists())
+        self.assertEqual(self.archive.read_bytes(), b'new archive')
+        self.assertEqual((self.original_save / 'slot').read_text(), 'tested save')
+        self.assertEqual(len(list(self.base.glob('Game.backup-*.wsquashfs'))), 1)
+
+    @unittest.skipUnless(shutil.which('mksquashfs') and shutil.which('unsquashfs'), 'SquashFS tools unavailable')
+    def test_real_archive_round_trip_and_corruption_refusal(self):
+        def run(*args):
+            subprocess.run(args, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+        self.archive.unlink()
+        run('mksquashfs', str(self.prefix), str(self.archive), '-noappend', '-processors', '1')
+        test_save = self.prepare()
+        update.write_autorun(self.prefix, 'drive_c/game/new.exe')
+        staged = self.base / 'new.wsquashfs'
+        run('mksquashfs', str(self.prefix), str(staged), '-noappend', '-processors', '1')
+        log = self.base / 'integrity.log'; cancel = self.base / 'cancel'
+        self.assertEqual(integrity.check(staged, 'full', log, cancel), 0)
+        backup = update.commit(self.manifest, staged)
+        extracted = self.base / 'extracted'
+        run('unsquashfs', '-no-xattrs', '-d', str(extracted), str(self.archive))
+        self.assertEqual((extracted / 'drive_c/game/new.exe').read_bytes(), b'new')
+        self.assertIn('CMD="new.exe" --launch', (extracted / 'autorun.cmd').read_text())
+        old = self.base / 'old'
+        run('unsquashfs', '-no-xattrs', '-d', str(old), str(backup))
+        self.assertEqual((old / 'drive_c/game/old.exe').read_bytes(), b'old')
+        corrupt = self.base / 'corrupt.wsquashfs'
+        corrupt.write_bytes(self.archive.read_bytes()[:96])
+        self.assertNotEqual(integrity.check(corrupt, 'full', log, cancel), 0)
+
+if __name__ == '__main__': unittest.main()

@@ -7,6 +7,7 @@ WSQ_STATE_FILE="$WSQ_STATE_DIR/wsquashfs-builder.json"
 WSQ_HELPER="$WT_ROOT/helpers/wsquashfs_builder.py"
 WSQ_SAVE_ROOT="/userdata/saves/windows"
 WSQ_CONF="/userdata/system/batocera.conf"
+source "$WT_ROOT/modules/wsquashfs-update.sh"
 
 wsq_list_templates() {
     [ -d "$WSQ_TEMPLATES_DIR" ] || return 0
@@ -463,14 +464,23 @@ wsq_save_state() {
     python3 - "$WSQ_STATE_FILE" "$prefix" "$game_name" "$snapshot" "$exe_rel" "$runner" <<'PY'
 import json, sys
 path, prefix, game, snapshot, exe, runner = sys.argv[1:7]
-with open(path, "w", encoding="utf-8") as f:
-    json.dump({
+data = {}
+try:
+    with open(path, encoding="utf-8") as f:
+        old = json.load(f)
+    if old.get("prefix") == prefix and old.get("mode") == "update":
+        data = old
+except (OSError, ValueError):
+    pass
+data.update({
         "prefix": prefix,
         "game_name": game,
         "snapshot": snapshot,
         "exe_rel": exe,
         "runner": runner,
-    }, f, ensure_ascii=False, indent=2)
+    })
+with open(path, "w", encoding="utf-8") as f:
+    json.dump(data, f, ensure_ascii=False, indent=2)
 PY
 }
 
@@ -512,6 +522,7 @@ wsq_request_game_launch() {
 }
 
 wsq_create_new() {
+    wsq_pending_guard || return
     local source template raw_name game_name target exe_rel runner snapshot rom_name
     command -v unsquashfs >/dev/null 2>&1 || {
         msgbox "$(i18n wsq_create_title)" "$(i18n squash_tools_missing)"
@@ -1222,6 +1233,14 @@ wsq_resume_build() {
         return
     }
 
+    if [ "$(wsq_state_value mode)" = update ]; then
+        if [ "$(wsq_state_value phase)" = testing ]; then
+            wsq_review_launch || return
+        fi
+        wsq_resume_update
+        return $?
+    fi
+
     wsq_review_launch || return
 
     wsq_select_save_candidate "$prefix" "$snapshot" || return
@@ -1495,22 +1514,23 @@ wsquashfs_menu() {
         [ -s "$WSQ_STATE_FILE" ] && pending="$(i18n wsq_pending_marker)"
         choice="$(menu_select "$(i18n wsq_title)" "$(i18n wsq_intro)" \
             "1" "$(i18n wsq_create_action)" \
-            "2" "$(i18n wsq_resume_action) $pending" \
-            "3" "$(i18n squash_wine)" \
-            "4" "$(i18n unsquash_wine)" \
-            "5" "$(i18n wsq_templates_title)" \
-            "6" "$(i18n wsq_integrity_title)" \
-            "7" "$(i18n wsq_creation_documentation)" \
+            "2" "$(i18n wsq_update_title)" \
+            "3" "$(i18n wsq_resume_action) $pending" \
+            "4" "$(i18n squash_wine)" \
+            "5" "$(i18n unsquash_wine)" \
+            "6" "$(i18n wsq_templates_title)" \
+            "7" "$(i18n wsq_integrity_title)" \
+            "8" "$(i18n wsq_creation_documentation)" \
             "0" "$(i18n back)")" || return
-
         case "$choice" in
             1) wsq_create_new ;;
-            2) wsq_resume_build ;;
-            3) maintenance_select_and_squash ;;
-            4) maintenance_select_and_unsquash ;;
-            5) wsq_templates_info ;;
-            6) wsq_integrity_check ;;
-            7) wsq_creation_documentation ;;
+            2) wsq_update_new ;;
+            3) wsq_resume_build ;;
+            4) maintenance_select_and_squash ;;
+            5) maintenance_select_and_unsquash ;;
+            6) wsq_templates_info ;;
+            7) wsq_integrity_check ;;
+            8) wsq_creation_documentation ;;
             0|"") return ;;
         esac
     done
