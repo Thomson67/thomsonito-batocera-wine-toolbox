@@ -1355,6 +1355,30 @@ wsq_templates_info() {
     msgbox "$(i18n wsq_templates_title)" "$(i18n wsq_templates_info "$WSQ_TEMPLATES_DIR")"
 }
 
+wsq_integrity_rotate_logs() {
+    python3 - "$WT_LOG_DIR" "$1" <<'PY'
+from pathlib import Path
+import sys
+
+directory = Path(sys.argv[1])
+current = Path(sys.argv[2])
+logs = []
+for path in directory.glob("wsquashfs-integrity-*.log"):
+    try:
+        if path.is_file() and not path.is_symlink() and path != current:
+            logs.append((path.stat().st_mtime_ns, path.name, path))
+    except FileNotFoundError:
+        pass
+logs.sort(reverse=True)
+# Reserve one of the 20 slots for the report currently being written.
+for _, _, path in logs[19:]:
+    try:
+        path.unlink()
+    except FileNotFoundError:
+        pass
+PY
+}
+
 wsq_integrity_check() {
     local mode selected rows="" path id idx=1 log work cancel pid rc start elapsed choice result=""
     local -a items=()
@@ -1381,6 +1405,7 @@ wsq_integrity_check() {
     work="$(mktemp -d /tmp/uwt-integrity.XXXXXX)" || return
     cancel="$work/cancel"
     log="$(mktemp "$WT_LOG_DIR/wsquashfs-integrity-$(date +%Y%m%d-%H%M%S)-XXXXXX.log")" || { rm -rf -- "$work"; return; }
+    wsq_integrity_rotate_logs "$log" || wt_log "WSquashFS: integrity log rotation failed"
     idx=0
     while IFS= read -r id; do
         case "$id" in ''|*[!0-9]*) continue ;; esac
