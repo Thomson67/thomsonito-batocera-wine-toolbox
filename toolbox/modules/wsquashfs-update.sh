@@ -364,11 +364,14 @@ wsq_resume_update() {
     local save_backup
     save_backup="$(python3 "$WSQ_UPDATE_HELPER" value "$metadata" save_backup)"
     [ -z "$save_backup" ] || msgbox "$(i18n wsq_save_title)" "$(i18n wsq_save_backup_done "$save_backup")"
+    python3 "$WSQ_UPDATE_HELPER" cleanup-test "$metadata" >> "$log" 2>&1 || {
+        msgbox "$(i18n wsq_update_title)" "$(i18n wsq_update_failed "$prefix" "$log")"; return
+    }
     rm -f -- "$snapshot" "$WSQ_STATE_FILE" "$metadata" "$WSQ_STATE_DIR/wsq-launch-result"
     if [ -n "$backup" ]; then
-        msgbox "$(i18n wsq_update_title)" "$(i18n wsq_update_done "$archive" "$backup" "$prefix" "$test_save")"
+        msgbox "$(i18n wsq_update_title)" "$(i18n wsq_update_done "$archive" "$backup" "$prefix")"
     else
-        msgbox "$(i18n wsq_update_title)" "$(i18n wsq_update_done_replace "$archive" "$prefix" "$test_save")"
+        msgbox "$(i18n wsq_update_title)" "$(i18n wsq_update_done_replace "$archive" "$prefix")"
     fi
     if yesno_default_no "$(i18n squash_delete_source_title)" "$(i18n squash_delete_source_confirm "$(basename "$prefix")")"; then
         maintenance_delete_wine_dir_symlink_safe "$prefix" || true

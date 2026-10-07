@@ -337,6 +337,24 @@ wsq_resume_build
         update.commit(self.manifest, staged)
         self.assertEqual((self.saves / 'Cat Quest/slot').read_text(), 'saved by game')
 
+    def test_test_save_cleanup_requires_commit_and_preserves_originals(self):
+        test_save = self.prepare()
+        with self.assertRaises(ValueError): update.cleanup_test_saves(self.manifest)
+        self.assertTrue(test_save.exists())
+        data = json.loads(self.manifest.read_text()); data['committed'] = True
+        self.manifest.write_text(json.dumps(data))
+        outside = self.base / 'outside'; outside.mkdir()
+        (outside / 'keep').write_text('keep')
+        (test_save / 'external').symlink_to(outside)
+        update.cleanup_test_saves(self.manifest)
+        update.cleanup_test_saves(self.manifest)
+        self.assertFalse(test_save.exists())
+        self.assertEqual((outside / 'keep').read_text(), 'keep')
+        self.assertEqual((self.original_save / 'slot').read_text(), 'original')
+        data['test_save'] = str(self.original_save)
+        self.manifest.write_text(json.dumps(data))
+        with self.assertRaises(ValueError): update.cleanup_test_saves(self.manifest)
+
     def test_deleted_prefix_can_be_discarded_before_new_update(self):
         root = Path(__file__).resolve().parents[1]
         state = self.base / 'state'; state.mkdir()

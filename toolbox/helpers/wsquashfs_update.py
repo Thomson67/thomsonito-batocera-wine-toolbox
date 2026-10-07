@@ -261,6 +261,21 @@ def stage_legacy(manifest):
     save_json(manifest, data)
 
 
+def cleanup_test_saves(manifest):
+    data = json.loads(manifest.read_text())
+    if not data.get('committed'):
+        raise ValueError('test saves must be retained until the update is committed')
+    base = Path(data['save_root']).resolve()
+    test = Path(data['test_save'])
+    expected = '.uwt-test-' + manifest.stem if data.get('same_rom_name') else Path(data['prefix']).stem
+    if test.parent.resolve() != base or test.name != expected or test.is_symlink():
+        raise ValueError('invalid test-save cleanup location')
+    if test.resolve() == Path(data['original_save']).resolve():
+        raise ValueError('cannot remove original saves')
+    if test.exists():
+        shutil.rmtree(test)
+
+
 def prepare(prefix, source, archive, save_root, manifest):
     if archive.is_symlink() or not archive.is_file():
         raise ValueError('archive must be a regular file')
@@ -615,7 +630,7 @@ def main():
     a.add_argument('--backup-dir', type=Path); a.add_argument('--preserve-existing', action='store_true')
     a = sp.add_parser('commit')
     a.add_argument('manifest', type=Path); a.add_argument('staged', type=Path); a.add_argument('--prepared-save', type=Path); a.add_argument('--replace', action='store_true')
-    for action in ('profiles', 'restore-save-rules', 'finish-game', 'restore-legacy', 'restore-custom', 'restore-scripts', 'stage-legacy', 'legacy-summary', 'exe', 'game-dir'):
+    for action in ('cleanup-test', 'profiles', 'restore-save-rules', 'finish-game', 'restore-legacy', 'restore-custom', 'restore-scripts', 'stage-legacy', 'legacy-summary', 'exe', 'game-dir'):
         a = sp.add_parser(action)
         a.add_argument('prefix' if action in ('exe', 'game-dir', 'profiles') else 'manifest', type=Path)
     a = sp.add_parser('root-link')
@@ -636,6 +651,7 @@ def main():
         elif a.action == 'config': print(copy_config(a.conf, a.source, a.dest, a.backup_dir, a.preserve_existing))
         elif a.action == 'commit': print(commit(a.manifest, a.staged, a.prepared_save, not a.replace))
         elif a.action == 'game-dir': print(game_directory(a.prefix).relative_to(a.prefix).as_posix())
+        elif a.action == 'cleanup-test': cleanup_test_saves(a.manifest)
         elif a.action == 'profiles': ensure_root_alias(a.prefix)
         elif a.action == 'exe': print(launch_executable(a.prefix))
         elif a.action == 'root-link':
