@@ -470,18 +470,20 @@ def copy_config(conf, source, dest, backup_dir=None):
     return runners[-1] if runners else '__SYSTEM__'
 
 
-def commit(manifest, staged, prepared_save=None):
+def commit(manifest, staged, prepared_save=None, keep_archive_backup=True):
     data = json.loads(manifest.read_text())
     archive = Path(data['archive'])
     if archive.is_symlink() or signature(archive) != data['archive_signature']:
         raise ValueError('original archive changed since preparation; replacement refused')
     if staged.is_symlink() or not staged.is_file() or staged.parent.resolve() != archive.parent.resolve() or staged == archive:
         raise ValueError('validated replacement must be a distinct adjacent file')
-    backup = archive.with_name(archive.stem + '.backup-' + datetime.now().strftime('%Y%m%d-%H%M%S-%f') + archive.suffix)
-    try:
-        os.link(archive, backup)
-    except OSError:
-        shutil.copy2(archive, backup)
+    backup = None
+    if keep_archive_backup:
+        backup = archive.with_name(archive.stem + '.backup-' + datetime.now().strftime('%Y%m%d-%H%M%S-%f') + archive.suffix)
+        try:
+            os.link(archive, backup)
+        except OSError:
+            shutil.copy2(archive, backup)
     original_save = Path(data['original_save'])
     changes = list(data.get('legacy_publish', []))
     if prepared_save is not None:
@@ -512,9 +514,9 @@ def commit(manifest, staged, prepared_save=None):
             if backup_path is not None:
                 backup_path.rename(target)
         raise
-    data.update(committed=True, archive_backup=str(backup), save_backup=str(save_backup or ''))
+    data.update(committed=True, archive_backup=str(backup or ''), save_backup=str(save_backup or ''))
     save_json(manifest, data)
-    return backup
+    return backup or ''
 
 
 def main():
@@ -534,7 +536,7 @@ def main():
     a.add_argument('conf', type=Path); a.add_argument('source'); a.add_argument('dest')
     a.add_argument('--backup-dir', type=Path)
     a = sp.add_parser('commit')
-    a.add_argument('manifest', type=Path); a.add_argument('staged', type=Path); a.add_argument('--prepared-save', type=Path)
+    a.add_argument('manifest', type=Path); a.add_argument('staged', type=Path); a.add_argument('--prepared-save', type=Path); a.add_argument('--replace', action='store_true')
     for action in ('finish-game', 'restore-legacy', 'restore-custom', 'restore-scripts', 'stage-legacy', 'legacy-summary', 'exe', 'game-dir'):
         a = sp.add_parser(action)
         a.add_argument('prefix' if action in ('exe', 'game-dir') else 'manifest', type=Path)
@@ -554,7 +556,7 @@ def main():
         elif a.action == 'autorun': write_autorun(a.prefix, a.exe, a.savedir, a.savefiles)
         elif a.action == 'detach': detach_saves(a.prefix, a.save)
         elif a.action == 'config': print(copy_config(a.conf, a.source, a.dest, a.backup_dir))
-        elif a.action == 'commit': print(commit(a.manifest, a.staged, a.prepared_save))
+        elif a.action == 'commit': print(commit(a.manifest, a.staged, a.prepared_save, not a.replace))
         elif a.action == 'game-dir': print(game_directory(a.prefix).relative_to(a.prefix).as_posix())
         elif a.action == 'exe': print(launch_executable(a.prefix))
         elif a.action == 'root-link':

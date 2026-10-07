@@ -246,7 +246,7 @@ PYCODE
 
 wsq_resume_update() {
     # prefix/game_name/snapshot/exe_rel/runner are local to wsq_resume_build.
-    local metadata phase save_rel save_kind test_save archive staged backup log original_name prepared_save
+    local metadata phase save_rel save_kind test_save archive staged backup log original_name prepared_save final_mode
     local -a commit_args=()
     metadata="$(wsq_state_value metadata)"; phase="$(wsq_state_value phase)"; log="$(wsq_state_value update_log)"
     [ -s "$metadata" ] || { msgbox "$(i18n wsq_update_title)" "$(i18n wsq_pending_invalid)"; return; }
@@ -306,7 +306,16 @@ wsq_resume_update() {
         wsq_update_state phase ready || return
     fi
     if [ "$phase" != committed ]; then
-    yesno_default_no "$(i18n wsq_update_title)" "$(i18n wsq_update_build_confirm "$(wsq_display_path "$archive")")" || return
+    final_mode="$(menu_select "$(i18n wsq_update_title)" \
+        "$(i18n wsq_update_final_prompt "$(wsq_display_path "$archive")")" \
+        backup "$(i18n wsq_update_final_backup)" \
+        replace "$(i18n wsq_update_final_replace)" \
+        cancel "$(i18n cancel)")" || return
+    case "$final_mode" in
+        backup) ;;
+        replace) commit_args+=(--replace) ;;
+        *) return ;;
+    esac
     staged="$archive.update-tmp-$$"
     if ! maintenance_squash_wine "$prefix" "$staged"; then
         msgbox "$(i18n wsq_update_title)" "$(i18n wsq_update_failed "$prefix" "$log")"; return
@@ -316,7 +325,7 @@ wsq_resume_update() {
         rm -f -- "$staged"
         msgbox "$(i18n wsq_update_title)" "$(i18n wsq_update_failed "$prefix" "$log")"; return
     fi
-    [ ! -d "$prepared_save" ] || commit_args=(--prepared-save "$prepared_save")
+    [ ! -d "$prepared_save" ] || commit_args+=(--prepared-save "$prepared_save")
     backup="$(python3 "$WSQ_UPDATE_HELPER" commit "$metadata" "$staged" "${commit_args[@]}" 2>> "$log")" || {
         msgbox "$(i18n wsq_update_title)" "$(i18n wsq_update_failed "$prefix" "$log")"; return
     }
@@ -332,7 +341,11 @@ wsq_resume_update() {
     save_backup="$(python3 "$WSQ_UPDATE_HELPER" value "$metadata" save_backup)"
     [ -z "$save_backup" ] || msgbox "$(i18n wsq_save_title)" "$(i18n wsq_save_backup_done "$save_backup")"
     rm -f -- "$snapshot" "$WSQ_STATE_FILE" "$metadata" "$WSQ_STATE_DIR/wsq-launch-result"
-    msgbox "$(i18n wsq_update_title)" "$(i18n wsq_update_done "$archive" "$backup" "$prefix" "$test_save")"
+    if [ -n "$backup" ]; then
+        msgbox "$(i18n wsq_update_title)" "$(i18n wsq_update_done "$archive" "$backup" "$prefix" "$test_save")"
+    else
+        msgbox "$(i18n wsq_update_title)" "$(i18n wsq_update_done_replace "$archive" "$prefix" "$test_save")"
+    fi
     if yesno_default_no "$(i18n squash_delete_source_title)" "$(i18n squash_delete_source_confirm "$(basename "$prefix")")"; then
         maintenance_delete_wine_dir_symlink_safe "$prefix" || true
     fi

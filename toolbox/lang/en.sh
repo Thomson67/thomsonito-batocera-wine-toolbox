@@ -527,7 +527,7 @@ declare -gA I18N=(
   [settings_language]="Language"
   [settings_title]="Settings"
   [wsq_update_title]="Update a WSquashFS"
-  [wsq_update_intro]="Replace the existing game directory with a directory containing the new game version. Keep the prefix and launch directives. Test the game and review its saves before recompression. The original archive is backed up before replacement."
+  [wsq_update_intro]="Replace the existing game directory with a directory containing the new game version. Keep the prefix and launch directives. Test the game and review its saves before recompression. At completion, choose backup and replacement or direct replacement."
   [wsq_update_pending]="A creation or update is already pending. Resume it from the menu or cancel it in the wizard before starting another task."
   [wsq_update_source_title]="Choose the directory containing the new game version"
   [wsq_update_source_prompt]="Choose the directory directly containing the updated game files. For a Wine prefix, select its game-content directory. The source directory will be moved into the test prefix under the original game directory name."
@@ -565,5 +565,11 @@ declare -gA I18N=(
   [wsq_update_name_match]="matching game folder available"
 
   [wsq_update_remove_old]="Launch validated: removing the old game directory (.bak) before recompression."
+
+  [wsq_update_final_prompt]="Final archive:\\n%s\\n\\nKeep a backup of the old WSquashFS before replacement, or replace it directly. In both cases, a full check must pass before replacement."
+  [wsq_update_final_backup]="Back up the old WSquashFS, then replace"
+  [wsq_update_final_replace]="Replace the existing WSquashFS directly"
+  [wsq_update_done_replace]="Update complete, WSquashFS replaced:\\n%s\\n\\nWorking prefix:\\n%s\\nRetained test save copy:\\n%s"
+
 
 )

@@ -116,7 +116,7 @@ class UpdateTests(unittest.TestCase):
         self.assertEqual((self.original_save / 'slot').read_text(), 'original')
         self.assertEqual((prepared / 'slot').read_text(), 'new save')
 
-    def test_shell_compression_failure_can_resume_without_touching_original_saves(self):
+    def test_shell_compression_failure_can_resume_without_touching_original_saves(self, final_mode="backup"):
         test_save = self.prepare()
         (test_save / 'slot').write_text('tested save')
         root = Path(__file__).resolve().parents[1]
@@ -140,6 +140,7 @@ have_dialog() {{ return 1; }}
 wt_clear_tty() {{ :; }}
 i18n() {{ printf '%s' "$1"; }}
 msgbox() {{ :; }}
+menu_select() {{ printf {final_mode}; }}
 wsq_review_launch() {{ :; }}
 wsq_update_review_save() {{ WSQ_SAVE_KIND=existing; WSQ_SELECTED_SAVE=drive_c/users/root/Saved; }}
 yesno_default_no() {{ [ "$1" != squash_delete_source_title ]; }}
@@ -163,7 +164,7 @@ wsq_resume_build
         self.assertFalse(state.exists())
         self.assertEqual(self.archive.read_bytes(), b'new archive')
         self.assertEqual((self.original_save / 'slot').read_text(), 'tested save')
-        self.assertEqual(len(list(self.base.glob('Game.backup-*.wsquashfs'))), 1)
+        self.assertEqual(len(list(self.base.glob('Game.backup-*.wsquashfs'))), 1 if final_mode == 'backup' else 0)
 
     @unittest.skipUnless(shutil.which('mksquashfs') and shutil.which('unsquashfs'), 'SquashFS tools unavailable')
     def test_real_archive_round_trip_and_corruption_refusal(self):
@@ -402,5 +403,28 @@ wsq_update_select_source
         self.assertEqual((self.source / 'new.exe').read_bytes(), b'new')
         self.assertFalse(self.game.with_name('game.bak').exists())
         self.assertEqual(self.archive.read_bytes(), b'old archive')
+
+    def test_direct_archive_replacement_does_not_create_an_archive_backup(self):
+        self.prepare()
+        staged = self.base / 'new.wsquashfs'; staged.write_bytes(b'updated archive')
+        with patch.object(update.os, 'link', side_effect=AssertionError('no archive backup in direct mode')):
+            result = update.commit(self.manifest, staged, keep_archive_backup=False)
+        self.assertEqual(result, '')
+        self.assertEqual(self.archive.read_bytes(), b'updated archive')
+        self.assertEqual(list(self.base.glob('Game.backup-*.wsquashfs')), [])
+        self.assertEqual(json.loads(self.manifest.read_text())['archive_backup'], '')
+
+    def test_direct_replacement_failure_preserves_archive_and_restores_saves(self):
+        self.prepare()
+        staged = self.base / 'new.wsquashfs'; staged.write_bytes(b'new')
+        prepared = self.saves / 'validated'; prepared.mkdir(); (prepared / 'slot').write_text('new save')
+        with patch.object(update.os, 'replace', side_effect=OSError('write failure')):
+            with self.assertRaises(OSError): update.commit(self.manifest, staged, prepared, False)
+        self.assertEqual(self.archive.read_bytes(), b'old archive')
+        self.assertEqual((self.original_save / 'slot').read_text(), 'original')
+        self.assertEqual((prepared / 'slot').read_text(), 'new save')
+
+    def test_shell_direct_replacement_keeps_save_transaction_arguments(self):
+        self.test_shell_compression_failure_can_resume_without_touching_original_saves(final_mode='replace')
 
 if __name__ == '__main__': unittest.main()

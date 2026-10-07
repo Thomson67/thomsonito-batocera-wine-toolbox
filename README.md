@@ -123,7 +123,7 @@ In WSquashFS Management, Update follows Create. Select a Wine-prefix archive and
 
 Select the executable and test launch, controller input, loading your progress and saving again. The original runner and game options are copied; testing uses a separate save copy. On return, confirm the previous save rules or select another location through detection or the graphical browser.
 
-A full integrity check must pass before replacement. The old archive, original saves and changes to `batocera.conf` are backed up. Compression failure leaves original saves in place. Resume pending updates from the menu. Test saves remain available; deleting the working prefix is optional at completion.
+A full integrity check must pass before replacement. At completion, choose backup and replacement of the old archive or direct replacement. Original saves and changes to `batocera.conf` remain backed up. Compression failure leaves original saves in place. Resume pending updates from the menu. Test saves remain available; deleting the working prefix is optional at completion.
 
 Allow space for extraction, test saves and the new archive. `SAVEDIR=` requires Batocera v42 or newer.
 

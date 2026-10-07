@@ -527,7 +527,7 @@ declare -gA I18N=(
   [settings_language]="Langue"
   [settings_title]="Paramètres"
   [wsq_update_title]="Mettre à jour un WSquashFS"
-  [wsq_update_intro]="Remplacez le dossier du jeu existant dans le préfixe par la nouvelle version du jeu. Le préfixe et les directives de lancement sont conservés. Un test et une vérification des sauvegardes précèdent la recompression. L’ancienne archive est sauvegardée avant remplacement."
+  [wsq_update_intro]="Remplacez le dossier du jeu existant dans le préfixe par la nouvelle version du jeu. Le préfixe et les directives de lancement sont conservés. Un test et une vérification des sauvegardes précèdent la recompression. À la fin, choisissez de sauvegarder l’ancienne archive puis remplacer, ou de remplacer directement."
   [wsq_update_pending]="Une création ou mise à jour est déjà en attente. Reprenez-la depuis le menu ou annulez-la dans l’assistant avant de commencer un autre travail."
   [wsq_update_source_title]="Choisir le dossier de la nouvelle version du jeu"
   [wsq_update_source_prompt]="Choisissez le dossier contenant directement les fichiers du jeu mis à jour. Pour un préfixe Wine, choisissez son dossier de fichiers du jeu (souvent drive_c/game). Le dossier source sera déplacé dans le préfixe de test, sous le nom du dossier original."
@@ -565,5 +565,11 @@ declare -gA I18N=(
   [wsq_update_name_match]="dossier du même nom disponible"
 
   [wsq_update_remove_old]="Lancement validé : suppression de l’ancien dossier du jeu (.bak) avant recompression."
+
+  [wsq_update_final_prompt]="Archive finale :\\n%s\\n\\nChoisissez de conserver une sauvegarde de l’ancien WSquashFS avant remplacement, ou de le remplacer directement. Dans les deux cas, le contrôle complet doit réussir avant le remplacement."
+  [wsq_update_final_backup]="Sauvegarder l’ancien WSquashFS puis remplacer"
+  [wsq_update_final_replace]="Remplacer directement le WSquashFS existant"
+  [wsq_update_done_replace]="Mise à jour terminée, WSquashFS remplacé :\\n%s\\n\\nPréfixe de travail :\\n%s\\nCopie des sauvegardes de test conservée :\\n%s"
+
 
 )

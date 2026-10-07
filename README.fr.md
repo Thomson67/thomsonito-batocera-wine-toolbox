@@ -117,7 +117,7 @@ Dans Gestion des WSquashFS, l’option suit immédiatement la création. Sélect
 
 Sélectionnez l’exécutable, puis testez le lancement, la manette, le chargement de votre progression et une nouvelle sauvegarde. Le runner et les options du jeu sont repris ; le test utilise une copie des sauvegardes. Au retour, confirmez les règles de sauvegarde existantes ou choisissez un autre emplacement avec la détection ou l’explorateur.
 
-La nouvelle archive doit passer un contrôle complet avant le remplacement. L’ancienne archive, les sauvegardes originales et les modifications de `batocera.conf` sont sauvegardées. En cas d’échec de compression, les sauvegardes originales restent en place. Une mise à jour en attente se reprend depuis le menu. La copie des sauvegardes de test reste conservée ; la suppression du préfixe de travail est proposée à la fin.
+La nouvelle archive doit passer un contrôle complet avant le remplacement. À la fin, choisissez « Sauvegarder l’ancien WSquashFS puis remplacer » ou « Remplacer directement ». Les sauvegardes originales et les modifications de `batocera.conf` restent sauvegardées. En cas d’échec de compression, les sauvegardes originales restent en place. Une mise à jour en attente se reprend depuis le menu. La copie des sauvegardes de test reste conservée ; la suppression du préfixe de travail est proposée à la fin.
 
 Prévoyez de la place pour l’extraction, les sauvegardes de test et la nouvelle archive. La gestion `SAVEDIR=` nécessite Batocera v42 ou supérieur.
 
