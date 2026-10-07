@@ -79,6 +79,10 @@ class ReleaseTests(unittest.TestCase):
         game = prefix / 'drive_c/game'
         game.mkdir(parents=True)
         (game / 'Play.cmd').touch()
+        (game / 'autorun.cmd').touch()
+        launcher_dir = game / 'launchers'
+        launcher_dir.mkdir()
+        (launcher_dir / 'AUTORUN.CMD').touch()
         (game / 'uninstall.exe').touch()
         nested = game / 'Other.wine'
         nested.mkdir()
