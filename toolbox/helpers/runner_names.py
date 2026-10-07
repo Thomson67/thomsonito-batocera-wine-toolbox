@@ -12,6 +12,9 @@ import time
 
 
 def canonical(name):
+    exceptions = {"wine-tkg-v41": "TKG-v41", "ge-custom-v40": "GE-Custom-v40"}
+    if name in exceptions:
+        return exceptions[name]
     if name.upper().endswith("-UMU"):
         return name
     match = re.fullmatch(r'GE-Proton-?(\d+)-(\d+)(-UMU)?', name, re.I)
