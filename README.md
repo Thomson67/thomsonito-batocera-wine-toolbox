@@ -121,7 +121,7 @@ Wine/UMU runners, games, saves and bottles are preserved.
 
 In WSquashFS Management, Update follows Create. Select a Wine-prefix archive and a directory containing the updated game files directly. The source directory is moved into the existing game directory identified from `autorun.cmd` (often `drive_c/game`) of a separate test prefix. `.pc` archives without a Wine prefix are not supported.
 
-Select the executable and test launch, controller input, loading your progress and saving again. The original runner and game options are copied; testing uses a separate save copy. On return, confirm the previous save rules or select another location through detection or the graphical browser.
+Select the executable and test launch, controller input, loading your progress and saving again. The original runner and game options are copied; testing uses a separate save copy, except links to the shared `/userdata/saves/windows` root, which keep their original target throughout testing and in the final archive without an extra prompt or batch changes. Such links use existing saves directly. On return, confirm the previous save rules or select another location through detection or the graphical browser.
 
 A full integrity check must pass before replacement. At completion, choose backup and replacement of the old archive or direct replacement. Original saves and changes to `batocera.conf` remain backed up. Compression failure leaves original saves in place. Resume pending updates from the menu. Test saves remain available; deleting the working prefix is optional at completion.
 
