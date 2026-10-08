@@ -48,26 +48,6 @@ os.replace(tmp, path)
 PY
 }
 
-wsq_update_select_executable() {
-    local prefix="$1" existing choice
-    existing="$(python3 "$WSQ_UPDATE_HELPER" exe "$prefix")" || return 1
-    if [ -n "$existing" ]; then
-        choice="$(menu_select "$(i18n wsq_executable_title)" \
-            "$(i18n wsq_update_exe_prompt "$(wsq_display_path "$existing")")" \
-            keep "$(i18n wsq_update_exe_keep)" other "$(i18n wsq_update_exe_other)")" || return 1
-        case "$choice" in
-            keep) printf '%s\n' "$existing"; return 0 ;;
-            other) ;;
-            *) return 1 ;;
-        esac
-    else
-        msgbox "$(i18n wsq_executable_title)" "$(i18n wsq_update_exe_missing)"
-    fi
-    local game_dir
-    game_dir="$(python3 "$WSQ_UPDATE_HELPER" game-dir "$prefix")" || return 1
-    wsq_select_executable "$prefix" "$game_dir"
-}
-
 wsq_update_select_source() {
     local path base choice selected game_dir matched preferred="${1:-}" idx=1
     local -a folders=() items=()
@@ -189,12 +169,9 @@ wsq_update_new() {
         python3 "$WSQ_UPDATE_HELPER" prepare "$prefix" "$source" "$archive" "$WSQ_SAVE_ROOT" "$metadata"; then
         msgbox "$(i18n wsq_update_title)" "$(i18n wsq_update_failed "$prefix" "$log")"; return
     fi
-    exe_rel="$(wsq_update_select_executable "$prefix")" || {
-        msgbox "$(i18n wsq_update_title)" "$(i18n wsq_update_kept "$prefix")"; return
-    }
-    python3 "$WSQ_UPDATE_HELPER" autorun "$prefix" "$exe_rel" >> "$log" 2>&1 || {
-        msgbox "$(i18n wsq_update_title)" "$(i18n wsq_update_failed "$prefix" "$log")"; return
-    }
+    # Keep the existing autorun command for the first test. If it is wrong
+    # or no longer exists in the updated game, post-launch review can replace it.
+    exe_rel="$(python3 "$WSQ_UPDATE_HELPER" exe "$prefix" 2>> "$log" || true)"
     runner="$(python3 "$WSQ_UPDATE_HELPER" config "$WSQ_CONF" "$(basename "$archive")" "$(basename "$prefix")" \
         --backup-dir "$WSQ_STATE_DIR/config-backups" --preserve-existing 2>> "$log")" || {
         msgbox "$(i18n wsq_update_title)" "$(i18n wsq_update_failed "$prefix" "$log")"; return
@@ -380,3 +357,4 @@ wsq_resume_update() {
     game_name="$original_name"
     wsq_post_build_menu
 }
+
