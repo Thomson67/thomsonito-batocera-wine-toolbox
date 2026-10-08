@@ -105,11 +105,10 @@ dxvk_choose_release() {
     local data source_data filtered_data line tag url digest idx=1 choice label status selected_tag
     local -a items=()
 
-    data="$(dxvk_release_catalog "$repo" "$kind")" || {
+    source_data="$(dxvk_release_catalog "$repo" "$kind")" || {
         msgbox "$title" "$(i18n dxvk_release_fetch_failed)"
         return 1
     }
-    source_data="$data"
     filtered_data=""
 
     while IFS=$'\x09' read -r tag url digest; do
@@ -124,18 +123,13 @@ dxvk_choose_release() {
                 incompatible*) continue ;;
                 compatible\ *)
                     label="$tag — $(i18n dxvk_nvapi_partial_compatibility)"
-                    printf -v line '%s\t%s\t%s\n' "$tag" "$url" "$digest"
-                    filtered_data+="$line"
                     ;;
-                compatible)
-                    printf -v line '%s\t%s\t%s\n' "$tag" "$url" "$digest"
-                    filtered_data+="$line"
-                    ;;
+                compatible) ;;
+                *) continue ;;
             esac
-        else
-            printf -v line '%s\t%s\t%s\n' "$tag" "$url" "$digest"
-            filtered_data+="$line"
         fi
+        printf -v line '%s\t%s\t%s\n' "$tag" "$url" "$digest"
+        filtered_data+="$line"
         items+=("$idx" "$label")
         idx=$((idx+1))
     done <<< "$source_data"
@@ -152,15 +146,13 @@ dxvk_choose_release() {
     choice="$(menu_select "$title" "$(i18n dxvk_choose_release)" "${items[@]}" "0" "$(i18n back)")" || return 1
     [ "$choice" != "0" ] && [ -n "$choice" ] || return 1
 
-    data="$filtered_data"
-    line="$(sed -n "${choice}p" <<< "$data")"
+    line="$(sed -n "${choice}p" <<< "$filtered_data")"
     if [ "$kind" = nvapi ]; then
         selected_tag="$(cut -f1 <<< "$line")"
         dxvk_nvapi_show_limitations "$dxvk_ver" "$vkd3d_ver" "${selected_tag#v}" || return 1
     fi
     printf '%s\n' "$line"
 }
-
 
 dxvk_verify_digest() {
     local file="$1" digest="$2"
