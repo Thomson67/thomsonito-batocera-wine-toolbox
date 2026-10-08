@@ -610,4 +610,11 @@ declare -gA I18N=(
   [wsq_update_prefix_source_overlap]="Le dossier choisi pour la nouvelle version se trouve dans ce préfixe. Choisissez un autre nom de préfixe pour conserver la source pendant l’extraction."
 
 
+  [dxvk_nvapi_partial_compatibility]="fonctions limitées"
+  [dxvk_nvapi_no_compatible_release]="Aucune version DXVK-NVAPI compatible avec DXVK %s. À partir de DXVK-NVAPI 0.6.1, DXVK 2.1 minimum est requis."
+  [dxvk_nvapi_hdr_limited]="HDR via NVAPI demande DXVK 2.3 ou plus."
+  [dxvk_nvapi_reflex_limited]="Reflex en D3D12 demande VKD3D-Proton 2.12 ou plus et un pilote NVIDIA 550 ou plus."
+  [dxvk_nvapi_optical_flow_limited]="NVIDIA Optical Flow en D3D12 demande VKD3D-Proton 2.14 ou plus et une implémentation Wine avec HAGS."
+  [dxvk_nvapi_shader_extensions_limited]="Les fonctions CuBIN et extensions shader NVIDIA en D3D12 demandent VKD3D-Proton 3.0.1 ou plus. Les extensions shader restent expérimentales et nécessitent DXVK_NVAPI_D3D12_NV_SHADER_EXTN=1."
+
 )
