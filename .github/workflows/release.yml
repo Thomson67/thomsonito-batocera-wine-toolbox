@@ -36,6 +36,9 @@ jobs:
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "tag=v$VERSION" >> "$GITHUB_OUTPUT"
 
+      - name: Install image tooling
+        run: sudo apt-get update && sudo apt-get install -y python3-pil
+
       - name: Validate package sources
         shell: bash
         run: |
@@ -57,6 +60,7 @@ jobs:
           cp VERSION package-install.sh uninstall.sh README.md README.fr.md "dist/$ROOT/"
           cp -a release-notes "dist/$ROOT/release-notes"
           cp -a toolbox "dist/$ROOT/toolbox"
+          python3 .github/scripts/prepare-scraper-assets.py "dist/$ROOT/toolbox/scraper-assets"
           find "dist/$ROOT" -type d -name __pycache__ -prune -exec rm -rf {} +
           (
             cd dist
