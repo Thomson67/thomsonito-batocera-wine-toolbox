@@ -564,6 +564,7 @@ declare -gA I18N=(
   [wsq_update_validate]="Contrôle complet de la nouvelle archive avant remplacement. Les données sont lues sans extraction supplémentaire."
   [wsq_update_elapsed]="Opération en cours — %s secondes écoulées."
   [wsq_update_failed]="L’opération n’a pas abouti. Le préfixe de travail est conservé :\\n%s\\n\\nRapport :\\n%s\\nConsultez aussi le log de la session. L’archive originale ou sa sauvegarde est conservée."
+  [wsq_update_bottles_cleanup_failed]="L’archive a été mise à jour, mais des bottles Wine associées n’ont pas pu être supprimées. L’opération reste en attente pour permettre une nouvelle tentative. Log :\n%s"
   [wsq_update_prepare_failed]="La préparation du jeu a échoué. Détail :\\n%s\\n\\nPréfixe de travail conservé :\\n%s\\n\\nRapport complet :\\n%s\\nL’archive originale est conservée."
   [wsq_update_kept]="Le travail s’arrête ici. L’archive originale reste conservée. Le dossier mis à jour a été déplacé dans le préfixe de travail ; l’ancien dossier est conservé en .bak tant que le lancement n’est pas validé. Préfixe de travail :\\n%s"
   [wsq_update_test]="Le test utilisera la nouvelle version dans :\\n%s\\n\\nLe runner et les options du jeu original sont repris. Vérifiez le lancement, la manette, le chargement de votre progression et créez une sauvegarde."
@@ -573,7 +574,7 @@ declare -gA I18N=(
   [wsq_update_save_detect]="Rechercher les sauvegardes détectées après le test"
   [wsq_update_save_confirm]="Confirmez uniquement si vous avez vérifié le chargement de la progression et la création d’une nouvelle sauvegarde avec ces règles. Si le dossier a changé, choisissez la recherche ou l’explorateur."
   [wsq_update_build_confirm]="Créer la nouvelle archive puis remplacer :\\n%s\\n\\nUn contrôle complet doit réussir avant le remplacement. Une sauvegarde horodatée de l’ancienne archive sera conservée. Continuer ?"
-  [wsq_update_done]="Mise à jour terminée :\\n%s\\n\\nAncienne archive sauvegardée :\\n%s\\n\\nPréfixe de travail :\\n%s"
+  [wsq_update_done]="Mise à jour terminée :\\n%s\\n\\nAncienne archive sauvegardée :\\n%s\\n\\nPréfixe de travail :\\n%s\n\nLes bottles Wine associées à ce jeu ont été supprimées. Les sauvegardes externes sont conservées."
 
   [wsq_update_exe_prompt]="Exécutable défini dans autorun.cmd :\\n%s\\n\\nConservez ce lancement ou choisissez un autre exécutable de la nouvelle version."
   [wsq_update_exe_keep]="Utiliser le lancement existant (par défaut)"
@@ -598,7 +599,7 @@ declare -gA I18N=(
   [wsq_update_final_prompt]="Archive finale :\\n%s\\n\\nChoisissez de conserver une sauvegarde de l’ancien WSquashFS avant remplacement, ou de le remplacer directement. Dans les deux cas, le contrôle complet doit réussir avant le remplacement."
   [wsq_update_final_backup]="Sauvegarder l’ancien WSquashFS puis remplacer"
   [wsq_update_final_replace]="Remplacer directement le WSquashFS existant"
-  [wsq_update_done_replace]="Mise à jour terminée, WSquashFS remplacé :\\n%s\\n\\nPréfixe de travail :\\n%s"
+  [wsq_update_done_replace]="Mise à jour terminée, WSquashFS remplacé :\\n%s\\n\\nPréfixe de travail :\\n%s\n\nLes bottles Wine associées à ce jeu ont été supprimées. Les sauvegardes externes sont conservées."
 
 
   [wsq_update_prefix_conflict_title]="Dossier Wine de test déjà présent"
