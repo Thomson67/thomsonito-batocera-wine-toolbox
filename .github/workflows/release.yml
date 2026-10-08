@@ -37,7 +37,7 @@ jobs:
           echo "tag=v$VERSION" >> "$GITHUB_OUTPUT"
 
       - name: Install image tooling
-        run: python3 -m pip install --disable-pip-version-check Pillow
+        run: sudo apt-get update && sudo apt-get install -y python3-pil
 
       - name: Validate package sources
         shell: bash
