@@ -271,6 +271,15 @@ EOF
     msgbox "$(i18n dxvk_title)" "$(i18n dxvk_bundle_installed "$bundle_name")"
 }
 
+
+dxvk_install_bundle_menu() {
+    local dxvk_line vkd3d_line nvapi_line
+    dxvk_line="$(dxvk_choose_release "doitsujin/dxvk" "dxvk" "$(i18n dxvk_choose_dxvk)")" || return
+    vkd3d_line="$(dxvk_choose_release "HansKristian-Work/vkd3d-proton" "vkd3d" "$(i18n dxvk_choose_vkd3d)")" || return
+    nvapi_line="$(dxvk_choose_release "jp7677/dxvk-nvapi" "nvapi" "$(i18n dxvk_choose_nvapi)")" || return
+    dxvk_build_bundle "$dxvk_line" "$vkd3d_line" "$nvapi_line"
+}
+
 dxvk_list_bundles() {
     dxvk_ensure_dirs
     find "$DXVK_BUNDLE_DIR" -mindepth 1 -maxdepth 1 -type d -printf '%f\n' 2>/dev/null | sort -V
