@@ -547,7 +547,7 @@ declare -gA I18N=(
   [wsq_update_save_detect]="Rechercher les sauvegardes détectées après le test"
   [wsq_update_save_confirm]="Confirmez uniquement si vous avez vérifié le chargement de la progression et la création d’une nouvelle sauvegarde avec ces règles. Si le dossier a changé, choisissez la recherche ou l’explorateur."
   [wsq_update_build_confirm]="Créer la nouvelle archive puis remplacer :\\n%s\\n\\nUn contrôle complet doit réussir avant le remplacement. Une sauvegarde horodatée de l’ancienne archive sera conservée. Continuer ?"
-  [wsq_update_done]="Mise à jour terminée :\\n%s\\n\\nAncienne archive sauvegardée :\\n%s\\n\\nPréfixe de travail :\\n%s"
+  [wsq_update_done]="Mise à jour terminée :\\n%s\\n\\nAncienne archive sauvegardée :\\n%s\\n\\nPréfixe de travail :\\n%s\\n\\nLes anciennes bottles runtime associées ont été supprimées."
 
   [wsq_update_links_prompt]="Liens de sauvegarde du préfixe original :\\n%s\\n\\nCes liens seront conservés par défaut. Un lien vers la racine peut laisser le jeu ou start.bat créer son propre sous-dossier. Vérifiez le chargement et une nouvelle sauvegarde avant confirmation."
   [wsq_update_links_keep]="Conserver les liens de sauvegarde existants (par défaut)"
@@ -566,7 +566,7 @@ declare -gA I18N=(
   [wsq_update_final_prompt]="Archive finale :\\n%s\\n\\nChoisissez de conserver une sauvegarde de l’ancien WSquashFS avant remplacement, ou de le remplacer directement. Dans les deux cas, le contrôle complet doit réussir avant le remplacement."
   [wsq_update_final_backup]="Sauvegarder l’ancien WSquashFS puis remplacer"
   [wsq_update_final_replace]="Remplacer directement le WSquashFS existant"
-  [wsq_update_done_replace]="Mise à jour terminée, WSquashFS remplacé :\\n%s\\n\\nPréfixe de travail :\\n%s"
+  [wsq_update_done_replace]="Mise à jour terminée, WSquashFS remplacé :\\n%s\\n\\nPréfixe de travail :\\n%s\\n\\nLes anciennes bottles runtime associées ont été supprimées."
 
 
   [wsq_update_prefix_conflict_title]="Dossier Wine de test déjà présent"
