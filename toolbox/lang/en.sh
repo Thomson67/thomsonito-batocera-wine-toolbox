@@ -577,5 +577,7 @@ declare -gA I18N=(
   [wsq_update_prefix_source_overlap]="The updated game source is inside this prefix. Choose another prefix name to preserve the source during extraction."
 
 
+  [wsq_update_bottles_cleanup_failed]="The update is complete, but its associated runtime bottles could not be removed:\\n%s\\n\\nFinalization remains pending. See log:\\n%s"
+
 )
 
