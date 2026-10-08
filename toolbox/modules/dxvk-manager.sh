@@ -101,7 +101,7 @@ dxvk_nvapi_limitation_text() {
 
 dxvk_choose_release() {
     local repo="$1" kind="$2" title="$3" dxvk_ver="${4:-}" vkd3d_ver="${5:-}"
-    local catalog data="" line tag url digest idx=1 choice status selected_tag limitations
+    local catalog data="" line tag url digest idx=1 choice status selected_tag limitations label
     local -a items=()
 
     catalog="$(dxvk_release_catalog "$repo" "$kind")" || {
@@ -111,6 +111,7 @@ dxvk_choose_release() {
 
     while IFS=$'\t' read -r tag url digest; do
         [ -n "$tag" ] && [ -n "$url" ] || continue
+        label="$tag"
         if [ "$kind" = nvapi ]; then
             status="$(dxvk_nvapi_status "$dxvk_ver" "$vkd3d_ver" "${tag#v}")" || {
                 msgbox "$title" "$(i18n dxvk_release_fetch_failed)"
@@ -118,13 +119,17 @@ dxvk_choose_release() {
             }
             case "$status" in
                 incompatible*) continue ;;
-                compatible*) ;;
+                incompatible*) continue ;;
+                compatible\ *)
+                    label="$tag — $(i18n dxvk_nvapi_partial_compatibility)"
+                    ;;
+                compatible) ;;
                 *) msgbox "$title" "$(i18n dxvk_release_fetch_failed)"; return 1 ;;
             esac
         fi
         printf -v line '%s\t%s\t%s\n' "$tag" "$url" "$digest"
         data+="$line"
-        items+=("$idx" "$tag")
+        items+=("$idx" "$label")
         idx=$((idx+1))
     done <<< "$catalog"
 
