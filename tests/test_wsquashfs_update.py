@@ -578,4 +578,56 @@ wsq_update_prefix_target {q(str(self.archive))} {q(str(self.source))}
         self.assertIn('SAVEDIR=drive_c/users/root/Saved', (self.prefix / 'autorun.cmd').read_text())
         self.assertFalse((self.prefix / 'drive_c/users/root/Saved').is_symlink())
 
+
+class RuntimeBottleCleanupTests(unittest.TestCase):
+    def test_removes_matching_bottles_across_runners_and_preserves_other_games(self):
+        root = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, root)
+        targets = [
+            root / 'Wine-11' / 'Game.wsquashfs.wine',
+            root / 'Proton' / 'GAME.WSQUASHFS.WINE',
+        ]
+        unrelated = root / 'Wine-11' / 'Other.wsquashfs.wine'
+        for path in targets + [unrelated]:
+            path.mkdir(parents=True)
+            (path / 'cache').write_text('runtime data')
+        removed = update.cleanup_runtime_bottles(root, 'Game.wsquashfs')
+        self.assertEqual(len(removed), 2)
+        self.assertTrue(all(not path.exists() for path in targets))
+        self.assertTrue(unrelated.is_dir())
+
+    def test_removes_matching_symlink_without_following_its_target(self):
+        root = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, root)
+        external = root.parent / (root.name + '-external')
+        external.mkdir()
+        self.addCleanup(shutil.rmtree, external)
+        link = root / 'Wine-11' / 'Game.wsquashfs.wine'
+        link.parent.mkdir()
+        link.symlink_to(external, target_is_directory=True)
+        (external / 'keep').write_text('keep')
+        update.cleanup_runtime_bottles(root, 'Game.wsquashfs')
+        self.assertFalse(link.exists())
+        self.assertTrue((external / 'keep').is_file())
+
+    def test_rejects_paths_as_archive_names_and_symlink_roots(self):
+        root = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, root)
+        with self.assertRaises(ValueError):
+            update.cleanup_runtime_bottles(root, '../Game.wsquashfs')
+        outside = root.parent / (root.name + '-outside')
+        outside.mkdir()
+        self.addCleanup(shutil.rmtree, outside)
+        alias = root.parent / (root.name + '-alias')
+        alias.symlink_to(outside, target_is_directory=True)
+        self.addCleanup(alias.unlink)
+        with self.assertRaises(ValueError):
+            update.cleanup_runtime_bottles(alias, 'Game.wsquashfs')
+
+    def test_cleanup_runs_before_pending_state_is_removed(self):
+        module = (Path(__file__).resolve().parents[1] / 'toolbox/modules/wsquashfs-update.sh').read_text()
+        finish = module[module.index('wsq_resume_update()'):module.index('wsq_post_build_menu')]
+        self.assertLess(finish.index('cleanup-bottles'), finish.index('rm -f -- "$snapshot"'))
+
+
 if __name__ == '__main__': unittest.main()
