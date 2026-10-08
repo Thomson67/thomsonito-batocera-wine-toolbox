@@ -68,7 +68,7 @@ msgbox() {
         printf '==== %s ====\n\n%b\n\n' "$title" "$body"
         read -r -p "$(i18n press_enter)" _
     fi
-}
+} >&2 # Messages must stay visible when callers capture a selector's stdout.
 
 yesno() {
     local title="$1" body="$2"
