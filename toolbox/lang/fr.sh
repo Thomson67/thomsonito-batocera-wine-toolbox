@@ -577,5 +577,7 @@ declare -gA I18N=(
   [wsq_update_prefix_source_overlap]="Le dossier choisi pour la nouvelle version se trouve dans ce préfixe. Choisissez un autre nom de préfixe pour conserver la source pendant l’extraction."
 
 
+  [wsq_update_bottles_cleanup_failed]="La mise à jour est terminée, mais les bottles runtime associées n’ont pas pu être supprimées :\\n%s\\n\\nLa finalisation reste en attente. Consultez le journal :\\n%s"
+
 )
 
