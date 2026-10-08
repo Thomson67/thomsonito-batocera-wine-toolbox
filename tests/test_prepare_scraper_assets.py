@@ -5,10 +5,12 @@ import unittest
 
 from PIL import Image
 
-ROOT = Path(__file__).resolve().parent
-if (ROOT / ".github/scripts/prepare-scraper-assets.py").exists():
-    SCRIPT = ROOT / ".github/scripts/prepare-scraper-assets.py"
-else:
+HERE = Path(__file__).resolve().parent
+ROOT = HERE
+if not (ROOT / ".github/scripts/prepare-scraper-assets.py").exists() and not (ROOT / "prepare-scraper-assets.py").exists():
+    ROOT = HERE.parent
+SCRIPT = ROOT / ".github/scripts/prepare-scraper-assets.py"
+if not SCRIPT.exists():
     SCRIPT = ROOT / "prepare-scraper-assets.py"
 spec = importlib.util.spec_from_file_location("prepare_scraper_assets", SCRIPT)
 prepare_assets = importlib.util.module_from_spec(spec)
