@@ -7,10 +7,12 @@ import unittest
 
 from PIL import Image
 
-ROOT = Path(__file__).resolve().parent
-if (ROOT / "toolbox/helpers/install-scraper-assets.sh").exists():
-    HELPER = ROOT / "toolbox/helpers/install-scraper-assets.sh"
-else:
+HERE = Path(__file__).resolve().parent
+ROOT = HERE
+if not (ROOT / "toolbox/helpers/install-scraper-assets.sh").exists() and not (ROOT / "install-scraper-assets.sh").exists():
+    ROOT = HERE.parent
+HELPER = ROOT / "toolbox/helpers/install-scraper-assets.sh"
+if not HELPER.exists():
     HELPER = ROOT / "install-scraper-assets.sh"
 
 
