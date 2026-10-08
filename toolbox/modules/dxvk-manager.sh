@@ -46,7 +46,8 @@ dxvk_status() {
 }
 
 dxvk_release_catalog() {
-    local repo="$1" kind="$2" cache="$DXVK_CACHE_DIR/${kind}.json"
+    local repo="$1" kind="$2" cache
+    cache="$DXVK_CACHE_DIR/${kind}.json"
     dxvk_ensure_dirs
 
     if [ ! -s "$cache" ] || [ $(( $(date +%s) - $(stat -c %Y "$cache" 2>/dev/null || echo 0) )) -gt 21600 ]; then
@@ -72,7 +73,9 @@ for rel in releases:
         continue
     tag = rel.get("tag_name", "")
     version = tag[1:] if tag.startswith("v") else tag
-    expected = f"dxvk-{version}.tar.gz" if kind == "dxvk" else f"vkd3d-proton-{version}.tar.zst"
+    expected = (f"dxvk-{version}.tar.gz" if kind == "dxvk" else
+                f"vkd3d-proton-{version}.tar.zst" if kind == "vkd3d" else
+                f"dxvk-nvapi-{tag}.tar.gz")
     asset = next((a for a in rel.get("assets", []) if a.get("name") == expected), None)
     if asset:
         print("\t".join([tag, asset.get("browser_download_url", ""), asset.get("digest") or ""]))
@@ -129,17 +132,20 @@ dxvk_extract_vkd3d() {
 }
 
 dxvk_build_bundle() {
-    local dxvk_line="$1" vkd3d_line="$2"
+    local dxvk_line="$1" vkd3d_line="$2" nvapi_line="$3"
     local dxvk_tag dxvk_url dxvk_digest vkd3d_tag vkd3d_url vkd3d_digest
-    local dxvk_ver vkd3d_ver bundle_name target tmp dxvk_arc vkd3d_arc
-    local dxvk_x64 dxvk_x32 vkd3d_x64 vkd3d_x86 dll
+    local nvapi_tag nvapi_url nvapi_digest
+    local dxvk_ver vkd3d_ver nvapi_ver bundle_name target tmp dxvk_arc vkd3d_arc nvapi_arc
+    local dxvk_x64 dxvk_x32 vkd3d_x64 vkd3d_x86 nvapi_x64 nvapi_x32 dll
 
     IFS=$'\t' read -r dxvk_tag dxvk_url dxvk_digest <<< "$dxvk_line"
     IFS=$'\t' read -r vkd3d_tag vkd3d_url vkd3d_digest <<< "$vkd3d_line"
+    IFS=$'\t' read -r nvapi_tag nvapi_url nvapi_digest <<< "$nvapi_line"
 
     dxvk_ver="${dxvk_tag#v}"
     vkd3d_ver="${vkd3d_tag#v}"
-    bundle_name="DXVK-${dxvk_ver}__VKD3D-${vkd3d_ver}"
+    nvapi_ver="${nvapi_tag#v}"
+    bundle_name="DXVK-${dxvk_ver}__VKD3D-${vkd3d_ver}__NVAPI-${nvapi_ver}"
     target="$DXVK_BUNDLE_DIR/$bundle_name"
 
     if [ -d "$target" ]; then
@@ -150,8 +156,9 @@ dxvk_build_bundle() {
     tmp="$(mktemp -d /tmp/wt-dxvk.XXXXXX)" || return 1
     dxvk_arc="$tmp/dxvk.tar.gz"
     vkd3d_arc="$tmp/vkd3d.tar.zst"
+    nvapi_arc="$tmp/nvapi.tar.gz"
 
-    msgbox "$(i18n dxvk_title)" "$(i18n dxvk_downloading "$dxvk_tag" "$vkd3d_tag")"
+    msgbox "$(i18n dxvk_title)" "$(i18n dxvk_downloading "$dxvk_tag" "$vkd3d_tag" "$nvapi_tag")"
 
     curl -fL --retry 3 --connect-timeout 15 "$dxvk_url" -o "$dxvk_arc" || {
         rm -rf "$tmp"
@@ -159,6 +166,11 @@ dxvk_build_bundle() {
         return 1
     }
     curl -fL --retry 3 --connect-timeout 15 "$vkd3d_url" -o "$vkd3d_arc" || {
+        rm -rf "$tmp"
+        msgbox "$(i18n dxvk_title)" "$(i18n dxvk_download_failed)"
+        return 1
+    }
+    curl -fL --retry 3 --connect-timeout 15 "$nvapi_url" -o "$nvapi_arc" || {
         rm -rf "$tmp"
         msgbox "$(i18n dxvk_title)" "$(i18n dxvk_download_failed)"
         return 1
@@ -174,8 +186,27 @@ dxvk_build_bundle() {
         msgbox "$(i18n dxvk_title)" "$(i18n dxvk_checksum_failed "VKD3D-Proton $vkd3d_tag")"
         return 1
     }
+    case "$nvapi_digest" in
+        sha256:*)
+            [ "${#nvapi_digest}" -eq 71 ] || {
+                rm -rf "$tmp"
+                msgbox "$(i18n dxvk_title)" "$(i18n dxvk_checksum_missing)"
+                return 1
+            }
+            ;;
+        *)
+            rm -rf "$tmp"
+            msgbox "$(i18n dxvk_title)" "$(i18n dxvk_checksum_missing)"
+            return 1
+            ;;
+    esac
+    dxvk_verify_digest "$nvapi_arc" "$nvapi_digest" || {
+        rm -rf "$tmp"
+        msgbox "$(i18n dxvk_title)" "$(i18n dxvk_checksum_failed "DXVK-NVAPI $nvapi_tag")"
+        return 1
+    }
 
-    mkdir -p "$tmp/dxvk" "$tmp/vkd3d"
+    mkdir -p "$tmp/dxvk" "$tmp/vkd3d" "$tmp/nvapi"
     tar -xzf "$dxvk_arc" -C "$tmp/dxvk" >/dev/null 2>&1 || {
         rm -rf "$tmp"
         msgbox "$(i18n dxvk_title)" "$(i18n dxvk_extract_failed "DXVK")"
@@ -186,13 +217,20 @@ dxvk_build_bundle() {
         msgbox "$(i18n dxvk_title)" "$(i18n dxvk_extract_failed "VKD3D-Proton")"
         return 1
     }
+    tar -xzf "$nvapi_arc" -C "$tmp/nvapi" >/dev/null 2>&1 || {
+        rm -rf "$tmp"
+        msgbox "$(i18n dxvk_title)" "$(i18n dxvk_extract_failed "DXVK-NVAPI")"
+        return 1
+    }
 
     dxvk_x64="$(find "$tmp/dxvk" -type f -path '*/x64/d3d11.dll' -printf '%h\n' -quit)"
     dxvk_x32="$(find "$tmp/dxvk" -type f -path '*/x32/d3d11.dll' -printf '%h\n' -quit)"
     vkd3d_x64="$(find "$tmp/vkd3d" -type f -path '*/x64/d3d12.dll' -printf '%h\n' -quit)"
     vkd3d_x86="$(find "$tmp/vkd3d" -type f \( -path '*/x86/d3d12.dll' -o -path '*/x32/d3d12.dll' \) -printf '%h\n' -quit)"
+    nvapi_x64="$(find "$tmp/nvapi" -type f -path '*/x64/nvapi64.dll' -printf '%h\n' -quit)"
+    nvapi_x32="$(find "$tmp/nvapi" -type f -path '*/x32/nvapi.dll' -printf '%h\n' -quit)"
 
-    if [ -z "$dxvk_x64" ] || [ -z "$dxvk_x32" ] || [ -z "$vkd3d_x64" ] || [ -z "$vkd3d_x86" ]; then
+    if [ -z "$dxvk_x64" ] || [ -z "$dxvk_x32" ] || [ -z "$vkd3d_x64" ] || [ -z "$vkd3d_x86" ] || [ -z "$nvapi_x64" ] || [ -z "$nvapi_x32" ] || [ ! -f "$nvapi_x64/nvofapi64.dll" ]; then
         rm -rf "$tmp"
         msgbox "$(i18n dxvk_title)" "$(i18n dxvk_invalid_archives)"
         return 1
@@ -212,22 +250,25 @@ dxvk_build_bundle() {
         cp -f "$vkd3d_x86/$dll" "$target/x32/" || { rm -rf "$target" "$tmp"; return 1; }
     done
 
+    for dll in nvapi64.dll nvofapi64.dll; do
+        cp -f "$nvapi_x64/$dll" "$target/x64/" || { rm -rf "$target" "$tmp"; return 1; }
+    done
+    cp -f "$nvapi_x32/nvapi.dll" "$target/x32/" || { rm -rf "$target" "$tmp"; return 1; }
+
     cat > "$target/bundle.conf" <<EOF
 DXVK_VERSION=$dxvk_ver
 VKD3D_VERSION=$vkd3d_ver
+NVAPI_VERSION=$nvapi_ver
 DXVK_URL=$dxvk_url
 VKD3D_URL=$vkd3d_url
+NVAPI_URL=$nvapi_url
+DXVK_SHA256=${dxvk_digest#sha256:}
+VKD3D_SHA256=${vkd3d_digest#sha256:}
+NVAPI_SHA256=${nvapi_digest#sha256:}
 EOF
 
     rm -rf "$tmp"
     msgbox "$(i18n dxvk_title)" "$(i18n dxvk_bundle_installed "$bundle_name")"
-}
-
-dxvk_install_bundle_menu() {
-    local dxvk_line vkd3d_line
-    dxvk_line="$(dxvk_choose_release "doitsujin/dxvk" "dxvk" "$(i18n dxvk_choose_dxvk)")" || return
-    vkd3d_line="$(dxvk_choose_release "HansKristian-Work/vkd3d-proton" "vkd3d" "$(i18n dxvk_choose_vkd3d)")" || return
-    dxvk_build_bundle "$dxvk_line" "$vkd3d_line"
 }
 
 dxvk_list_bundles() {
