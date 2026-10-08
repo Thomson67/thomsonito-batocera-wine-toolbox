@@ -1171,11 +1171,28 @@ wsq_game_options_menu() {
     done
 }
 
+wsq_apply_executable_selection() {
+    local selected="$1" log="${WT_SESSION_LOG:-/dev/null}" mode update_log
+    [ -n "$selected" ] || return 1
+    mode="$(wsq_state_value mode 2>/dev/null)" || mode=""
+    if [ "$mode" = update ]; then
+        update_log="$(wsq_state_value update_log 2>/dev/null)" || update_log=""
+        [ -z "$update_log" ] || log="$update_log"
+    fi
+    python3 "$WSQ_UPDATE_HELPER" autorun "$prefix" "$selected" >> "$log" 2>&1 || {
+        msgbox "$(i18n wsq_launch_title)" "$(i18n wsq_executable_apply_failed "$selected")"
+        return 1
+    }
+    exe_rel="$selected"
+    wsq_update_state exe_rel "$selected" || return 1
+}
+
 wsq_launch_failure_menu() {
-    local choice new_runner
+    local choice new_runner new_exe
     while true; do
         choice="$(menu_select "$(i18n wsq_launch_title)" "$1" \
             "runner" "$(i18n wsq_launch_runner)" \
+            "executable" "$(i18n wsq_launch_executable_review)" \
             "retry" "$(i18n wsq_launch_retry)" \
             "options" "$(i18n wsq_options_title)" \
             "cancel" "$(i18n wsq_launch_cancel)")" || return 1
@@ -1190,6 +1207,12 @@ wsq_launch_failure_menu() {
                 wsq_save_state "$prefix" "$game_name" "$snapshot" "$exe_rel" "$runner" || return 1
                 wsq_retry_pending
                 return 1 ;;
+            executable)
+                new_exe="$(wsq_update_select_executable "$prefix")" || continue
+                [ "$new_exe" != "$exe_rel" ] || continue
+                wsq_apply_executable_selection "$new_exe" || continue
+                wsq_retry_pending
+                return 1 ;;
             retry) wsq_retry_pending; return 1 ;;
             options) wsq_game_options_menu || return 1 ;;
             cancel) wsq_cancel_pending; return 1 ;;
@@ -1198,7 +1221,7 @@ wsq_launch_failure_menu() {
 }
 
 wsq_review_launch() {
-    local result="" choice body
+    local result="" choice body new_exe
     if [ -f "$WSQ_STATE_DIR/wsq-launch-result" ]; then
         IFS= read -r result < "$WSQ_STATE_DIR/wsq-launch-result" || true
     fi
@@ -1216,6 +1239,7 @@ wsq_review_launch() {
         choice="$(menu_select "$(i18n wsq_launch_title)" "$body" \
             "yes" "$(i18n wsq_game_yes)" \
             "no" "$(i18n wsq_game_no)" \
+            "executable" "$(i18n wsq_launch_executable_review)" \
             "hidraw" "$(i18n wsq_hidraw_retry)" \
             "options" "$(i18n wsq_options_title)" \
             "cancel" "$(i18n wsq_launch_cancel)")" || return 1
@@ -1224,6 +1248,12 @@ wsq_review_launch() {
                 rm -f -- "$WSQ_STATE_DIR/wsq-launch-result"
                 return 0 ;;
             no) wsq_launch_failure_menu "$(i18n wsq_game_failed)"; return 1 ;;
+            executable)
+                new_exe="$(wsq_update_select_executable "$prefix")" || continue
+                [ "$new_exe" != "$exe_rel" ] || continue
+                wsq_apply_executable_selection "$new_exe" || continue
+                wsq_retry_pending
+                return 1 ;;
             hidraw)
                 wsq_game_option set enable_hidraw 1 || {
                     msgbox "$(i18n wsq_launch_title)" "$(i18n wsq_runner_config_failed)"

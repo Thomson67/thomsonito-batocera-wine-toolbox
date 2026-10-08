@@ -98,6 +98,62 @@ wsq_update_log_detail {q(str(log))}
         self.assertIn('exact blocking path', result.stdout)
         self.assertNotIn('old line', result.stdout)
 
+    def test_post_launch_executable_change_preserves_autorun_settings(self):
+        root = Path(__file__).resolve().parents[1]
+        state = self.base / 'state'; state.mkdir()
+        prefix = self.base / 'Executable Review.wine'
+        game = prefix / 'drive_c/game'
+        game.mkdir(parents=True)
+        (game / 'old.exe').write_text('old')
+        (game / 'new.exe').write_text('new')
+        (prefix / 'autorun.cmd').write_text(
+            'ENV=DXVK_HUD=1\nLANG=fr_FR\nDIR=drive_c/game\n'
+            'CMD="old.exe" --launch\nSAVEDIR=drive_c/users/root/Saved\n'
+            'SAVEFILES=slot*.sav\n'
+        )
+        log = self.base / 'update.log'
+        state_file = state / 'wsquashfs-builder.json'
+        state_file.write_text(json.dumps({
+            'mode': 'update', 'phase': 'testing', 'prefix': str(prefix),
+            'game_name': 'Executable Review', 'snapshot': str(self.base / 'snapshot.json'),
+            'exe_rel': 'drive_c/game/old.exe', 'update_log': str(log),
+        }))
+        q = shlex.quote
+        script = f"""
+WT_ROOT={q(str(root / 'toolbox'))}; WT_HOME={q(str(self.base))}
+source "$WT_ROOT/modules/wsquashfs.sh"
+prefix={q(str(prefix))}
+exe_rel=drive_c/game/old.exe
+wsq_apply_executable_selection drive_c/game/new.exe
+"""
+        result = subprocess.run(['bash', '-c', script], capture_output=True, text=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        directives = (prefix / 'autorun.cmd').read_text()
+        self.assertIn('CMD="new.exe" --launch', directives)
+        self.assertIn('ENV=DXVK_HUD=1', directives)
+        self.assertIn('LANG=fr_FR', directives)
+        self.assertIn('SAVEDIR=drive_c/users/root/Saved', directives)
+        self.assertIn('SAVEFILES=slot*.sav', directives)
+        state_data = json.loads(state_file.read_text())
+        self.assertEqual(state_data['exe_rel'], 'drive_c/game/new.exe')
+
+    def test_update_workflow_defers_executable_review_until_after_launch(self):
+        root = Path(__file__).resolve().parents[1]
+        update_module = (root / 'toolbox/modules/wsquashfs-update.sh').read_text()
+        create_module = (root / 'toolbox/modules/wsquashfs.sh').read_text()
+        update_flow = update_module.split('wsq_update_new() {', 1)[1].split(
+            '\nwsq_update_review_save() {', 1
+        )[0]
+        review_flow = create_module.split('wsq_review_launch() {', 1)[1].split(
+            '\nwsq_resume_build() {', 1
+        )[0]
+        create_flow = create_module.split('wsq_create_new() {', 1)[1].split(
+            '\nwsq_recover_invalid_pending() {', 1
+        )[0]
+        self.assertNotIn('wsq_update_select_executable "$prefix"', update_flow)
+        self.assertIn('wsq_update_select_executable "$prefix"', review_flow)
+        self.assertIn('exe_rel="$(wsq_select_executable "$target")"', create_flow)
+
     def test_unfinished_preparation_reports_exact_artifacts(self):
         old_game = self.game.with_name(self.game.name + '.bak')
         old_game.mkdir()

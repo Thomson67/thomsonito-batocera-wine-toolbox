@@ -308,12 +308,8 @@ wsq_update_new() {
             "$(i18n wsq_update_prepare_failed "$(wsq_update_log_detail "$log")" "$prefix" "$log")"
         return
     fi
-    wsq_update_state phase selecting-executable || return
-    exe_rel="$(wsq_update_select_executable "$prefix")" || {
-        msgbox "$(i18n wsq_update_title)" "$(i18n wsq_update_kept "$prefix")"; return
-    }
-    wsq_update_state phase writing-autorun || return
-    python3 "$WSQ_UPDATE_HELPER" autorun "$prefix" "$exe_rel" >> "$log" 2>&1 || {
+    # Keep the autorun executable selected in the archive; review or change it after testing.
+    exe_rel="$(python3 "$WSQ_UPDATE_HELPER" exe "$prefix")" || {
         msgbox "$(i18n wsq_update_title)" "$(i18n wsq_update_failed "$prefix" "$log")"; return
     }
     wsq_update_state phase configuring || return
