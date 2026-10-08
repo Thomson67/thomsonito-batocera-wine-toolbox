@@ -1161,11 +1161,33 @@ wsq_game_options_menu() {
     done
 }
 
+wsq_update_game_executable() {
+    local game_dir new_exe update_log
+    if [ "$(wsq_state_value mode)" = update ]; then
+        game_dir="$(python3 "$WSQ_UPDATE_HELPER" game-dir "$prefix")" || return 1
+    else
+        game_dir="drive_c/game"
+    fi
+    new_exe="$(wsq_select_executable "$prefix" "$game_dir")" || return 1
+    if [ "$(wsq_state_value mode)" = update ]; then
+        # Updating only DIR/CMD preserves the save directives and other
+        # launch settings already present in autorun.cmd.
+        update_log="$(wsq_state_value update_log)"
+        python3 "$WSQ_UPDATE_HELPER" autorun "$prefix" "$new_exe" >> "${update_log:-${WT_SESSION_LOG:-/dev/null}}" 2>&1 || return 1
+    else
+        wsq_write_autorun "$prefix" "$new_exe" || return 1
+    fi
+    exe_rel="$new_exe"
+    wsq_save_state "$prefix" "$game_name" "$snapshot" "$exe_rel" "$runner" || return 1
+    return 0
+}
+
 wsq_launch_failure_menu() {
     local choice new_runner
     while true; do
         choice="$(menu_select "$(i18n wsq_launch_title)" "$1" \
             "runner" "$(i18n wsq_launch_runner)" \
+            "exe" "$(i18n wsq_executable_review)" \
             "retry" "$(i18n wsq_launch_retry)" \
             "options" "$(i18n wsq_options_title)" \
             "cancel" "$(i18n wsq_launch_cancel)")" || return 1
@@ -1178,6 +1200,10 @@ wsq_launch_failure_menu() {
                 }
                 runner="$new_runner"
                 wsq_save_state "$prefix" "$game_name" "$snapshot" "$exe_rel" "$runner" || return 1
+                wsq_retry_pending
+                return 1 ;;
+            exe)
+                wsq_update_game_executable || continue
                 wsq_retry_pending
                 return 1 ;;
             retry) wsq_retry_pending; return 1 ;;
@@ -1206,6 +1232,7 @@ wsq_review_launch() {
         choice="$(menu_select "$(i18n wsq_launch_title)" "$body" \
             "yes" "$(i18n wsq_game_yes)" \
             "no" "$(i18n wsq_game_no)" \
+            "exe" "$(i18n wsq_executable_review)" \
             "hidraw" "$(i18n wsq_hidraw_retry)" \
             "options" "$(i18n wsq_options_title)" \
             "cancel" "$(i18n wsq_launch_cancel)")" || return 1
@@ -1214,6 +1241,10 @@ wsq_review_launch() {
                 rm -f -- "$WSQ_STATE_DIR/wsq-launch-result"
                 return 0 ;;
             no) wsq_launch_failure_menu "$(i18n wsq_game_failed)"; return 1 ;;
+            exe)
+                wsq_update_game_executable || continue
+                wsq_retry_pending
+                return 1 ;;
             hidraw)
                 wsq_game_option set enable_hidraw 1 || {
                     msgbox "$(i18n wsq_launch_title)" "$(i18n wsq_runner_config_failed)"
@@ -1547,3 +1578,4 @@ wsquashfs_menu() {
         esac
     done
 }
+
