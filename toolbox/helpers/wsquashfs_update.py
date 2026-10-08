@@ -261,6 +261,42 @@ def stage_legacy(manifest):
     save_json(manifest, data)
 
 
+def cleanup_runtime_bottles(root, archive_name):
+    """Remove every cached Wine overlay for one WSquashFS without following symlinks."""
+    if (not archive_name or Path(archive_name).name != archive_name or
+            "/" in archive_name or "\\" in archive_name or
+            not archive_name.casefold().endswith(".wsquashfs")):
+        raise ValueError("expected a WSquashFS filename, not a path")
+    root = Path(root)
+    if root.is_symlink():
+        raise ValueError("Wine bottle root must not be a symlink")
+    if not root.exists():
+        return []
+    if not root.is_dir():
+        raise ValueError("Wine bottle root is not a directory")
+    root = root.resolve()
+    target_name = (archive_name + ".wine").casefold()
+    removed = []
+    for current, directories, _ in os.walk(root, topdown=True, followlinks=False):
+        for name in list(directories):
+            candidate = Path(current) / name
+            if name.casefold() != target_name:
+                if candidate.is_symlink():
+                    directories.remove(name)
+                continue
+            if candidate.is_symlink():
+                candidate.unlink()
+            elif candidate.is_dir():
+                if not candidate.parent.resolve().is_relative_to(root):
+                    raise ValueError("Wine bottle path escapes the configured root")
+                shutil.rmtree(candidate)
+            else:
+                continue
+            removed.append(str(candidate))
+            directories.remove(name)
+    return removed
+
+
 def cleanup_test_saves(manifest):
     data = json.loads(manifest.read_text())
     if not data.get('committed'):
@@ -630,6 +666,8 @@ def main():
     a.add_argument('--backup-dir', type=Path); a.add_argument('--preserve-existing', action='store_true')
     a = sp.add_parser('commit')
     a.add_argument('manifest', type=Path); a.add_argument('staged', type=Path); a.add_argument('--prepared-save', type=Path); a.add_argument('--replace', action='store_true')
+    a = sp.add_parser('cleanup-bottles')
+    a.add_argument('root', type=Path); a.add_argument('archive_name')
     for action in ('cleanup-test', 'profiles', 'restore-save-rules', 'finish-game', 'restore-legacy', 'restore-custom', 'restore-scripts', 'stage-legacy', 'legacy-summary', 'exe', 'game-dir'):
         a = sp.add_parser(action)
         a.add_argument('prefix' if action in ('exe', 'game-dir', 'profiles') else 'manifest', type=Path)
@@ -651,6 +689,9 @@ def main():
         elif a.action == 'config': print(copy_config(a.conf, a.source, a.dest, a.backup_dir, a.preserve_existing))
         elif a.action == 'commit': print(commit(a.manifest, a.staged, a.prepared_save, not a.replace))
         elif a.action == 'game-dir': print(game_directory(a.prefix).relative_to(a.prefix).as_posix())
+        elif a.action == 'cleanup-bottles':
+            removed = cleanup_runtime_bottles(a.root, a.archive_name)
+            print('\\n'.join(removed) if removed else f'No runtime bottle found for {a.archive_name}')
         elif a.action == 'cleanup-test': cleanup_test_saves(a.manifest)
         elif a.action == 'profiles': ensure_root_alias(a.prefix)
         elif a.action == 'exe': print(launch_executable(a.prefix))
