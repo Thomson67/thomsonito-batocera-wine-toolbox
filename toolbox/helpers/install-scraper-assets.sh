@@ -15,7 +15,7 @@ MANIFEST="$STATE_DIR/scraper-assets.sha256"
 fail() { printf 'scraper-assets: %s\n' "$*" >&2; exit 1; }
 
 [ -d "$SRC_DIR" ] || fail "asset directory missing: $SRC_DIR"
-for file in box2d.png fanart.png logo.png screenshot.png; do
+for file in box2d.jpg fanart.jpg logo.png screenshot.jpg; do
     [ -s "$SRC_DIR/$file" ] || fail "required asset missing: $SRC_DIR/$file"
 done
 
@@ -56,12 +56,27 @@ install_asset() {
 }
 
 # Batocera's standard gamelist layout uses media subdirectories relative to
-# the Ports folder. Keep the existing source PNGs and point each field there.
-install_asset box2d.png "media/images/$SLUG.png"
-install_asset box2d.png "media/box2d/$SLUG.png"
-install_asset fanart.png "media/fanarts/$SLUG.png"
+# the Ports folder: image is the screenshot, and thumbnail is the 2D box art.
+install_asset screenshot.jpg "media/images/$SLUG.jpg"
+install_asset box2d.jpg "media/box2d/$SLUG.jpg"
+install_asset box2d.jpg "media/thumbnails/$SLUG.jpg"
+install_asset fanart.jpg "media/fanarts/$SLUG.jpg"
 install_asset logo.png "media/marquee/$SLUG.png"
-install_asset screenshot.png "media/thumbnails/$SLUG.png"
+
+# Remove only prior managed files whose recorded hash still matches. This
+# cleans up the older reversed PNG paths without deleting custom replacements.
+if [ -s "$old_manifest" ]; then
+    while read -r old_hash old_rel; do
+        [ -n "$old_rel" ] || continue
+        if ! awk -v n="$old_rel" '$2 == n { found=1 } END { exit !found }' "$new_manifest"; then
+            old_target="$PORTS_DIR/$old_rel"
+            if [ -f "$old_target" ] && [ ! -L "$old_target" ] &&
+               [ "$(sha256sum "$old_target" | awk '{print $1}')" = "$old_hash" ]; then
+                rm -f -- "$old_target"
+            fi
+        fi
+    done < "$old_manifest"
+fi
 mv -f -- "$new_manifest" "$MANIFEST" || fail "could not update asset manifest"
 
 python3 - "$PORTS_DIR/gamelist.xml" "$BACKUP_DIR" "$ROM_NAME" "$TITLE" "$DESC" "$GENRE" "$SLUG" <<'PYTHON'
@@ -91,11 +106,11 @@ if root.tag != "gameList":
     raise SystemExit(2)
 
 media = {
-    "image": f"./media/images/{slug}.png",
-    "boxart": f"./media/box2d/{slug}.png",
-    "fanart": f"./media/fanarts/{slug}.png",
+    "image": f"./media/images/{slug}.jpg",
+    "boxart": f"./media/box2d/{slug}.jpg",
+    "fanart": f"./media/fanarts/{slug}.jpg",
     "marquee": f"./media/marquee/{slug}.png",
-    "thumbnail": f"./media/thumbnails/{slug}.png",
+    "thumbnail": f"./media/thumbnails/{slug}.jpg",
 }
 fields = {
     "path": f"./{rom_name}",
@@ -116,18 +131,19 @@ def set_if_empty_or_managed(body, key, value):
     tag = re.compile(rf"(<{re.escape(key)}\b[^>]*>)(.*?)(</{re.escape(key)}\s*>)", re.DOTALL)
     self_closing = re.compile(rf"<{re.escape(key)}\b[^>]*/\s*>")
     managed_old = {
-        "image": f"./images/{slug}-box2d.png",
-        "fanart": f"./images/{slug}-fanart.png",
-        "marquee": f"./images/{slug}-logo.png",
-        "thumbnail": f"./images/{slug}-screenshot.png",
-    }.get(key)
+        "image": {f"./media/images/{slug}.png", f"./images/{slug}-box2d.png", f"./images/{slug}-screenshot.png"},
+        "boxart": {f"./media/box2d/{slug}.png"},
+        "fanart": {f"./media/fanarts/{slug}.png", f"./images/{slug}-fanart.png"},
+        "marquee": {f"./images/{slug}-logo.png"},
+        "thumbnail": {f"./media/thumbnails/{slug}.png", f"./images/{slug}-screenshot.png"},
+    }.get(key, set())
     changed = False
 
     def replace_tag(match):
         nonlocal changed
         old_value = match.group(2)
         plain = re.sub(r"<[^>]+>", "", old_value).strip()
-        if plain and plain != managed_old:
+        if plain and plain not in managed_old:
             return match.group(0)
         if plain == value:
             return match.group(0)
