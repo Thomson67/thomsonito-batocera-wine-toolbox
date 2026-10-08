@@ -430,6 +430,7 @@ declare -gA I18N=(
   [wsq_game_worked]="Le jeu s’est-il lancé et a-t-il fonctionné correctement, sans crash ni blocage ?\n\nRunner : %s"
   [wsq_game_yes]="Oui, le jeu a bien fonctionné"
   [wsq_game_no]="Non, crash ou problème de fonctionnement"
+  [wsq_executable_review]="Vérifier / modifier le choix de l’exécutable du jeu"
   [wsq_game_failed]="Le test du jeu n’a pas été concluant. Choisissez un autre runner, réessayez ou ajustez les options."
   [wsq_controller_title]="Vérifier la manette"
   [wsq_controller_prompt]="La manette a-t-elle été correctement prise en charge en jeu ?"
@@ -548,10 +549,6 @@ declare -gA I18N=(
   [wsq_update_build_confirm]="Créer la nouvelle archive puis remplacer :\\n%s\\n\\nUn contrôle complet doit réussir avant le remplacement. Une sauvegarde horodatée de l’ancienne archive sera conservée. Continuer ?"
   [wsq_update_done]="Mise à jour terminée :\\n%s\\n\\nAncienne archive sauvegardée :\\n%s\\n\\nPréfixe de travail :\\n%s"
 
-  [wsq_update_exe_prompt]="Exécutable défini dans autorun.cmd :\\n%s\\n\\nConservez ce lancement ou choisissez un autre exécutable de la nouvelle version."
-  [wsq_update_exe_keep]="Utiliser le lancement existant (par défaut)"
-  [wsq_update_exe_other]="Choisir un autre exécutable"
-  [wsq_update_exe_missing]="Le lancement existant ne correspond plus à un fichier disponible dans la nouvelle version. Choisissez un nouvel exécutable."
   [wsq_update_links_prompt]="Liens de sauvegarde du préfixe original :\\n%s\\n\\nCes liens seront conservés par défaut. Un lien vers la racine peut laisser le jeu ou start.bat créer son propre sous-dossier. Vérifiez le chargement et une nouvelle sauvegarde avant confirmation."
   [wsq_update_links_keep]="Conserver les liens de sauvegarde existants (par défaut)"
 
@@ -581,3 +578,4 @@ declare -gA I18N=(
 
 
 )
+
