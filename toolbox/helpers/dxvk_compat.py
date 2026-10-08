@@ -37,7 +37,7 @@ def evaluate(dxvk_version, vkd3d_version, nvapi_version):
 
 
 def main(argv):
-    if len(argv) != 4 or argv[1] != "check":
+    if len(argv) != 5 or argv[1] != "check":
         print("usage: dxvk_compat.py check DXVK_VERSION VKD3D_VERSION NVAPI_VERSION", file=sys.stderr)
         return 2
     try:
