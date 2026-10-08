@@ -83,6 +83,21 @@ class UpdateTests(unittest.TestCase):
         self.assertFalse(save_link.is_symlink()); self.assertEqual(list(save_link.iterdir()), [])
         self.assertEqual((test_save / 'slot').read_text(), 'tested')
 
+    def test_update_log_detail_shows_recent_failure_reason(self):
+        root = Path(__file__).resolve().parents[1]
+        log = self.base / 'update.log'
+        log.write_text('old line\nsecond line\nthird line\nfourth line\nexact blocking path')
+        q = shlex.quote
+        script = f"""
+WT_ROOT={q(str(root / 'toolbox'))}
+source "$WT_ROOT/modules/wsquashfs-update.sh"
+wsq_update_log_detail {q(str(log))}
+"""
+        result = subprocess.run(['bash', '-c', script], capture_output=True, text=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn('exact blocking path', result.stdout)
+        self.assertNotIn('old line', result.stdout)
+
     def test_unfinished_preparation_reports_exact_artifacts(self):
         old_game = self.game.with_name(self.game.name + '.bak')
         old_game.mkdir()

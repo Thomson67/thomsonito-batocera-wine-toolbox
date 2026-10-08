@@ -564,6 +564,7 @@ declare -gA I18N=(
   [wsq_update_validate]="Fully checking the new archive before replacement. Data is read without another extraction."
   [wsq_update_elapsed]="Operation in progress — %s seconds elapsed."
   [wsq_update_failed]="The operation did not complete. Working prefix retained:\\n%s\\n\\nReport:\\n%s\\nAlso consult the session log. The original archive or its backup is retained."
+  [wsq_update_prepare_failed]="Game preparation failed. Detail:\\n%s\\n\\nWorking prefix kept:\\n%s\\n\\nFull report:\\n%s\\nThe original archive is kept."
   [wsq_update_kept]="Stopped here. The original archive remains available. The updated source was moved into the working prefix; the old game directory remains as .bak until launch validation. Working prefix:\\n%s"
   [wsq_update_test]="The test uses the new version in:\\n%s\\n\\nThe original game runner and options are copied. Check launch, controller, loading your progress and creating a save."
   [wsq_update_save_title]="Review saves after the game update"

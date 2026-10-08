@@ -20,6 +20,19 @@ wsq_update_run() {
     return "$rc"
 }
 
+wsq_update_log_detail() {
+    python3 - "$1" <<'PY'
+from pathlib import Path
+import sys
+try:
+    lines = Path(sys.argv[1]).read_text(encoding="utf-8", errors="replace").splitlines()
+except OSError:
+    lines = []
+detail = "\n".join(lines[-4:])[-700:]
+print(detail or "No additional detail was written to the log.")
+PY
+}
+
 wsq_find_unfinished_preparations() {
     [ -d "$WSQ_WINDOWS_DIR" ] || return 0
     local prefix relative game artifact
@@ -291,7 +304,9 @@ wsq_update_new() {
     wsq_update_state phase preparing || return
     if ! wsq_update_run "$(i18n wsq_update_title)" "$(i18n wsq_update_copy)" "$log" \
         python3 "$WSQ_UPDATE_HELPER" prepare "$prefix" "$source" "$archive" "$WSQ_SAVE_ROOT" "$metadata"; then
-        msgbox "$(i18n wsq_update_title)" "$(i18n wsq_update_failed "$prefix" "$log")"; return
+        msgbox "$(i18n wsq_update_title)" \
+            "$(i18n wsq_update_prepare_failed "$(wsq_update_log_detail "$log")" "$prefix" "$log")"
+        return
     fi
     wsq_update_state phase selecting-executable || return
     exe_rel="$(wsq_update_select_executable "$prefix")" || {
