@@ -430,6 +430,7 @@ declare -gA I18N=(
   [wsq_game_worked]="Did the game start and run correctly, without crashing or freezing?\n\nRunner: %s"
   [wsq_game_yes]="Yes, the game worked correctly"
   [wsq_game_no]="No, it crashed or did not work correctly"
+  [wsq_executable_review]="Review / change the selected game executable"
   [wsq_game_failed]="The game test was unsuccessful. Choose another runner, retry or adjust the options."
   [wsq_controller_title]="Check controller support"
   [wsq_controller_prompt]="Was the controller correctly supported in the game?"
@@ -548,10 +549,6 @@ declare -gA I18N=(
   [wsq_update_build_confirm]="Build the updated archive and replace:\\n%s\\n\\nA full check must pass before replacement. A timestamped backup of the original archive will be kept. Continue?"
   [wsq_update_done]="Update complete:\\n%s\\n\\nOriginal archive backed up:\\n%s\\n\\nWorking prefix:\\n%s"
 
-  [wsq_update_exe_prompt]="Executable defined in autorun.cmd:\\n%s\\n\\nKeep this launch command or select another executable from the updated game."
-  [wsq_update_exe_keep]="Use the existing launch command (default)"
-  [wsq_update_exe_other]="Select another executable"
-  [wsq_update_exe_missing]="The existing launch command no longer matches an available file in the updated game. Select a new executable."
   [wsq_update_links_prompt]="Save links from the original prefix:\\n%s\\n\\nKeep these links by default. A root link may let the game or start.bat create its own subdirectory. Check loading and a new save before confirming."
   [wsq_update_links_keep]="Keep the existing save links (default)"
 
@@ -581,3 +578,4 @@ declare -gA I18N=(
 
 
 )
+
