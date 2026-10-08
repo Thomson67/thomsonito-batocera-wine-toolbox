@@ -10,7 +10,7 @@ import sys
 
 
 def version_tuple(value):
-    match = re.search(r"(?<!\\d)(\\d+(?:\\.\\d+){1,3})", value.lstrip("v"))
+    match = re.search(r"(?<!\d)(\d+(?:\.\d+){1,3})", value.lstrip("v"))
     if not match:
         raise ValueError(f"invalid version: {value}")
     return tuple(int(part) for part in match.group(1).split("."))
