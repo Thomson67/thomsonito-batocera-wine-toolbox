@@ -77,7 +77,8 @@ jobs:
           set -euo pipefail
           if gh release view "$TAG" >/dev/null 2>&1; then
             echo "Release $TAG already exists; uploading/replacing release assets."
-            gh release upload "$TAG" "$ASSET" "$CHECKSUM" --clobber\n    gh release edit "$TAG" --title "Ultimate Wine Toolbox $TAG" --notes-file "release-notes/$TAG.md" --latest
+            gh release upload "$TAG" "$ASSET" "$CHECKSUM" --clobber
+    gh release edit "$TAG" --title "Ultimate Wine Toolbox $TAG" --notes-file "release-notes/$TAG.md" --latest
           else
             gh release create "$TAG" "$ASSET" "$CHECKSUM" \
               --target "$GITHUB_SHA" \
