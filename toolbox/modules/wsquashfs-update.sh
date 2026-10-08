@@ -485,6 +485,11 @@ wsq_resume_update() {
     python3 "$WSQ_UPDATE_HELPER" cleanup-test "$metadata" >> "$log" 2>&1 || {
         msgbox "$(i18n wsq_update_title)" "$(i18n wsq_update_failed "$prefix" "$log")"; return
     }
+    python3 "$WSQ_UPDATE_HELPER" cleanup-bottles \
+        "/userdata/system/wine-bottles/windows" "$(basename "$archive")" >> "$log" 2>&1 || {
+        msgbox "$(i18n wsq_update_title)" "$(i18n wsq_update_bottles_cleanup_failed "$log")"
+        return
+    }
     rm -f -- "$snapshot" "$WSQ_STATE_FILE" "$metadata" "$WSQ_STATE_DIR/wsq-launch-result"
     if [ -n "$backup" ]; then
         msgbox "$(i18n wsq_update_title)" "$(i18n wsq_update_done "$archive" "$backup" "$prefix")"
