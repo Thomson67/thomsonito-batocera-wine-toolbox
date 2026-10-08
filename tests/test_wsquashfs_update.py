@@ -432,6 +432,51 @@ wsq_resume_build
         self.manifest.write_text(json.dumps(data))
         with self.assertRaises(ValueError): update.cleanup_test_saves(self.manifest)
 
+    def test_runtime_bottle_cleanup_removes_all_matches_without_following_symlinks(self):
+        root = self.base / 'wine-bottles'
+        first = root / 'Vanilla-11.5' / (self.archive.name + '.wine')
+        second = root / 'wine-tkg' / (self.archive.name.upper() + '.WINE')
+        unrelated = root / 'Vanilla-11.5' / 'Other Game.wsquashfs.wine'
+        outside = self.base / 'outside-save'
+        first.mkdir(parents=True)
+        second.mkdir(parents=True)
+        unrelated.mkdir(parents=True)
+        outside.mkdir()
+        (outside / 'slot').write_text('keep')
+        (first / 'savedir-link').symlink_to(outside, target_is_directory=True)
+        linked_bottle = root / 'alternate-runner' / (self.archive.name + '.wine')
+        linked_bottle.parent.mkdir()
+        linked_bottle.symlink_to(outside, target_is_directory=True)
+
+        removed = update.cleanup_runtime_bottles(root, self.archive.name)
+
+        self.assertEqual(len(removed), 3)
+        self.assertFalse(first.exists())
+        self.assertFalse(second.exists())
+        self.assertFalse(linked_bottle.exists())
+        self.assertTrue(unrelated.is_dir())
+        self.assertEqual((outside / 'slot').read_text(), 'keep')
+
+    def test_runtime_bottle_cleanup_rejects_paths_and_symlink_roots(self):
+        root = self.base / 'wine-bottles'
+        root.mkdir()
+        with self.assertRaises(ValueError):
+            update.cleanup_runtime_bottles(root, '../Game.wsquashfs')
+        linked_root = self.base / 'linked-bottles'
+        linked_root.symlink_to(root, target_is_directory=True)
+        with self.assertRaises(ValueError):
+            update.cleanup_runtime_bottles(linked_root, self.archive.name)
+
+    def test_update_cleans_runtime_bottles_only_after_archive_commit(self):
+        root = Path(__file__).resolve().parents[1]
+        update_module = (root / 'toolbox/modules/wsquashfs-update.sh').read_text()
+        commit_position = update_module.index('python3 "$WSQ_UPDATE_HELPER" commit')
+        cleanup_position = update_module.index('cleanup-bottles')
+        state_cleanup_position = update_module.index('rm -f -- "$snapshot" "$WSQ_STATE_FILE"')
+        self.assertLess(commit_position, cleanup_position)
+        self.assertLess(cleanup_position, state_cleanup_position)
+        self.assertIn('$(basename "$archive")', update_module[cleanup_position:cleanup_position + 180])
+
     def test_deleted_prefix_can_be_discarded_before_new_update(self):
         root = Path(__file__).resolve().parents[1]
         state = self.base / 'state'; state.mkdir()
