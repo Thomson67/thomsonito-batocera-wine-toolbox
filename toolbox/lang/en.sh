@@ -610,4 +610,11 @@ declare -gA I18N=(
   [wsq_update_prefix_source_overlap]="The updated game source is inside this prefix. Choose another prefix name to preserve the source during extraction."
 
 
+  [dxvk_nvapi_partial_compatibility]="some features limited"
+  [dxvk_nvapi_no_compatible_release]="No DXVK-NVAPI release is compatible with DXVK %s. DXVK-NVAPI 0.6.1 and later require DXVK 2.1 or newer."
+  [dxvk_nvapi_hdr_limited]="NVAPI HDR support requires DXVK 2.3 or newer."
+  [dxvk_nvapi_reflex_limited]="D3D12 Reflex requires VKD3D-Proton 2.12 or newer and NVIDIA driver 550 or newer."
+  [dxvk_nvapi_optical_flow_limited]="D3D12 NVIDIA Optical Flow requires VKD3D-Proton 2.14 or newer and a Wine implementation with HAGS."
+  [dxvk_nvapi_shader_extensions_limited]="D3D12 CuBIN and NVIDIA shader extension features require VKD3D-Proton 3.0.1 or newer. Shader extensions remain experimental and require DXVK_NVAPI_D3D12_NV_SHADER_EXTN=1."
+
 )
