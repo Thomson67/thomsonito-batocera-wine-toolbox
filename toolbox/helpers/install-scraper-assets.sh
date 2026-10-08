@@ -10,7 +10,6 @@ DESC_EN="${6:?missing English description}"
 STATE_DIR="${7:?missing persistent state directory}"
 BACKUP_DIR="${8:?missing backup directory}"
 PORTS_DIR="${SCRAPER_PORTS_DIR:-/userdata/roms/ports}"
-IMAGE_DIR="$PORTS_DIR/images"
 MANIFEST="$STATE_DIR/scraper-assets.sha256"
 
 fail() { printf 'scraper-assets: %s\n' "$*" >&2; exit 1; }
@@ -25,19 +24,20 @@ case "$(batocera-settings-get system.language 2>/dev/null || true)" in
     *) DESC="$DESC_EN"; GENRE="Utility" ;;
 esac
 
-mkdir -p "$IMAGE_DIR" "$STATE_DIR"
+mkdir -p "$PORTS_DIR" "$STATE_DIR"
 old_manifest="$MANIFEST"
 new_manifest="$STATE_DIR/.scraper-assets.sha256.$$"
 : > "$new_manifest"
 
-for file in box2d.png fanart.png logo.png screenshot.png; do
-    source="$SRC_DIR/$file"
-    target_name="$SLUG-$file"
-    target="$IMAGE_DIR/$target_name"
+install_asset() {
+    local source_file="$1" target_rel="$2"
+    local source="$SRC_DIR/$source_file" target="$PORTS_DIR/$target_rel"
+    local new_hash old_hash current_hash
+    mkdir -p "$(dirname "$target")"
     new_hash="$(sha256sum "$source" | awk '{print $1}')"
     old_hash=""
     if [ -s "$old_manifest" ]; then
-        old_hash="$(awk -v n="$target_name" '$2 == n { print $1; exit }' "$old_manifest")"
+        old_hash="$(awk -v n="$target_rel" '$2 == n { print $1; exit }' "$old_manifest")"
     fi
 
     if [ -L "$target" ]; then
@@ -52,8 +52,16 @@ for file in box2d.png fanart.png logo.png screenshot.png; do
     else
         cp -p -- "$source" "$target" || fail "could not install $target"
     fi
-    printf '%s %s\n' "$new_hash" "$target_name" >> "$new_manifest"
-done
+    printf '%s %s\n' "$new_hash" "$target_rel" >> "$new_manifest"
+}
+
+# Batocera's standard gamelist layout uses media subdirectories relative to
+# the Ports folder. Keep the existing source PNGs and point each field there.
+install_asset box2d.png "media/images/$SLUG.png"
+install_asset box2d.png "media/box2d/$SLUG.png"
+install_asset fanart.png "media/fanarts/$SLUG.png"
+install_asset logo.png "media/marquee/$SLUG.png"
+install_asset screenshot.png "media/thumbnails/$SLUG.png"
 mv -f -- "$new_manifest" "$MANIFEST" || fail "could not update asset manifest"
 
 python3 - "$PORTS_DIR/gamelist.xml" "$BACKUP_DIR" "$ROM_NAME" "$TITLE" "$DESC" "$GENRE" "$SLUG" <<'PYTHON'
@@ -78,12 +86,16 @@ try:
 except ET.ParseError as exc:
     print(f"scraper-assets: gamelist.xml is invalid; leaving it untouched: {exc}", file=sys.stderr)
     raise SystemExit(2)
+if root.tag != "gameList":
+    print("scraper-assets: gamelist.xml root is not <gameList>; leaving it untouched", file=sys.stderr)
+    raise SystemExit(2)
 
 media = {
-    "image": f"./images/{slug}-box2d.png",
-    "fanart": f"./images/{slug}-fanart.png",
-    "marquee": f"./images/{slug}-logo.png",
-    "thumbnail": f"./images/{slug}-screenshot.png",
+    "image": f"./media/images/{slug}.png",
+    "boxart": f"./media/box2d/{slug}.png",
+    "fanart": f"./media/fanarts/{slug}.png",
+    "marquee": f"./media/marquee/{slug}.png",
+    "thumbnail": f"./media/thumbnails/{slug}.png",
 }
 fields = {
     "path": f"./{rom_name}",
@@ -93,18 +105,53 @@ fields = {
     "genre": genre,
     **media,
 }
-entry = "  <game>\n" + "".join(
-    f"    <{key}>{escape(value)}</{key}>\n" for key, value in fields.items()
-) + "  </game>\n"
-close = re.search(r"</gameList\s*>", text)
-if not close:
-    print("scraper-assets: gamelist.xml has no gameList closing tag; leaving it untouched", file=sys.stderr)
-    raise SystemExit(2)
+
+def make_entry():
+    return "  <game>\n" + "".join(
+        f"    <{key}>{escape(value)}</{key}>\n" for key, value in fields.items()
+    ) + "  </game>\n"
+
+def set_if_empty_or_managed(body, key, value):
+    """Fill blank fields; update only the old paths this installer wrote."""
+    tag = re.compile(rf"(<{re.escape(key)}\b[^>]*>)(.*?)(</{re.escape(key)}\s*>)", re.DOTALL)
+    self_closing = re.compile(rf"<{re.escape(key)}\b[^>]*/\s*>")
+    managed_old = {
+        "image": f"./images/{slug}-box2d.png",
+        "fanart": f"./images/{slug}-fanart.png",
+        "marquee": f"./images/{slug}-logo.png",
+        "thumbnail": f"./images/{slug}-screenshot.png",
+    }.get(key)
+    changed = False
+
+    def replace_tag(match):
+        nonlocal changed
+        old_value = match.group(2)
+        plain = re.sub(r"<[^>]+>", "", old_value).strip()
+        if plain and plain != managed_old:
+            return match.group(0)
+        if plain == value:
+            return match.group(0)
+        changed = True
+        return match.group(1) + escape(value) + match.group(3)
+
+    updated, count = tag.subn(replace_tag, body)
+    if count:
+        return updated, changed
+
+    updated, count = self_closing.subn(f"<{key}>{escape(value)}</{key}>", body, count=1)
+    if count:
+        return updated, True
+
+    updated = body
+    if updated and not updated.endswith("\n"):
+        updated += "\n"
+    return updated + f"    <{key}>{escape(value)}</{key}>\n", True
 
 changed = False
 found = False
 if not new_file:
     game_pattern = re.compile(r"(<game(?:\s[^>]*)?>)(.*?)(</game>)", re.DOTALL)
+
     def update_existing(match):
         global changed, found
         block = match.group(0)
@@ -117,35 +164,39 @@ if not new_file:
             return block
         found = True
         body = match.group(2)
-        present = {child.tag for child in game}
-        missing = {key: value for key, value in fields.items() if key not in present}
-        if not missing:
-            print(f"scraper-assets: preserving complete gamelist entry for {rom_name}")
-            return block
-        additions = "".join(f"    <{key}>{escape(value)}</{key}>\n" for key, value in missing.items())
-        if body and not body.endswith("\n"):
-            body += "\n"
-        changed = True
-        print(f"scraper-assets: filling missing gamelist fields for {rom_name}")
-        return match.group(1) + body + additions + match.group(3)
+        block_changed = False
+        for key, value in fields.items():
+            body, did_change = set_if_empty_or_managed(body, key, value)
+            block_changed = block_changed or did_change
+        if block_changed:
+            changed = True
+            print(f"scraper-assets: corrected missing/managed fields for {rom_name}")
+            return match.group(1) + body + match.group(3)
+        return block
 
     updated, _ = game_pattern.subn(update_existing, text)
-    if found and not changed:
-        print(f"scraper-assets: preserving complete gamelist entry for {rom_name}")
-        raise SystemExit(0)
-    if found and changed:
+    if found:
         text = updated
-    elif not found:
+    else:
+        close = re.search(r"</gameList\s*>", text)
+        if not close:
+            print("scraper-assets: gamelist.xml has no gameList closing tag; leaving it untouched", file=sys.stderr)
+            raise SystemExit(2)
         before = text[:close.start()]
         if before and not before.endswith("\n"):
             before += "\n"
-        text = before + entry + text[close.start():]
+        text = before + make_entry() + text[close.start():]
         changed = True
 else:
-    text = text[:close.start()] + entry + text[close.start():]
+    close = re.search(r"</gameList\s*>", text)
+    if not close:
+        print("scraper-assets: gamelist.xml has no gameList closing tag; leaving it untouched", file=sys.stderr)
+        raise SystemExit(2)
+    text = text[:close.start()] + make_entry() + text[close.start():]
     changed = True
 
 if not changed:
+    print(f"scraper-assets: gamelist entry already has the target metadata for {rom_name}")
     raise SystemExit(0)
 
 if not new_file:
@@ -154,12 +205,10 @@ if not new_file:
     backup = os.path.join(backup_dir, f"gamelist-scraper-{stamp}-{os.getpid()}.xml")
     shutil.copy2(gamelist, backup)
 
-updated = text
-directory = os.path.dirname(gamelist)
-fd, temp_path = tempfile.mkstemp(prefix=".gamelist-scraper-", dir=directory, text=True)
+fd, temp_path = tempfile.mkstemp(prefix=".gamelist-scraper-", dir=os.path.dirname(gamelist), text=True)
 try:
     with os.fdopen(fd, "w", encoding="utf-8", newline="") as f:
-        f.write(updated)
+        f.write(text)
     if not new_file:
         os.chmod(temp_path, os.stat(gamelist).st_mode & 0o777)
     os.replace(temp_path, gamelist)
@@ -169,5 +218,5 @@ except Exception:
     except OSError:
         pass
     raise
-print(f"scraper-assets: added gamelist entry for {rom_name}")
+print(f"scraper-assets: updated Batocera gamelist entry for {rom_name}")
 PYTHON
