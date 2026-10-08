@@ -83,9 +83,15 @@ class UpdateTests(unittest.TestCase):
         self.assertFalse(save_link.is_symlink()); self.assertEqual(list(save_link.iterdir()), [])
         self.assertEqual((test_save / 'slot').read_text(), 'tested')
 
-    def test_copy_failure_preserves_game(self):
-        with patch.object(update.shutil, 'copytree', side_effect=OSError('disk full')):
-            with self.assertRaises(OSError): self.prepare()
+    def test_unfinished_preparation_reports_exact_artifacts(self):
+        old_game = self.game.with_name(self.game.name + '.bak')
+        old_game.mkdir()
+        embedded = self.prefix / '.uwt-update-embedded-save'
+        embedded.mkdir()
+        with self.assertRaisesRegex(ValueError, 'unfinished preparation artifacts') as error:
+            update.prepare(self.prefix, self.source, self.archive, self.saves, self.manifest)
+        self.assertIn(str(old_game), str(error.exception))
+        self.assertIn(str(embedded), str(error.exception))
         self.assertEqual((self.game / 'old.exe').read_bytes(), b'old')
         self.assertEqual(self.archive.read_bytes(), b'old archive')
 
@@ -366,18 +372,87 @@ wsq_resume_build
 WT_ROOT={q(str(root / 'toolbox'))}; WT_HOME={q(str(self.base))}
 source "$WT_ROOT/modules/wsquashfs.sh"
 i18n() {{ printf '%s' "$1"; }}
-menu_select() {{ printf cancel; }}
+msgbox() {{ :; }}
+menu_select() {{ printf '%s' "${{CHOICE:-abandon}}"; }}
 wsq_pending_guard
 """
         result = subprocess.run(['bash', '-c', script], capture_output=True, text=True)
-        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertNotEqual(result.returncode, 0)
         self.assertFalse(pending.exists())
         self.assertEqual(self.archive.read_bytes(), b'old archive')
         self.assertEqual((self.original_save / 'slot').read_text(), 'original')
         pending.write_text('{broken json')
-        result = subprocess.run(['bash', '-c', script.replace('wsq_pending_guard', 'wsq_resume_build')],
+        result = subprocess.run(['bash', '-c', 'CHOICE=cancel; ' + script.replace('wsq_pending_guard', 'wsq_resume_build')],
                                 capture_output=True, text=True)
         self.assertFalse(pending.exists())
+
+    def test_partial_update_is_named_and_can_be_abandoned_without_deleting_files(self):
+        root = Path(__file__).resolve().parents[1]
+        state = self.base / 'state'; state.mkdir()
+        pending = state / 'wsquashfs-builder.json'
+        work = self.base / 'Game.partial.wine'; work.mkdir()
+        archive = self.base / 'Game.wsquashfs'; archive.write_bytes(b'archive')
+        log = self.base / 'update.log'; log.write_text('failed')
+        pending.write_text(json.dumps({
+            'mode': 'update', 'phase': 'extracting', 'game_name': 'Game',
+            'prefix': str(work), 'snapshot': str(state / 'not-created.json'),
+            'archive': str(archive), 'metadata': str(state / 'metadata.json'),
+            'update_log': str(log),
+        }))
+        capture = self.base / 'menu.txt'
+        q = shlex.quote
+        script = f"""
+WT_ROOT={q(str(root / 'toolbox'))}; WT_HOME={q(str(self.base))}
+CAPTURE={q(str(capture))}
+source "$WT_ROOT/modules/wsquashfs.sh"
+i18n() {{
+    local key="$1"; shift
+    case "$key" in
+        wsq_pending_summary) printf 'summary: %s|%s|%s|%s|%s|%s' "$@" ;;
+        wsq_pending_stage_extracting) printf extracting ;;
+        *) printf '%s' "$key" ;;
+    esac
+}}
+menu_select() {{ printf '%s\\n' "$@" > "$CAPTURE"; printf abandon; }}
+msgbox() {{ :; }}
+wsq_pending_guard
+"""
+        result = subprocess.run(['bash', '-c', script], capture_output=True, text=True)
+        self.assertNotEqual(result.returncode, 0)
+        prompt = capture.read_text()
+        for expected in ('Game', 'extracting', str(work), str(archive), str(log)):
+            self.assertIn(expected, prompt)
+        self.assertIn('wsq_pending_abandon', prompt)
+        self.assertFalse(pending.exists())
+        self.assertTrue(work.is_dir())
+        self.assertEqual(archive.read_bytes(), b'archive')
+        self.assertEqual(log.read_text(), 'failed')
+        self.assertEqual((self.original_save / 'slot').read_text(), 'original')
+
+    def test_orphaned_preparation_artifacts_are_named_and_preserved(self):
+        root = Path(__file__).resolve().parents[1]
+        backup = self.game.with_name(self.game.name + '.bak')
+        backup.mkdir()
+        embedded = self.prefix / '.uwt-update-embedded-save'
+        embedded.mkdir()
+        capture = self.base / 'orphan-menu.txt'
+        q = shlex.quote
+        script = f"""
+WT_ROOT={q(str(root / 'toolbox'))}; WT_HOME={q(str(self.base))}
+CAPTURE={q(str(capture))}
+source "$WT_ROOT/modules/wsquashfs.sh"
+WSQ_WINDOWS_DIR={q(str(self.base))}
+i18n() {{ local key="$1"; shift; printf '%s\\n' "$key" "$@"; }}
+menu_select() {{ printf '%s\\n' "$@" > "$CAPTURE"; printf back; }}
+wsq_pending_guard
+"""
+        result = subprocess.run(['bash', '-c', script], capture_output=True, text=True)
+        self.assertNotEqual(result.returncode, 0)
+        prompt = capture.read_text()
+        self.assertIn(str(backup), prompt)
+        self.assertIn(str(embedded), prompt)
+        self.assertTrue(backup.is_dir())
+        self.assertTrue(embedded.is_dir())
 
     def test_update_source_menu_filters_media_and_keeps_browse(self):
         root = Path(__file__).resolve().parents[1]

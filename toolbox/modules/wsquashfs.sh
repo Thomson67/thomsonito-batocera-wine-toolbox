@@ -473,6 +473,8 @@ try:
 except (OSError, ValueError):
     pass
 data.update({
+        "mode": data.get("mode", "create"),
+        "phase": data.get("phase", "testing"),
         "prefix": prefix,
         "game_name": game,
         "snapshot": snapshot,
@@ -629,6 +631,14 @@ wsq_recover_invalid_pending() {
     rm -f -- "$WSQ_STATE_FILE" "$WSQ_STATE_DIR/wsq-launch-result" \
         "$WSQ_STATE_DIR/launch-game.request" "$WSQ_STATE_DIR/resume-wsq.request" \
         "$WSQ_STATE_DIR/restart-es.request"
+}
+
+wsq_abandon_pending() {
+    local prefix="$1"
+    rm -f -- "$WSQ_STATE_FILE" "$WSQ_STATE_DIR/wsq-launch-result" \
+        "$WSQ_STATE_DIR/launch-game.request" "$WSQ_STATE_DIR/resume-wsq.request" \
+        "$WSQ_STATE_DIR/restart-es.request"
+    msgbox "$(i18n wsq_resume_title)" "$(i18n wsq_pending_abandoned "$prefix")"
 }
 
 wsq_cancel_pending() {

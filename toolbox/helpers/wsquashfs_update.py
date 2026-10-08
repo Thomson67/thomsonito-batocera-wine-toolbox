@@ -305,8 +305,10 @@ def prepare(prefix, source, archive, save_root, manifest):
             raise ValueError('existing save link does not point to this game save directory')
     old_game = game.with_name(game.name + '.bak')
     embedded = root / '.uwt-update-embedded-save'
-    if any(p.exists() or p.is_symlink() for p in (old_game, embedded)):
-        raise ValueError('an unfinished preparation is already present')
+    leftovers = [p for p in (old_game, embedded) if p.exists() or p.is_symlink()]
+    if leftovers:
+        paths = ', '.join(str(p) for p in leftovers)
+        raise ValueError('unfinished preparation artifacts already present: ' + paths)
     if source.stat().st_dev != game.parent.stat().st_dev:
         raise ValueError('game source and prefix must be on the same filesystem for a move without copying')
     existing_launch = launch_executable(root)

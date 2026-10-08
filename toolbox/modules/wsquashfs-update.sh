@@ -20,17 +20,116 @@ wsq_update_run() {
     return "$rc"
 }
 
+wsq_find_unfinished_preparations() {
+    [ -d "$WSQ_WINDOWS_DIR" ] || return 0
+    local prefix relative game artifact
+    while IFS= read -r -d '' prefix; do
+        artifact="$prefix/.uwt-update-embedded-save"
+        if [ -e "$artifact" ] || [ -L "$artifact" ]; then
+            printf '%s\n' "$artifact"
+        fi
+        relative="$(python3 "$WSQ_UPDATE_HELPER" game-dir "$prefix" 2>/dev/null)" || continue
+        game="$prefix/$relative"
+        artifact="$game.bak"
+        if [ -e "$artifact" ] || [ -L "$artifact" ]; then
+            printf '%s\n' "$artifact"
+        fi
+    done < <(find "$WSQ_WINDOWS_DIR" -mindepth 1 -maxdepth 1 -type d -name '*.wine' -print0 2>/dev/null)
+}
+
 wsq_pending_guard() {
-    [ -s "$WSQ_STATE_FILE" ] || return 0
-    local prefix snapshot
-    prefix="$(wsq_state_value prefix)"
-    snapshot="$(wsq_state_value snapshot)"
-    if [ ! -d "$prefix" ] || [ ! -s "$snapshot" ]; then
-        wsq_recover_invalid_pending
-        return $?
+    if [ ! -s "$WSQ_STATE_FILE" ]; then
+        local leftovers choice
+        leftovers="$(wsq_find_unfinished_preparations)"
+        [ -n "$leftovers" ] || return 0
+        choice="$(menu_select "$(i18n wsq_resume_title)" \
+            "$(i18n wsq_pending_orphaned "$leftovers")" \
+            continue "$(i18n wsq_pending_continue)" \
+            back "$(i18n back)")" || return 1
+        [ "$choice" = continue ] && return 0
+        return 1
     fi
-    msgbox "$(i18n wsq_update_title)" "$(i18n wsq_update_pending)"
+    local prefix snapshot mode game phase archive log metadata summary operation stage choice
+    prefix="$(wsq_state_value prefix 2>/dev/null)" || prefix=""
+    snapshot="$(wsq_state_value snapshot 2>/dev/null)" || snapshot=""
+    mode="$(wsq_state_value mode 2>/dev/null)" || mode=""
+    game="$(wsq_state_value game_name 2>/dev/null)" || game=""
+    phase="$(wsq_state_value phase 2>/dev/null)" || phase=""
+    archive="$(wsq_state_value archive 2>/dev/null)" || archive=""
+    log="$(wsq_state_value update_log 2>/dev/null)" || log=""
+    metadata="$(wsq_state_value metadata 2>/dev/null)" || metadata=""
+
+    [ -n "$mode" ] || mode=create
+    if [ -z "$phase" ] && [ -d "$prefix" ] && [ -s "$snapshot" ]; then
+        phase=testing
+    fi
+    case "$mode" in
+        update) operation="$(i18n wsq_pending_operation_update)" ;;
+        create) operation="$(i18n wsq_pending_operation_create)" ;;
+        *) operation="$(i18n wsq_pending_operation_unknown)" ;;
+    esac
+    case "$phase" in
+        extracting) stage="$(i18n wsq_pending_stage_extracting)" ;;
+        preparing) stage="$(i18n wsq_pending_stage_preparing)" ;;
+        selecting-executable) stage="$(i18n wsq_pending_stage_executable)" ;;
+        writing-autorun) stage="$(i18n wsq_pending_stage_autorun)" ;;
+        configuring) stage="$(i18n wsq_pending_stage_configuring)" ;;
+        snapshotting) stage="$(i18n wsq_pending_stage_snapshot)" ;;
+        testing) stage="$(i18n wsq_pending_stage_testing)" ;;
+        committed) stage="$(i18n wsq_pending_stage_committed)" ;;
+        *) stage="$(i18n wsq_pending_stage_unknown)" ;;
+    esac
+    [ -n "$game" ] || game="$(i18n wsq_pending_value_unknown)"
+    [ -n "$prefix" ] || prefix="$(i18n wsq_pending_value_unknown)"
+    [ -n "$archive" ] || archive="$(i18n wsq_pending_value_unknown)"
+    [ -n "$log" ] || log="$(i18n wsq_pending_value_unknown)"
+    summary="$(i18n wsq_pending_summary "$operation" "$game" "$stage" \
+        "$(wsq_display_path "$prefix")" "$(wsq_display_path "$archive")" "$(wsq_display_path "$log")")"
+
+    # Only the post-launch testing phase has a complete resumable snapshot.
+    if [ "$phase" = testing ] && [ -d "$prefix" ] && [ -s "$snapshot" ] &&
+        { [ "$mode" != update ] || [ -s "$metadata" ]; }; then
+        choice="$(menu_select "$(i18n wsq_resume_title)" \
+            "$summary\n\n$(i18n wsq_pending_what_next)" \
+            resume "$(i18n wsq_pending_resume)" \
+            abandon "$(i18n wsq_pending_abandon_continue)" \
+            back "$(i18n back)")" || return 1
+        case "$choice" in
+            resume) wsq_resume_build; return 1 ;;
+            abandon) wsq_abandon_pending "$prefix"; return 0 ;;
+            *) return 1 ;;
+        esac
+    fi
+
+    choice="$(menu_select "$(i18n wsq_resume_title)" \
+        "$summary\n\n$(i18n wsq_pending_incomplete)" \
+        abandon "$(i18n wsq_pending_abandon)" \
+        back "$(i18n back)")" || return 1
+    [ "$choice" = abandon ] || return 1
+    wsq_abandon_pending "$prefix"
     return 1
+}
+
+wsq_begin_update_state() {
+    local prefix="$1" game_name="$2" snapshot="$3" archive="$4" metadata="$5" log="$6" phase="$7"
+    python3 - "$WSQ_STATE_FILE" "$prefix" "$game_name" "$snapshot" "$archive" "$metadata" "$log" "$phase" <<'PY'
+import json, os, sys
+path, prefix, game, snapshot, archive, metadata, log, phase = sys.argv[1:9]
+data = {
+    "mode": "update",
+    "phase": phase,
+    "prefix": prefix,
+    "game_name": game,
+    "snapshot": snapshot,
+    "archive": archive,
+    "metadata": metadata,
+    "update_log": log,
+}
+tmp = path + ".tmp"
+with open(tmp, "w", encoding="utf-8") as f:
+    json.dump(data, f, ensure_ascii=False, indent=2)
+os.replace(tmp, path)
+PY
 }
 
 wsq_update_state() {
@@ -178,33 +277,41 @@ wsq_update_new() {
     fi
     mkdir -p "$WSQ_STATE_DIR" "$WT_LOG_DIR" || return
     metadata="$WSQ_STATE_DIR/wsquashfs-update-$stamp.json"
+    snapshot="$WSQ_STATE_DIR/wsquashfs-before-$stamp.json"
     log="$WT_LOG_DIR/wsquashfs-integrity-update-$stamp.log"
     : > "$log"
     wsq_integrity_rotate_logs "$log" || true
+    wsq_begin_update_state "$prefix" "$game_name" "$snapshot" "$archive" "$metadata" "$log" extracting || {
+        msgbox "$(i18n wsq_update_title)" "$(i18n wsq_update_failed "$prefix" "$log")"; return
+    }
     if ! maintenance_run_progress "$(i18n wsq_update_title)" "$(i18n wsq_update_extract)" \
         unsquashfs -no-xattrs -percentage -d "$prefix" "$archive"; then
         msgbox "$(i18n wsq_update_title)" "$(i18n wsq_update_failed "$prefix" "$log")"; return
     fi
+    wsq_update_state phase preparing || return
     if ! wsq_update_run "$(i18n wsq_update_title)" "$(i18n wsq_update_copy)" "$log" \
         python3 "$WSQ_UPDATE_HELPER" prepare "$prefix" "$source" "$archive" "$WSQ_SAVE_ROOT" "$metadata"; then
         msgbox "$(i18n wsq_update_title)" "$(i18n wsq_update_failed "$prefix" "$log")"; return
     fi
+    wsq_update_state phase selecting-executable || return
     exe_rel="$(wsq_update_select_executable "$prefix")" || {
         msgbox "$(i18n wsq_update_title)" "$(i18n wsq_update_kept "$prefix")"; return
     }
+    wsq_update_state phase writing-autorun || return
     python3 "$WSQ_UPDATE_HELPER" autorun "$prefix" "$exe_rel" >> "$log" 2>&1 || {
         msgbox "$(i18n wsq_update_title)" "$(i18n wsq_update_failed "$prefix" "$log")"; return
     }
+    wsq_update_state phase configuring || return
     runner="$(python3 "$WSQ_UPDATE_HELPER" config "$WSQ_CONF" "$(basename "$archive")" "$(basename "$prefix")" \
         --backup-dir "$WSQ_STATE_DIR/config-backups" --preserve-existing 2>> "$log")" || {
         msgbox "$(i18n wsq_update_title)" "$(i18n wsq_update_failed "$prefix" "$log")"; return
     }
-    snapshot="$WSQ_STATE_DIR/wsquashfs-before-$stamp.json"
+    wsq_update_state phase snapshotting || return
     python3 "$WSQ_HELPER" snapshot "$prefix" "$snapshot" >> "$log" 2>&1 || {
         msgbox "$(i18n wsq_update_title)" "$(i18n wsq_update_failed "$prefix" "$log")"; return
     }
     wsq_save_state "$prefix" "$game_name" "$snapshot" "$exe_rel" "$runner" || return
-    wsq_update_state mode update metadata "$metadata" phase testing update_log "$log" || return
+    wsq_update_state mode update archive "$archive" metadata "$metadata" phase testing update_log "$log" || return
     msgbox "$(i18n wsq_update_title)" "$(i18n wsq_update_test "$prefix")"
     wsq_request_game_launch "$prefix" || return
     wsq_restart_emulationstation_deferred || return
