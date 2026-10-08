@@ -82,33 +82,77 @@ for rel in releases:
 PY
 }
 
+dxvk_nvapi_status() {
+    python3 "$WT_ROOT/helpers/dxvk_compat.py" check "$1" "$2" "$3"
+}
+
+dxvk_nvapi_limitation_text() {
+    local feature details=""
+    for feature in $1; do
+        case "$feature" in
+            hdr) details+="$(i18n dxvk_nvapi_hdr_limited)"$'\n' ;;
+            reflex) details+="$(i18n dxvk_nvapi_reflex_limited)"$'\n' ;;
+            optical-flow) details+="$(i18n dxvk_nvapi_optical_flow_limited)"$'\n' ;;
+            shader-extensions) details+="$(i18n dxvk_nvapi_shader_extensions_limited)"$'\n' ;;
+        esac
+    done
+    printf '%s' "${details%$'\n'}"
+}
+
 dxvk_choose_release() {
-    local repo="$1" kind="$2" title="$3"
-    local data line tag url digest idx=1 choice
+    local repo="$1" kind="$2" title="$3" dxvk_ver="${4:-}" vkd3d_ver="${5:-}"
+    local catalog data="" line tag url digest idx=1 choice status selected_tag limitations
     local -a items=()
 
-    data="$(dxvk_release_catalog "$repo" "$kind")" || {
+    catalog="$(dxvk_release_catalog "$repo" "$kind")" || {
         msgbox "$title" "$(i18n dxvk_release_fetch_failed)"
         return 1
     }
 
     while IFS=$'\t' read -r tag url digest; do
         [ -n "$tag" ] && [ -n "$url" ] || continue
+        if [ "$kind" = nvapi ]; then
+            status="$(dxvk_nvapi_status "$dxvk_ver" "$vkd3d_ver" "${tag#v}")" || {
+                msgbox "$title" "$(i18n dxvk_release_fetch_failed)"
+                return 1
+            }
+            case "$status" in
+                incompatible*) continue ;;
+                compatible*) ;;
+                *) msgbox "$title" "$(i18n dxvk_release_fetch_failed)"; return 1 ;;
+            esac
+        fi
+        printf -v line '%s\t%s\t%s\n' "$tag" "$url" "$digest"
+        data+="$line"
         items+=("$idx" "$tag")
         idx=$((idx+1))
-    done <<< "$data"
+    done <<< "$catalog"
 
-    [ "${#items[@]}" -gt 0 ] || {
-        msgbox "$title" "$(i18n dxvk_release_fetch_failed)"
+    if [ "${#items[@]}" -eq 0 ]; then
+        if [ "$kind" = nvapi ]; then
+            msgbox "$title" "$(i18n dxvk_nvapi_no_compatible_release "$dxvk_ver")"
+        else
+            msgbox "$title" "$(i18n dxvk_release_fetch_failed)"
+        fi
         return 1
-    }
+    fi
 
     choice="$(menu_select "$title" "$(i18n dxvk_choose_release)" "${items[@]}" "0" "$(i18n back)")" || return 1
     [ "$choice" != "0" ] && [ -n "$choice" ] || return 1
 
     line="$(sed -n "${choice}p" <<< "$data")"
+    if [ "$kind" = nvapi ]; then
+        selected_tag="$(cut -f1 <<< "$line")"
+        status="$(dxvk_nvapi_status "$dxvk_ver" "$vkd3d_ver" "${selected_tag#v}")" || return 1
+        limitations="${status#compatible}"
+        if [ -n "$limitations" ]; then
+            limitations="$(dxvk_nvapi_limitation_text "$limitations")"
+            [ -z "$limitations" ] || msgbox "$(i18n dxvk_title)" "$limitations"
+        fi
+    fi
     printf '%s\n' "$line"
 }
+
 
 dxvk_verify_digest() {
     local file="$1" digest="$2"
@@ -276,7 +320,10 @@ dxvk_install_bundle_menu() {
     local dxvk_line vkd3d_line nvapi_line
     dxvk_line="$(dxvk_choose_release "doitsujin/dxvk" "dxvk" "$(i18n dxvk_choose_dxvk)")" || return
     vkd3d_line="$(dxvk_choose_release "HansKristian-Work/vkd3d-proton" "vkd3d" "$(i18n dxvk_choose_vkd3d)")" || return
-    nvapi_line="$(dxvk_choose_release "jp7677/dxvk-nvapi" "nvapi" "$(i18n dxvk_choose_nvapi)")" || return
+    local dxvk_tag vkd3d_tag
+    IFS=$'\t' read -r dxvk_tag _ <<< "$dxvk_line"
+    IFS=$'\t' read -r vkd3d_tag _ <<< "$vkd3d_line"
+    nvapi_line="$(dxvk_choose_release "jp7677/dxvk-nvapi" "nvapi" "$(i18n dxvk_choose_nvapi)" "${dxvk_tag#v}" "${vkd3d_tag#v}")" || return
     dxvk_build_bundle "$dxvk_line" "$vkd3d_line" "$nvapi_line"
 }
 
