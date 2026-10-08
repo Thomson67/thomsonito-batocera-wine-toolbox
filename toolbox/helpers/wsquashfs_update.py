@@ -694,7 +694,7 @@ def main():
         elif a.action == 'cleanup-test': cleanup_test_saves(a.manifest)
         elif a.action == 'cleanup-bottles':
             removed = cleanup_runtime_bottles(a.root, a.archive_name)
-            print('\\n'.join(removed) if removed else f'No runtime bottle found for {a.archive_name}')
+            print('\n'.join(removed) if removed else f'No runtime bottle found for {a.archive_name}')
         elif a.action == 'profiles': ensure_root_alias(a.prefix)
         elif a.action == 'exe': print(launch_executable(a.prefix))
         elif a.action == 'root-link':
