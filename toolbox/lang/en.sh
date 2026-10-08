@@ -547,7 +547,7 @@ declare -gA I18N=(
   [wsq_update_save_detect]="Find save locations detected after the test"
   [wsq_update_save_confirm]="Confirm only after checking that progress loads and a new save is created with these rules. If the directory changed, use detection or the browser."
   [wsq_update_build_confirm]="Build the updated archive and replace:\\n%s\\n\\nA full check must pass before replacement. A timestamped backup of the original archive will be kept. Continue?"
-  [wsq_update_done]="Update complete:\\n%s\\n\\nOriginal archive backed up:\\n%s\\n\\nWorking prefix:\\n%s"
+  [wsq_update_done]="Update complete:\\n%s\\n\\nOriginal archive backed up:\\n%s\\n\\nWorking prefix:\\n%s\\n\\nAssociated runtime bottles were removed."
 
   [wsq_update_links_prompt]="Save links from the original prefix:\\n%s\\n\\nKeep these links by default. A root link may let the game or start.bat create its own subdirectory. Check loading and a new save before confirming."
   [wsq_update_links_keep]="Keep the existing save links (default)"
@@ -566,7 +566,7 @@ declare -gA I18N=(
   [wsq_update_final_prompt]="Final archive:\\n%s\\n\\nKeep a backup of the old WSquashFS before replacement, or replace it directly. In both cases, a full check must pass before replacement."
   [wsq_update_final_backup]="Back up the old WSquashFS, then replace"
   [wsq_update_final_replace]="Replace the existing WSquashFS directly"
-  [wsq_update_done_replace]="Update complete, WSquashFS replaced:\\n%s\\n\\nWorking prefix:\\n%s"
+  [wsq_update_done_replace]="Update complete, WSquashFS replaced:\\n%s\\n\\nWorking prefix:\\n%s\\n\\nAssociated runtime bottles were removed."
 
 
   [wsq_update_prefix_conflict_title]="Test Wine directory already exists"
