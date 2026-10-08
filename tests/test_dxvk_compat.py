@@ -48,7 +48,7 @@ class DxvkNvapiPickerTests(unittest.TestCase):
                 "msgbox() { printf 'MSG:%s\\n' \"$2\" >&2; }\n"
                 "dxvk_choose_release test nvapi title '" + dxvk + "' '" + vkd3d + "'"
             )
-            env = dict(os.environ, WT_ROOT=str(root), WT_HOME=home)
+            env = dict(os.environ, WT_ROOT=str(root / 'toolbox'), WT_HOME=home)
             return subprocess.run(["bash", "-c", script], cwd=root, env=env,
                                   capture_output=True, text=True)
 
