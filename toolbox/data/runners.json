@@ -112,6 +112,34 @@
       "download_url": "https://github.com/Thomson67/batocera-wine-runners/releases/download/starter-pack-2026.10/TKG-v41.tar.xz",
       "sha256": "11bc99cbdf006e41db84485198b209a36cba52c10c9c328959ffd48b453e37f5",
       "legacy_id": "wine-tkg-v41"
+    },
+    {
+      "id": "GE-Proton10-10",
+      "name": "GE-Proton-10-10",
+      "file": "GE-Proton10-10.tar.xz",
+      "family": "ge-proton",
+      "size_bytes": 390661672,
+      "release_tag": "starter-pack-2026.10",
+      "download_url": "https://github.com/Thomson67/batocera-wine-runners/releases/download/starter-pack-2026.10/GE-Proton10-10.tar.xz",
+      "sha256": "20e457351c8f6ecac5d05bc3cba64b50637d3ea01d493a3629d503f565192272",
+      "source_url": "https://github.com/GloriousEggroll/proton-ge-custom/releases/download/GE-Proton10-10/GE-Proton10-10.tar.gz",
+      "source_sha256": "f508eff3a5900f86bc44d1a4e790bfb445b348a0298262d04e8696031c7ef470",
+      "launch_mode": "classic-wine",
+      "umu": false
+    },
+    {
+      "id": "proton-EM-10.0-37-HDR",
+      "name": "proton-EM-10.0-37-HDR",
+      "file": "proton-EM-10.0-37-HDR.tar.xz",
+      "family": "proton-em",
+      "size_bytes": 412789664,
+      "release_tag": "starter-pack-2026.10",
+      "download_url": "https://github.com/Thomson67/batocera-wine-runners/releases/download/starter-pack-2026.10/proton-EM-10.0-37-HDR.tar.xz",
+      "sha256": "fe4782f469fcf25c538fca0a6ea3ecd7686030b5a12d66bc8c65c4bb08837b94",
+      "source_url": "https://github.com/BananaWorks07/Proton/releases/download/EM-10.0-37-HDR/proton-EM-10.0-37-HDR.tar.xz",
+      "source_sha256": "5bfd81ceb423b365b547803d434fd5157defeae51160bbf6657265bc4340586d",
+      "launch_mode": "classic-wine",
+      "umu": false
     }
   ]
 }

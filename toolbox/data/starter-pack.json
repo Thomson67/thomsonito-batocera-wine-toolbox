@@ -13,12 +13,13 @@
     "Vanilla-Proton-exp-10.0",
     "TKG-10.17",
     "TKG-11.5",
-    "TKG-v41"
+    "TKG-v41",
+    "GE-Proton10-10",
+    "proton-EM-10.0-37-HDR"
   ],
   "umu_runner_ids": [
     "GE-Proton9-27-UMU",
-    "GE-Proton10-10-UMU",
     "GE-Proton10-25-UMU",
-    "proton-EM-10.0-37-HDR-UMU"
+    "GE-Proton11-7-UMU"
   ]
 }
