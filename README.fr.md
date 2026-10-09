@@ -138,3 +138,9 @@ La mise à jour propose d’abord le lancement défini dans `autorun.cmd`, y com
 Avant le déplacement, l’ancien dossier du jeu est renommé en `<nom>.bak`. Le dossier mis à jour reprend le nom exact du dossier original ; le dossier source disparaît donc de son emplacement précédent. Le `.bak` est conservé jusqu’à validation du lancement, puis supprimé avant recompression. Les liens de sauvegarde contenus dans l’ancien dossier sont restaurés aux mêmes emplacements. Le déplacement nécessite un même système de fichiers et ne bascule jamais vers une copie implicite. Le choix de conserver les règles de sauvegarde ne demande plus de confirmation supplémentaire.
 
 Le préfixe de test reprend le nom exact de l’archive en remplaçant `.wsquashfs` par `.wine`, balises comprises. Un dossier `.wine` existant déclenche le choix : remplacer le dossier, choisir un autre nom ou quitter. Les réglages ES du `.wsquashfs` sont prioritaires ; s’il n’a aucun réglage spécifique, ceux du `.wine` existant sont repris. Les réglages de `batocera.conf` sont sauvegardés avant modification. Un dossier contenant la source de mise à jour ne peut pas être supprimé : choisissez alors un autre nom de préfixe.
+
+## Modèles graphiques Batocera
+
+Dans le gestionnaire DXVK / VKD3D, **Installer un modèle Batocera** propose les combinaisons officielles de Batocera 40, 41, 42 et 43 / 43.1. Les versions sont fixes, les archives sont vérifiées par SHA-256 et leur provenance est conservée dans `model.json`. Le catalogue se trouve dans `toolbox/data/batocera-dxvk-models.json`.
+
+Après installation, choisissez le modèle globalement ou par jeu. NVAPI reste contrôlé par les options du jeu. Le modèle ne remplace pas le runner, les pilotes ou la configuration de Batocera : notamment, un VKD3D récent peut provoquer des crashes DirectX 12 avec Vanilla-Proton-9.0-4. Les modèles 40 à 42 permettent de tester des composants plus anciens.

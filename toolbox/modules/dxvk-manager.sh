@@ -172,16 +172,16 @@ dxvk_verify_digest() {
 
 dxvk_extract_vkd3d() {
     local archive="$1" dest="$2"
-    tar -xf "$archive" -C "$dest" >/dev/null 2>&1 && return 0
+    tar --no-same-owner -xf "$archive" -C "$dest" >/dev/null 2>&1 && return 0
     if command -v unzstd >/dev/null 2>&1; then
-        unzstd -c "$archive" 2>/dev/null | tar -xf - -C "$dest" >/dev/null 2>&1
+        unzstd -c "$archive" 2>/dev/null | tar --no-same-owner -xf - -C "$dest" >/dev/null 2>&1
         return $?
     fi
     return 1
 }
 
 dxvk_build_bundle() {
-    local dxvk_line="$1" vkd3d_line="$2" nvapi_line="$3"
+    local dxvk_line="$1" vkd3d_line="$2" nvapi_line="$3" model="${4:-}"
     local dxvk_tag dxvk_url dxvk_digest vkd3d_tag vkd3d_url vkd3d_digest
     local nvapi_tag nvapi_url nvapi_digest
     local dxvk_ver vkd3d_ver nvapi_ver bundle_name target tmp dxvk_arc vkd3d_arc nvapi_arc
@@ -195,6 +195,7 @@ dxvk_build_bundle() {
     vkd3d_ver="${vkd3d_tag#v}"
     nvapi_ver="${nvapi_tag#v}"
     bundle_name="DXVK-${dxvk_ver}__VKD3D-${vkd3d_ver}__NVAPI-${nvapi_ver}"
+    [ -z "$model" ] || bundle_name="Batocera-${model}__${bundle_name}"
     target="$DXVK_BUNDLE_DIR/$bundle_name"
 
     if [ -d "$target" ]; then
@@ -256,7 +257,7 @@ dxvk_build_bundle() {
     }
 
     mkdir -p "$tmp/dxvk" "$tmp/vkd3d" "$tmp/nvapi"
-    tar -xzf "$dxvk_arc" -C "$tmp/dxvk" >/dev/null 2>&1 || {
+    tar --no-same-owner -xzf "$dxvk_arc" -C "$tmp/dxvk" >/dev/null 2>&1 || {
         rm -rf "$tmp"
         msgbox "$(i18n dxvk_title)" "$(i18n dxvk_extract_failed "DXVK")"
         return 1
@@ -266,7 +267,7 @@ dxvk_build_bundle() {
         msgbox "$(i18n dxvk_title)" "$(i18n dxvk_extract_failed "VKD3D-Proton")"
         return 1
     }
-    tar -xzf "$nvapi_arc" -C "$tmp/nvapi" >/dev/null 2>&1 || {
+    tar --no-same-owner -xzf "$nvapi_arc" -C "$tmp/nvapi" >/dev/null 2>&1 || {
         rm -rf "$tmp"
         msgbox "$(i18n dxvk_title)" "$(i18n dxvk_extract_failed "DXVK-NVAPI")"
         return 1
@@ -279,10 +280,24 @@ dxvk_build_bundle() {
     nvapi_x64="$(find "$tmp/nvapi" -type f -path '*/x64/nvapi64.dll' -printf '%h\n' -quit)"
     nvapi_x32="$(find "$tmp/nvapi" -type f -path '*/x32/nvapi.dll' -printf '%h\n' -quit)"
 
-    if [ -z "$dxvk_x64" ] || [ -z "$dxvk_x32" ] || [ -z "$vkd3d_x64" ] || [ -z "$vkd3d_x86" ] || [ -z "$nvapi_x64" ] || [ -z "$nvapi_x32" ] || [ ! -f "$nvapi_x64/nvofapi64.dll" ]; then
+    if [ -z "$dxvk_x64" ] || [ -z "$dxvk_x32" ] || [ -z "$vkd3d_x64" ] || [ -z "$vkd3d_x86" ] || [ -z "$nvapi_x64" ] || [ -z "$nvapi_x32" ]; then
         rm -rf "$tmp"
         msgbox "$(i18n dxvk_title)" "$(i18n dxvk_invalid_archives)"
         return 1
+    fi
+
+    # Optical flow was added in NVAPI 0.8; earlier releases have no nvofapi DLL.
+    if python3 - "$nvapi_ver" <<'PY_VERSION'
+import sys
+parts = tuple(int(x) for x in sys.argv[1].split('.'))
+sys.exit(0 if parts >= (0, 8, 0) else 1)
+PY_VERSION
+    then
+        [ -f "$nvapi_x64/nvofapi64.dll" ] || {
+            rm -rf "$tmp"
+            msgbox "$(i18n dxvk_title)" "$(i18n dxvk_invalid_archives)"
+            return 1
+        }
     fi
 
     mkdir -p "$target/x64" "$target/x32"
@@ -299,12 +314,14 @@ dxvk_build_bundle() {
         cp -f "$vkd3d_x86/$dll" "$target/x32/" || { rm -rf "$target" "$tmp"; return 1; }
     done
 
-    for dll in nvapi64.dll nvofapi64.dll; do
-        cp -f "$nvapi_x64/$dll" "$target/x64/" || { rm -rf "$target" "$tmp"; return 1; }
-    done
+    cp -f "$nvapi_x64/nvapi64.dll" "$target/x64/" || { rm -rf "$target" "$tmp"; return 1; }
+    if [ -f "$nvapi_x64/nvofapi64.dll" ]; then
+        cp -f "$nvapi_x64/nvofapi64.dll" "$target/x64/" || { rm -rf "$target" "$tmp"; return 1; }
+    fi
     cp -f "$nvapi_x32/nvapi.dll" "$target/x32/" || { rm -rf "$target" "$tmp"; return 1; }
 
     cat > "$target/bundle.conf" <<EOF
+BATOCERA_MODEL=$model
 DXVK_VERSION=$dxvk_ver
 VKD3D_VERSION=$vkd3d_ver
 NVAPI_VERSION=$nvapi_ver
@@ -316,6 +333,11 @@ VKD3D_SHA256=${vkd3d_digest#sha256:}
 NVAPI_SHA256=${nvapi_digest#sha256:}
 EOF
 
+    if [ -n "$model" ]; then
+        python3 "$WT_ROOT/helpers/dxvk_models.py" metadata "$model" > "$target/model.json" || {
+            rm -rf "$target" "$tmp"; return 1;
+        }
+    fi
     rm -rf "$tmp"
     msgbox "$(i18n dxvk_title)" "$(i18n dxvk_bundle_installed "$bundle_name")"
 }
@@ -330,6 +352,21 @@ dxvk_install_bundle_menu() {
     IFS=$'\t' read -r vkd3d_tag _ <<< "$vkd3d_line"
     nvapi_line="$(dxvk_choose_release "jp7677/dxvk-nvapi" "nvapi" "$(i18n dxvk_choose_nvapi)" "${dxvk_tag#v}" "${vkd3d_tag#v}")" || return
     dxvk_build_bundle "$dxvk_line" "$vkd3d_line" "$nvapi_line"
+}
+
+dxvk_install_model_menu() {
+    local id label dxvk vkd3d nvapi choice lines
+    local -a items=() parts=()
+    while IFS=$'\t' read -r id label dxvk vkd3d nvapi; do
+        items+=("$id" "Batocera $label — DXVK $dxvk / VKD3D $vkd3d / NVAPI $nvapi")
+    done < <(python3 "$WT_ROOT/helpers/dxvk_models.py" list)
+    [ "${#items[@]}" -gt 0 ] || return 1
+    choice="$(menu_select "$(i18n dxvk_install_model)" "$(i18n dxvk_model_prompt)" "${items[@]}" "0" "$(i18n back)")" || return
+    case "$choice" in 40|41|42|43) ;; *) return ;; esac
+    lines="$(python3 "$WT_ROOT/helpers/dxvk_models.py" releases "$choice")" || return 1
+    mapfile -t parts <<< "$lines"
+    [ "${#parts[@]}" -eq 3 ] || return 1
+    dxvk_build_bundle "${parts[0]}" "${parts[1]}" "${parts[2]}" "$choice"
 }
 
 dxvk_list_bundles() {
@@ -588,6 +625,7 @@ dxvk_manager_menu() {
         choice="$(menu_select "$(i18n dxvk_title)" \
             "$(i18n dxvk_intro)\n\n$(i18n dxvk_global_status "$(dxvk_status)")" \
             "1" "$(i18n dxvk_install_bundle)" \
+            "7" "$(i18n dxvk_install_model)" \
             "2" "$(i18n dxvk_choose_global)" \
             "3" "$(i18n dxvk_per_game)" \
             "4" "$(i18n dxvk_clear_per_game)" \
@@ -597,6 +635,7 @@ dxvk_manager_menu() {
 
         case "$choice" in
             1) dxvk_install_bundle_menu ;;
+            7) dxvk_install_model_menu ;;
             2) dxvk_choose_global_menu ;;
             3) dxvk_assign_games_menu ;;
             4) dxvk_clear_games_menu ;;

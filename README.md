@@ -144,3 +144,9 @@ Updates first offer the launch command from `autorun.cmd`, restoring original `s
 Before the move, the old game directory is renamed `<name>.bak`. The updated directory retains the original name; the source directory disappears from its former location. The `.bak` remains until the game launch is validated, then is removed before recompression. Save links inside the old game directory are restored at the same locations. The move requires the same filesystem and never falls back to an implicit copy. Keeping existing save rules no longer requires an additional confirmation.
 
 The test prefix keeps the exact archive name, replacing `.wsquashfs` with `.wine`, including bracket tags. An existing `.wine` directory triggers replace, choose another name, or quit. WSquashFS ES settings take priority; if it has no game-specific settings, existing Wine settings are reused. `batocera.conf` is backed up before changes. A directory containing the updated source cannot be removed; choose another prefix name instead.
+
+## Batocera graphics models
+
+In the DXVK / VKD3D manager, **Install a Batocera model** offers the official combinations from Batocera 40, 41, 42 and 43 / 43.1. Versions are pinned, archives are verified with SHA-256, and provenance is recorded in `model.json`. The catalog is stored in `toolbox/data/batocera-dxvk-models.json`.
+
+After installation, select the model globally or per game. NVAPI remains controlled through game settings. Models do not replace your runner, drivers or Batocera configuration: recent VKD3D versions may crash DirectX 12 games with Vanilla-Proton-9.0-4. Models 40 to 42 let you test older graphics components.
