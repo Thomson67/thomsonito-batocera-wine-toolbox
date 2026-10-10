@@ -26,5 +26,5 @@ if __name__ == '__main__':
     try:
         extract(sys.argv[1:])
     except (OSError, ValueError, KeyError, zipfile.BadZipFile) as exc:
-        print('ReShade extraction failed (install 7z/7za for older formats): ' + str(exc), file=sys.stderr)
+        print('ReShade extraction failed (unsupported or damaged installer): ' + str(exc), file=sys.stderr)
         sys.exit(1)

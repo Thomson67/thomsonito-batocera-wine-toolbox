@@ -26,6 +26,28 @@ resh_backend_ready() {
     }
 }
 
+resh_prepare_tools() {
+    local shim="$WT_HOME/reshade/bin"
+    mkdir -p "$shim"
+    # Batocera does not ship Git/libmagic on every image. These private
+    # adapters cover only the calls of our pinned upstream backend.
+    local compatibility_tool
+    for compatibility_tool in git file; do
+        if ! command -v "$compatibility_tool" >/dev/null 2>&1; then
+            printf '#!/bin/bash\nexec python3 %q %q "$@"\n' \
+                "$WT_ROOT/helpers/reshade_compat.py" "$compatibility_tool" > "$shim/$compatibility_tool"
+            chmod +x "$shim/$compatibility_tool"
+        else
+            printf '#!/bin/bash\nexec %q "$@"\n' "$(command -v "$compatibility_tool")" > "$shim/$compatibility_tool"
+            chmod +x "$shim/$compatibility_tool"
+        fi
+    done
+    # Official ReShade installers contain a ZIP payload. Always use Python:
+    # Batocera may provide a 7z executable with a missing archive plugin.
+    printf '#!/bin/bash\nexec python3 %q "$@"\n' "$WT_ROOT/helpers/reshade_extract.py" > "$shim/7z"
+    chmod +x "$shim/7z"
+}
+
 resh_install_game() {
     local rom="$1" exe selected dll version packs state workspace name label
     local -a exes=() items=() shaders=()
@@ -88,32 +110,8 @@ resh_install_game() {
         [ -z "$oldlog" ] || rm -f -- "$oldlog"
     done
     msgbox "$(i18n resh_title)" "$(i18n resh_download_wait "$log")" || return 1
-    # Keep extraction compatibility private to this upstream invocation.
     local shim="$WT_HOME/reshade/bin"
-    mkdir -p "$shim"
-    # Batocera does not ship Git/libmagic on every image. These private
-    # adapters cover only the calls of our pinned upstream backend.
-    local compatibility_tool
-    for compatibility_tool in git file; do
-        if ! command -v "$compatibility_tool" >/dev/null 2>&1; then
-            printf '#!/bin/bash\nexec python3 %q %q "$@"\n' \
-                "$WT_ROOT/helpers/reshade_compat.py" "$compatibility_tool" > "$shim/$compatibility_tool"
-            chmod +x "$shim/$compatibility_tool"
-        else
-            printf '#!/bin/bash\nexec %q "$@"\n' "$(command -v "$compatibility_tool")" > "$shim/$compatibility_tool"
-            chmod +x "$shim/$compatibility_tool"
-        fi
-    done
-    if ! command -v 7z >/dev/null 2>&1; then
-        local extractor
-        extractor="$(command -v 7zz || command -v 7za || true)"
-        if [ -n "$extractor" ]; then
-            printf '#!/bin/bash\nexec %q "$@"\n' "$extractor" > "$shim/7z"
-        else
-            printf '#!/bin/bash\nexec python3 %q "$@"\n' "$WT_ROOT/helpers/reshade_extract.py" > "$shim/7z"
-        fi
-        chmod +x "$shim/7z"
-    fi
+    resh_prepare_tools || return 1
     (
         exec 9> "$WT_HOME/reshade/runtime.lock"
         flock 9

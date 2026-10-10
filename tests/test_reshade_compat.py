@@ -1,12 +1,15 @@
 import importlib.util
 import io
 import json
+import os
 from pathlib import Path
 import shutil
 import struct
+import subprocess
 import tarfile
 import tempfile
 import unittest
+import zipfile
 from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -29,6 +32,30 @@ def make_archive(path, entries):
 
 
 class ReShadeCompatibilityTests(unittest.TestCase):
+    def test_private_extractor_is_used_even_when_system_7z_is_broken(self):
+        with tempfile.TemporaryDirectory(prefix='ReShade spaces ') as folder:
+            base = Path(folder)
+            broken = base / 'system-bin'
+            broken.mkdir()
+            sentinel = base / 'system-7z-was-called'
+            executable = broken / '7z'
+            executable.write_text('#!/bin/bash\ntouch "$SENTINEL"\nexit 77\n')
+            executable.chmod(0o755)
+            archive = base / 'installer.exe'
+            with zipfile.ZipFile(archive, 'w') as z:
+                z.writestr('ReShade32.dll', b'MZ32')
+                z.writestr('ReShade64.dll', b'MZ64')
+            env = dict(os.environ, PATH=str(broken) + ':' + os.environ['PATH'],
+                       WT_ROOT=str(ROOT / 'toolbox'), WT_HOME=str(base / 'home'),
+                       SENTINEL=str(sentinel), INSTALLER=str(archive))
+            result = subprocess.run(['bash', '-c',
+                'source "$WT_ROOT/modules/reshade.sh"; resh_prepare_tools || exit; '
+                'PATH="$WT_HOME/reshade/bin:$PATH" 7z -y e "$INSTALLER"'],
+                cwd=base, env=env, capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertFalse(sentinel.exists())
+            self.assertEqual((base / 'ReShade64.dll').read_bytes(), b'MZ64')
+
     def test_file_adapter_checks_real_pe_header_and_bitness(self):
         with tempfile.TemporaryDirectory() as folder:
             p = Path(folder) / 'Game.exe'
