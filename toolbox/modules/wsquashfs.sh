@@ -805,9 +805,83 @@ wsq_registry_save() {
     WSQ_SELECTED_SAVE="."
 }
 
+wsq_select_savefiles() {
+    local rel size changed folder choice selected n name mode existing found
+    local -a folders=() items=() names=() chosen=()
+    choice="$(menu_select "$(i18n wsq_files_title)" "$(i18n wsq_files_intro)" \
+        changed "$(i18n wsq_files_changed)" all "$(i18n wsq_files_all)")" || return 1
+    case "$choice" in changed|all) mode="$choice" ;; *) return 1 ;; esac
+    while IFS=$'\t' read -r rel size changed; do
+        [ -n "$rel" ] || continue
+        [ "$mode" = all ] || [ "$changed" = 1 ] || continue
+        folder="$(dirname "$rel")"
+        found=0
+        for existing in "${folders[@]}"; do
+            [ "$existing" != "$folder" ] || found=1
+        done
+        [ "$found" -eq 0 ] || continue
+        folders+=("$folder")
+        items+=("${#folders[@]}" "$(wsq_display_path "$folder")")
+    done < <(python3 "$WT_ROOT/helpers/wsquashfs_savefiles.py" list "$prefix" "$snapshot")
+    if [ "${#folders[@]}" -eq 0 ]; then
+        msgbox "$(i18n wsq_files_title)" "$(i18n wsq_files_none)"
+        return 1
+    fi
+    choice="$(menu_select "$(i18n wsq_files_title)" "$(i18n wsq_files_folder)" "${items[@]}")" || return 1
+    case "$choice" in ''|*[!0-9]*) return 1 ;; esac
+    [ "$choice" -ge 1 ] && [ "$choice" -le "${#folders[@]}" ] || return 1
+    folder="${folders[$((choice-1))]}"
+    items=()
+    while IFS=$'\t' read -r rel size changed; do
+        [ "$(dirname "$rel")" = "$folder" ] || continue
+        [ "$mode" = all ] || [ "$changed" = 1 ] || continue
+        name="$(basename "$rel")"
+        names+=("$name")
+        items+=("${#names[@]}" "$name ($size B)" off)
+    done < <(python3 "$WT_ROOT/helpers/wsquashfs_savefiles.py" list "$prefix" "$snapshot")
+    [ "${#names[@]}" -gt 0 ] || return 1
+    selected="$(checklist_select "$(i18n wsq_files_title)" "$(i18n wsq_files_select)" "${items[@]}")" || return 1
+    while IFS= read -r n; do
+        case "$n" in ''|*[!0-9]*) continue ;; esac
+        [ "$n" -ge 1 ] && [ "$n" -le "${#names[@]}" ] || return 1
+        chosen+=("${names[$((n-1))]}")
+    done <<< "$selected"
+    [ "${#chosen[@]}" -gt 0 ] || return 1
+    WSQ_SELECTED_SAVE="$folder"
+    WSQ_SELECTED_SAVEFILES="$(IFS=';'; printf '%s' "${chosen[*]}")"
+    WSQ_SAVE_KIND=files
+}
+
+wsq_copy_savefiles() {
+    local staging rc
+    local -a names=()
+    IFS=';' read -r -a names <<< "$WSQ_SELECTED_SAVEFILES"
+    staging="$(mktemp -d "$WSQ_STATE_DIR/savefiles.XXXXXX")" || return 1
+    python3 "$WT_ROOT/helpers/wsquashfs_savefiles.py" stage "$prefix" "$snapshot" \
+        --folder "$save_rel" --save-root "$WSQ_SAVE_ROOT" --staged "$staging" "${names[@]}" >> "${WT_SESSION_LOG:-/dev/null}" 2>&1
+    rc=$?
+    if [ "$rc" -eq 0 ]; then
+        WSQ_LAST_SAVE_BACKUP=""
+        wsq_save_destination_prepare "$WSQ_SAVE_ROOT/$game_name"
+        rc=$?
+        if [ "$rc" -eq 0 ]; then
+            cp -a -- "$staging/." "$WSQ_SAVE_ROOT/$game_name/"
+            rc=$?
+            if [ "$rc" -eq 0 ]; then
+                python3 "$WT_ROOT/helpers/wsquashfs_savefiles.py" remove "$prefix" "$snapshot" \
+                    --folder "$save_rel" --save-root "$WSQ_SAVE_ROOT" "${names[@]}" >> "${WT_SESSION_LOG:-/dev/null}" 2>&1
+                rc=$?
+            fi
+        fi
+    fi
+    rm -rf -- "$staging"
+    return "$rc"
+}
+
 wsq_select_save_candidate() {
     local prefix="$1" snapshot="$2"
     WSQ_SELECTED_SAVE=""
+    WSQ_SELECTED_SAVEFILES=""
     WSQ_SAVE_KIND="directory"
     local -a items=()
     local rows="" score count rel reason idx=1 choice validated
@@ -820,7 +894,8 @@ wsq_select_save_candidate() {
     done < <(python3 "$WSQ_HELPER" diff "$prefix" "$snapshot")
 
     if [ "${#items[@]}" -gt 0 ]; then
-        items+=("browse" "$(i18n wsq_browser_title)"
+        items+=("files" "$(i18n wsq_files_title)"
+                "browse" "$(i18n wsq_browser_title)"
                 "terminal" "$(i18n wsq_browser_terminal)"
                 "retry" "$(i18n wsq_no_save_retry)"
                 "registry" "$(i18n wsq_registry_title)"
@@ -831,7 +906,8 @@ wsq_select_save_candidate() {
                 browse) wsq_browse_save && return 0 ;;
                 terminal) wsq_browse_save terminal && return 0 ;;
                 retry) wsq_retry_pending; return 1 ;;
-                registry) wsq_registry_save && return 0 ;;
+                files) wsq_select_savefiles && return 0 ;;
+            registry) wsq_registry_save && return 0 ;;
                 cancel) wsq_cancel_pending; return 1 ;;
                 *)
                     case "$choice" in ''|*[!0-9]*) continue ;; esac
@@ -846,11 +922,13 @@ wsq_select_save_candidate() {
         choice="$(menu_select "$(i18n wsq_save_title)" "$(i18n wsq_no_save_choices)" \
             "retry" "$(i18n wsq_no_save_retry)" \
             "registry" "$(i18n wsq_registry_title)" \
+            "files" "$(i18n wsq_files_title)" \
             "browse" "$(i18n wsq_browser_title)" \
             "terminal" "$(i18n wsq_browser_terminal)" \
             "cancel" "$(i18n wsq_launch_cancel)")" || return 1
         case "$choice" in
             retry) wsq_retry_pending; return 1 ;;
+            files) wsq_select_savefiles && return 0 ;;
             registry) wsq_registry_save && return 0 ;;
             browse) wsq_browse_save && return 0 ;;
             terminal) wsq_browse_save terminal && return 0 ;;
@@ -1370,6 +1448,9 @@ wsq_resume_build() {
     if [ "$save_kind" = registry ]; then
         WSQ_LAST_SAVE_BACKUP=""
         wsq_copy_registry_save
+    elif [ "$save_kind" = files ]; then
+        yesno_default_no "$(i18n wsq_files_title)" "$(i18n wsq_files_confirm "$save_rel" "$WSQ_SELECTED_SAVEFILES")" || return
+        wsq_copy_savefiles
     else
         yesno_default_no "$(i18n wsq_save_title)" \
             "$(i18n wsq_save_confirm "$(wsq_display_path "$save_rel")" "$(wsq_display_path "$WSQ_SAVE_ROOT/$game_name")")" || return
@@ -1384,7 +1465,7 @@ wsq_resume_build() {
         return
     fi
 
-    if [ "$save_kind" != registry ]; then
+    if [ "$save_kind" = directory ]; then
         wsq_cleanup_internal_savedir "$prefix" "$save_rel" || {
             msgbox "$(i18n wsq_create_title)" "$(i18n wsq_savedir_cleanup_failed "$prefix/$save_rel")"
             return
@@ -1393,6 +1474,8 @@ wsq_resume_build() {
 
     if [ "$save_kind" = registry ]; then
         wsq_write_autorun "$prefix" "$exe_rel" "." "user.reg"
+    elif [ "$save_kind" = files ]; then
+        wsq_write_autorun "$prefix" "$exe_rel" "$save_rel" "$WSQ_SELECTED_SAVEFILES"
     else
         wsq_write_autorun "$prefix" "$exe_rel" "$save_rel"
     fi
@@ -1406,6 +1489,8 @@ wsq_resume_build() {
     local build_prompt
     if [ "$save_kind" = registry ]; then
         build_prompt="$(i18n wsq_registry_build_now)"
+    elif [ "$save_kind" = files ]; then
+        build_prompt="$(i18n wsq_files_build_now)"
     else
         build_prompt="$(i18n wsq_build_now)"
     fi
@@ -1450,7 +1535,7 @@ wsq_resume_build() {
             fi
         fi
         local cleanup_rc=0
-        if [ "$save_kind" != registry ]; then
+        if [ "$save_kind" = directory ]; then
             wsq_cleanup_internal_savedir "$prefix" "$save_rel"
             cleanup_rc=$?
         fi

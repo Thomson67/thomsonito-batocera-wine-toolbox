@@ -293,6 +293,8 @@ def snapshot(prefix: Path):
                         out[p.relative_to(prefix).as_posix()] = state
         except OSError:
             pass
+    from wsquashfs_savefiles import inventory
+    out["__game_files__"] = inventory(prefix)
     out["__registry__"] = registry_sections(prefix)
     return out
 
@@ -325,7 +327,7 @@ def score_save_dir(rel_dir: str, changed_files):
 def diff_snapshots(prefix: Path, before, after):
     changed = []
     for rel, state in after.items():
-        if rel == "__registry__":
+        if rel in ("__registry__", "__game_files__"):
             continue
         if before.get(rel) != state:
             changed.append(rel)

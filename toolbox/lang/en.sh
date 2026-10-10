@@ -1,5 +1,15 @@
 #!/bin/bash
 declare -gA I18N=(
+  [wsq_files_title]="Save files in the game directory"
+  [wsq_files_intro]="Create a save during the game test. Modified files may also be settings or logs: select only useful save files."
+  [wsq_files_changed]="Files created or modified during the test"
+  [wsq_files_all]="Manual selection: all eligible files"
+  [wsq_files_none]="No files found. Try manual selection or launch the game again to create a save."
+  [wsq_files_folder]="Choose the folder containing the saves. One SAVEFILES selection uses a single folder; use SAVEDIR selection for a whole directory."
+  [wsq_files_select]="Select the save files to keep. Executables, DLLs and common asset formats are excluded. Filenames containing a semicolon are unsupported."
+  [wsq_files_confirm]="Copy selected files from %s?\n\nSAVEFILES=%s\n\nOther game files are preserved."
+  [wsq_files_build_now]="SAVEDIR and SAVEFILES are configured. Selected files are copied to Batocera saves and removed from the game. Batocera will recreate their links at launch.\n\nCreate the .wsquashfs now?"
+
   [app_subtitle]="The ultimate Wine toolbox for Batocera • By Thomsonito"
   [back]="Back"
   [exit]="Exit"

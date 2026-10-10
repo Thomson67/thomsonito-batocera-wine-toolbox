@@ -151,3 +151,5 @@ The test prefix keeps the exact archive name, replacing `.wsquashfs` with `.wine
 In the DXVK / VKD3D manager, **Install a Batocera model** offers the official combinations from Batocera 40, 41, 42 and 43 / 43.1. Versions are pinned, archives are verified with SHA-256, and provenance is recorded in `model.json`. The catalog is stored in `toolbox/data/batocera-dxvk-models.json`.
 
 After installation, select the model globally or per game. NVAPI remains controlled through game settings. Models do not replace your runner, drivers or Batocera configuration: recent VKD3D versions may crash DirectX 12 games with Vanilla-Proton-9.0-4. Models 40 to 42 let you test older graphics components.
+
+WSquashFS creation also supports individual saves inside the game directory (`SAVEFILES`). Create a save during the test, then select created/modified files or use the manual list. Files are unchecked by default: settings and logs may also appear. Select files from one folder at a time; chosen files are copied to Batocera saves and removed from the prefix before compression; Batocera recreates their links at launch without moving the game directory.

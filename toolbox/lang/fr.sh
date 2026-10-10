@@ -1,5 +1,15 @@
 #!/bin/bash
 declare -gA I18N=(
+  [wsq_files_title]="Fichiers de sauvegarde dans le dossier du jeu"
+  [wsq_files_intro]="Créez une sauvegarde pendant le test du jeu. Les fichiers modifiés peuvent aussi être des réglages ou des logs : choisissez uniquement les sauvegardes utiles."
+  [wsq_files_changed]="Fichiers créés ou modifiés pendant le test"
+  [wsq_files_all]="Sélection manuelle : tous les fichiers admissibles"
+  [wsq_files_none]="Aucun fichier trouvé. Essayez la sélection manuelle ou relancez le jeu pour créer une sauvegarde."
+  [wsq_files_folder]="Choisissez le dossier contenant les fichiers de sauvegarde. Une sélection SAVEFILES concerne un seul dossier ; pour un dossier complet, utilisez la sélection SAVEDIR."
+  [wsq_files_select]="Cochez les fichiers de sauvegarde à conserver. Les exécutables, DLL et formats de ressources courants sont exclus. Les fichiers aux noms contenant un point-virgule ne sont pas compatibles."
+  [wsq_files_confirm]="Copier les fichiers choisis depuis %s ?\n\nSAVEFILES=%s\n\nLes autres fichiers du jeu sont conservés."
+  [wsq_files_build_now]="SAVEDIR et SAVEFILES sont configurés. Les fichiers choisis sont copiés dans les sauvegardes Batocera et retirés du jeu. Batocera recréera leurs liens au lancement.\n\nCréer maintenant le .wsquashfs ?"
+
   [app_subtitle]="La boîte à outils Wine ultime pour Batocera • Par Thomsonito"
   [back]="Retour"
   [exit]="Quitter"
