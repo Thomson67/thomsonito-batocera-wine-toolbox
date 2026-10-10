@@ -1,0 +1,125 @@
+import importlib.util
+import os
+from pathlib import Path
+import subprocess
+import tempfile
+import unittest
+from unittest.mock import patch
+
+ROOT = Path(__file__).resolve().parents[1]
+spec = importlib.util.spec_from_file_location('wtr', ROOT / 'toolbox/helpers/wsquashfs_winetricks.py')
+wtr = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(wtr)
+
+
+class WinetricksTests(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.base = Path(self.tmp.name)
+        self.prefix = self.base / 'Game with spaces.wine'
+        (self.prefix / 'drive_c/windows/system32').mkdir(parents=True)
+        self.shared = self.base / 'runner.dll'
+        self.shared.write_text('original runner DLL')
+        self.dll = self.prefix / 'drive_c/windows/system32/example.dll'
+        self.dll.symlink_to(self.shared)
+        self.saves = self.base / 'saves'
+        self.saves.mkdir()
+        (self.prefix / 'drive_c/Saved').symlink_to(self.saves)
+
+    def test_batocera_runner_environment_and_real_installer_exit_code(self):
+        launcher = self.base / 'batocera-wine'
+        source = '''#!/bin/bash
+WINE="$TEST_RUNNER/bin/wine"
+WINESERVER="$TEST_RUNNER/bin/wineserver"
+waitWineServer() { :; }
+cleanAndExit() { return 0; }
+trick_wine() {
+    local target="$1"; shift
+    WINEPREFIX="$target" "$TEST_TRICKS" "$@"
+}
+l_PREFIX="$3"
+shift 3
+if [ "$#" -gt 0 ]; then
+            trick_wine "${l_PREFIX}" "$@"
+fi
+unset l_PREFIX
+cleanAndExit $?
+'''
+        launcher.write_text(source)
+        tricks = self.base / 'fake-tricks'
+        tricks.write_text('''#!/bin/bash
+[ "$WINE" = "$TEST_RUNNER/bin/wine" ] || exit 71
+[ "$WINESERVER" = "$TEST_RUNNER/bin/wineserver" ] || exit 72
+[ "$WINEPREFIX" = "$TEST_PREFIX" ] || exit 73
+[ "$1" = -q ] && [ "$2" = vcrun2022 ] || exit 74
+printf installed > "$WINEPREFIX/drive_c/windows/system32/example.dll"
+exit "${TEST_EXIT:-0}"
+''')
+        tricks.chmod(0o755)
+        with patch.dict(os.environ, TEST_RUNNER=str(self.base / 'Selected-UMU'),
+                        TEST_PREFIX=str(self.prefix), TEST_TRICKS=str(tricks)):
+            self.assertEqual(wtr.install(self.prefix, ['vcrun2022'], launcher), 0)
+            with patch.dict(os.environ, TEST_EXIT='9'):
+                self.assertEqual(wtr.install(self.prefix, ['vcrun2022'], launcher), 9)
+        self.assertEqual(launcher.read_text(), source)
+        self.assertEqual(self.dll.read_text(), 'installed')
+        self.assertFalse(self.dll.is_symlink())
+        self.assertEqual(self.shared.read_text(), 'original runner DLL')
+        self.assertTrue((self.prefix / 'drive_c/Saved').is_symlink())
+
+    def test_invalid_verbs_and_unrecognized_launcher_leave_prefix_untouched(self):
+        launcher = self.base / 'unsupported'
+        launcher.write_text('exit 0')
+        for verbs in [['--force'], ['vcrun2022;touch'], ['../bad'], []]:
+            with self.assertRaises(ValueError):
+                wtr.install(self.prefix, verbs, launcher)
+        with self.assertRaises(ValueError):
+            wtr.install(self.prefix, ['vcrun2022'], launcher)
+        self.assertTrue(self.dll.is_symlink())
+
+    def test_external_windows_directory_is_refused(self):
+        (self.prefix / 'drive_c/windows/fonts').symlink_to(self.saves)
+        with self.assertRaises(ValueError):
+            wtr.prepare(self.prefix)
+        self.assertTrue(self.dll.is_symlink())
+
+    def test_running_prefix_is_refused(self):
+        fake_env = self.base / 'process-env'
+        fake_env.write_bytes(os.fsencode('WINEPREFIX=' + str(self.prefix)) + b'\0')
+        with patch.object(wtr.Path, 'glob', return_value=[fake_env]):
+            with self.assertRaisesRegex(ValueError, 'still in use'):
+                wtr.prepare(self.prefix)
+        self.assertTrue(self.dll.is_symlink())
+
+    def test_creation_failure_menu_offers_winetricks_and_retests_after_success(self):
+        script = r'''
+source toolbox/modules/wsquashfs.sh
+i18n() { printf '%s' "$1"; }
+wsq_state_value() { printf '%s' "$TEST_MODE"; }
+menu_select() {
+    printf '%s\n' "$@" > "$TEST_MENU"
+    if [ "$TEST_MODE" = create ]; then printf winetricks; else printf cancel; fi
+}
+wsq_install_extra_winetricks() { echo installed; }
+yesno() { return 0; }
+wsq_retry_pending() { echo retested; }
+wsq_cancel_pending() { :; }
+wsq_launch_failure_menu Failed
+'''
+        menu = self.base / 'menu'
+        for mode in ('create', 'update'):
+            result = subprocess.run(['bash', '-c', script], cwd=ROOT, capture_output=True,
+                text=True, env=dict(os.environ, WT_ROOT=str(ROOT / 'toolbox'),
+                                    TEST_MODE=mode, TEST_MENU=str(menu)))
+            self.assertEqual(result.returncode, 1)
+            if mode == 'create':
+                self.assertIn('\nwinetricks\n', menu.read_text())
+                self.assertEqual(result.stdout, 'installed\nretested\n')
+            else:
+                self.assertNotIn('\nwinetricks\n', menu.read_text())
+                self.assertEqual(result.stdout, '')
+
+
+if __name__ == '__main__':
+    unittest.main()

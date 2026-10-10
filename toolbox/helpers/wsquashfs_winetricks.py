@@ -1,0 +1,106 @@
+#!/usr/bin/env python3
+"""Install Winetricks in a working prefix through Batocera's runner setup."""
+import argparse
+import os
+from pathlib import Path
+import re
+import shutil
+import subprocess
+import tempfile
+
+
+def private_file(path):
+    fd, temporary = tempfile.mkstemp(prefix='.uwt-winetricks-', dir=path.parent)
+    os.close(fd)
+    try:
+        shutil.copy2(path, temporary)
+        os.replace(temporary, path)
+    finally:
+        Path(temporary).unlink(missing_ok=True)
+
+
+def prepare(prefix):
+    if prefix.is_symlink() or not prefix.is_dir() or prefix.suffix != '.wine':
+        raise ValueError('Expected the working .wine prefix')
+    root = prefix.resolve()
+    drive = prefix / 'drive_c'
+    windows = drive / 'windows'
+    if drive.is_symlink() or windows.is_symlink() or not windows.is_dir():
+        raise ValueError('drive_c/windows must be an internal directory')
+    # Do not install while this prefix is still used by a game or wineserver.
+    for envfile in Path('/proc').glob('[0-9]*/environ'):
+        try:
+            fields = envfile.read_bytes().split(b'\0')
+        except OSError:
+            continue
+        for field in fields:
+            if field.startswith(b'WINEPREFIX='):
+                running = Path(os.fsdecode(field.split(b'=', 1)[1])).resolve()
+                if running == root or running.is_relative_to(root):
+                    raise ValueError('The working prefix is still in use; close the game first')
+    files = []
+    for directory, dirs, names in os.walk(windows, followlinks=False):
+        for name in dirs:
+            path = Path(directory) / name
+            if path.is_symlink():
+                raise ValueError(f'Windows directory alias must be detached first: {path}')
+        files.extend(Path(directory) / name for name in names)
+    files.extend(prefix / name for name in ('system.reg', 'user.reg', 'userdef.reg'))
+    # Detach shared files atomically before an installer can overwrite them.
+    # User profiles and save links are deliberately outside this traversal.
+    copies = []
+    for path in files:
+        if path.is_symlink() and not path.resolve().is_relative_to(root):
+            if not path.is_file():
+                raise ValueError(f'Missing shared Windows file: {path}')
+            copies.append(path)
+        elif path.is_file() and path.stat().st_nlink > 1:
+            copies.append(path)
+    for path in copies:
+        private_file(path)
+
+
+def install(prefix, verbs, launcher=Path('/usr/bin/batocera-wine')):
+    if not verbs or any(not re.fullmatch(r'[a-z][a-z0-9_]*', v) for v in verbs):
+        raise ValueError('Use Winetricks component names, without options or shell commands')
+    source = launcher.read_text()
+    call = '            trick_wine "${l_PREFIX}" "$@"'
+    if source.count(call) != 1:
+        raise ValueError('This Batocera Winetricks launcher is not supported')
+    # The stock CLI unsets l_PREFIX after Winetricks, losing its exit code.
+    # Keep Batocera's setup and cleanup in a temporary copy and return the
+    # actual installer result. Never change /usr/bin/batocera-wine.
+    source = source.replace(call,
+        '            if [ -x "${DIR}/${WINE_VERSION}/bin/wine" ]; then\n'
+        '                export WINE="${DIR}/${WINE_VERSION}/bin/wine"\n'
+        '                export WINESERVER="${DIR}/${WINE_VERSION}/bin/wineserver"\n'
+        '            fi\n' + call + '\n'
+        '            UWT_TRICKS_RC=$?\n'
+        '            waitWineServer 0\n'
+        '            cleanAndExit "$UWT_TRICKS_RC"\n'
+        '            exit "$UWT_TRICKS_RC"', 1)
+    prepare(prefix)
+    with tempfile.TemporaryDirectory(prefix='uwt-winetricks-') as tmp:
+        wrapper = Path(tmp) / 'batocera-wine'
+        wrapper.write_text(source)
+        env = dict(os.environ, WINE='wine', WINESERVER='wineserver')
+        # Exported Wine variables retain their export flag when init_wine()
+        # replaces them with the selected runner's executable paths.
+        return subprocess.run(['bash', str(wrapper), 'windows', 'tricks',
+                               str(prefix), '-q', *verbs], env=env).returncode
+
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('prefix', type=Path)
+    parser.add_argument('verbs', nargs='+')
+    args = parser.parse_args()
+    try:
+        return install(args.prefix, args.verbs)
+    except (OSError, ValueError) as error:
+        print(f'Winetricks: {error}', flush=True)
+        return 1
+
+
+if __name__ == '__main__':
+    raise SystemExit(main())

@@ -1187,16 +1187,84 @@ wsq_apply_executable_selection() {
     wsq_update_state exe_rel "$selected" || return 1
 }
 
+wsq_install_extra_winetricks() {
+    local choice selected verb log pretty runner_label
+    local -a verbs=() items=()
+    [ -d "$prefix/drive_c/windows" ] || return 1
+    command -v batocera-wine >/dev/null 2>&1 || {
+        msgbox "$(i18n wsq_winetricks_title)" "$(i18n wsq_winetricks_unavailable)"
+        return 1
+    }
+    if [ "$runner" != __SYSTEM__ ] && [ ! -x "$BATOCERA_CUSTOM_WINE/$runner/bin/wine" ]; then
+        msgbox "$(i18n wsq_winetricks_title)" "$(i18n wsq_winetricks_runner_missing "$runner")"
+        return 1
+    fi
+    choice="$(menu_select "$(i18n wsq_winetricks_title)" "$(i18n wsq_winetricks_intro)" \
+        common "$(i18n wsq_winetricks_common)" manual "$(i18n wsq_winetricks_manual)" \
+        back "$(i18n back)")" || return 1
+    case "$choice" in
+        common)
+            for verb in vcrun2022 vcrun2019 vcrun2015 vcrun2013 vcrun2012 vcrun2010 \
+                vcrun2008 vcrun2005 d3dcompiler_47 d3dcompiler_43 d3dx9 xact corefonts dotnet48; do
+                items+=("$verb" "$(i18n "wsq_winetricks_$verb")" off)
+            done
+            selected="$(checklist_select "$(i18n wsq_winetricks_title)" \
+                "$(i18n wsq_winetricks_select)" "${items[@]}")" || return 1
+            while IFS= read -r verb; do
+                [ -z "$verb" ] || verbs+=("$verb")
+            done <<< "$selected" ;;
+        manual)
+            selected="$(input_text "$(i18n wsq_winetricks_title)" \
+                "$(i18n wsq_winetricks_manual_prompt)" "")" || return 1
+            read -r -a verbs <<< "$selected" ;;
+        *) return 1 ;;
+    esac
+    [ "${#verbs[@]}" -gt 0 ] || return 1
+    for verb in "${verbs[@]}"; do
+        [[ "$verb" =~ ^[a-z][a-z0-9_]*$ ]] || {
+            msgbox "$(i18n wsq_winetricks_title)" "$(i18n wsq_winetricks_invalid)"
+            return 1
+        }
+    done
+    pretty="${verbs[*]}"
+    runner_label="$runner"
+    [ "$runner" != __SYSTEM__ ] || runner_label="$(i18n wsq_runner_system)"
+    yesno_default_no "$(i18n wsq_winetricks_title)" \
+        "$(i18n wsq_winetricks_confirm "$pretty" "$(wsq_display_path "$prefix")" "$runner_label")" || return 1
+    wsq_set_runner_config "$(basename "$prefix")" "$runner" || return 1
+    mkdir -p "$WSQ_STATE_DIR"
+    log="${WT_SESSION_LOG:-$WSQ_STATE_DIR/wsquashfs-winetricks.log}"
+    wt_log "WSquashFS: Winetricks prefix=$prefix runner=$runner components=$pretty"
+    if ! wsq_update_run "$(i18n wsq_winetricks_title)" "$(i18n wsq_winetricks_installing "$pretty")" \
+        "$log" python3 "$WT_ROOT/helpers/wsquashfs_winetricks.py" "$prefix" "${verbs[@]}"; then
+        msgbox "$(i18n wsq_winetricks_title)" \
+            "$(i18n wsq_winetricks_failed "$log" "$(wsq_update_log_detail "$log")")"
+        return 1
+    fi
+    return 0
+}
+
 wsq_launch_failure_menu() {
     local choice new_runner new_exe
+    local -a extra=()
+    if [ "$(wsq_state_value mode)" = create ]; then
+        extra=(winetricks "$(i18n wsq_winetricks_title)")
+    fi
     while true; do
         choice="$(menu_select "$(i18n wsq_launch_title)" "$1" \
             "runner" "$(i18n wsq_launch_runner)" \
             "executable" "$(i18n wsq_launch_executable_review)" \
+            "${extra[@]}" \
             "retry" "$(i18n wsq_launch_retry)" \
             "options" "$(i18n wsq_options_title)" \
             "cancel" "$(i18n wsq_launch_cancel)")" || return 1
         case "$choice" in
+            winetricks)
+                wsq_install_extra_winetricks || continue
+                if yesno "$(i18n wsq_winetricks_title)" "$(i18n wsq_winetricks_retest)"; then
+                    wsq_retry_pending
+                    return 1
+                fi ;;
             runner)
                 new_runner="$(wsq_select_runner)" || continue
                 wsq_set_runner_config "$(basename "$prefix")" "$new_runner" || {

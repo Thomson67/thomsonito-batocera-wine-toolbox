@@ -40,6 +40,7 @@ Cette nouvelle fonctionnalité reste en bêta pendant les tests sur plusieurs je
 ## Nouveautés de la v0.2.0
 
 - Création guidée de WSquashFS avec sauvegardes externalisées, test du jeu et reprise automatique.
+- Après un échec de lancement en création, installation de composants Winetricks dans le préfixe de travail, puis possibilité de retester le jeu.
 - Sélection graphique des dossiers de sauvegarde, inspection et alternative `user.reg`.
 - Sauvegarde/remplacement et renommage des archives, contrôle d’intégrité rapide ou complet et tutoriel intégré.
 - Profils MangoHud minimaliste, par défaut et détaillé.

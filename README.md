@@ -40,6 +40,7 @@ The new update feature remains in beta while more games are tested. Other featur
 ## New in v0.2.0
 
 - Guided WSquashFS creation with external saves, game testing and automatic resume.
+- After a failed creation test, install Winetricks components in the working prefix and optionally retest the game.
 - Graphical save-folder selection, inspection and a `user.reg` alternative.
 - Archive backup/replacement and renaming, quick/full integrity checks and a built-in guide.
 - Minimal, default and detailed MangoHud profiles.
