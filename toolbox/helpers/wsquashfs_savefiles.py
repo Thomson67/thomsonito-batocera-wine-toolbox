@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Discover individual game saves and materialize only explicitly selected files."""
+"""Discover and externalize only explicitly selected individual game saves."""
 import argparse
 import json
 import os

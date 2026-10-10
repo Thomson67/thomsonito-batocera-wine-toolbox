@@ -907,7 +907,7 @@ wsq_select_save_candidate() {
                 terminal) wsq_browse_save terminal && return 0 ;;
                 retry) wsq_retry_pending; return 1 ;;
                 files) wsq_select_savefiles && return 0 ;;
-            registry) wsq_registry_save && return 0 ;;
+                registry) wsq_registry_save && return 0 ;;
                 cancel) wsq_cancel_pending; return 1 ;;
                 *)
                     case "$choice" in ''|*[!0-9]*) continue ;; esac
