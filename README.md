@@ -10,7 +10,7 @@ Created by **Thomsonito**.
 
 - French / English interface
 - UMU Runner Toolbox integration
-- Wine Runner Starter Pack
+- Wine Runner Starter Pack, with a list of installed and missing runners
 - classic Wine runner management
 - GE-Proton legacy support for Batocera
 - MangoHud global and per-game management

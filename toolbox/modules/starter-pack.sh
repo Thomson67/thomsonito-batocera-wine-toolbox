@@ -24,7 +24,7 @@ for rid in starter["classic_runner_ids"]:
         rid, canonical(r["name"]), state, r["file"], r["size_bytes"], r["download_url"], r["sha256"]
     ))
 for rid in starter.get("umu_runner_ids", []):
-    target=os.path.join("/userdata/system/wine/custom", canonical(rid))
+    target=os.path.join(install_path, canonical(rid))
     state="installed" if os.path.isdir(target) else "missing"
     print("UMU\t%s\t%s" % (rid, state))
 PY
@@ -264,6 +264,40 @@ install_selected_starter_runners() {
     install_starter_tokens "$selected"
 }
 
+starter_view_runners() {
+    local rows report kind id name state file size url sha label
+    rows="$(starter_status_tsv)" || {
+        msgbox "$(i18n starter_title)" "$(i18n starter_missing_catalog)"
+        return 1
+    }
+    report="$(mktemp /tmp/wt-starter-list.XXXXXX)" || return 1
+    while IFS=$'\t' read -r kind id name state file size url sha; do
+        case "$kind" in
+            META) printf '%s\n\n' "$(i18n starter_list_header "$id" "$name")" ;;
+            CLASSIC|UMU)
+                if [ "$kind" = UMU ]; then
+                    state="$name"
+                    name="$id"
+                    label=UMU
+                else
+                    label="$(i18n starter_list_classic)"
+                fi
+                printf '%s | %s | %s\n' "$label" "$name" "$(i18n "starter_list_$state")"
+                ;;
+        esac
+    done <<< "$rows" > "$report"
+    if have_dialog; then
+        wt_clear_tty
+        dialog --clear --no-shadow --exit-label "$(i18n back)" \
+            --title "$(i18n starter_list_title)" --textbox "$report" 24 100
+        wt_clear_tty
+    else
+        cat "$report"
+        read -r -p "$(i18n press_enter)" _
+    fi
+    rm -f "$report"
+} >&2
+
 starter_pack_menu() {
     while true; do
         local vals version install_path classic ci cm umu ui um download free estimate choice summary
@@ -283,11 +317,13 @@ starter_pack_menu() {
         choice="$(menu_select "$(i18n starter_title)" "$(i18n starter_intro)\n\n$summary" \
             "1" "$(i18n starter_install_all)" \
             "2" "$(i18n starter_install_select)" \
+            "3" "$(i18n starter_list_title)" \
             "0" "$(i18n back)")" || return
 
         case "$choice" in
             1) install_starter_pack ;;
             2) install_selected_starter_runners ;;
+            3) starter_view_runners ;;
             0|"") return ;;
         esac
     done
