@@ -12,7 +12,7 @@ resh_cmd() {
 
 resh_backend_ready() {
     local tool missing=""
-    for tool in curl git file python3 sha256sum tar flock; do
+    for tool in curl python3 sha256sum tar flock; do
         command -v "$tool" >/dev/null 2>&1 || missing+="$tool "
     done
     if [ -n "$missing" ]; then
@@ -91,6 +91,19 @@ resh_install_game() {
     # Keep extraction compatibility private to this upstream invocation.
     local shim="$WT_HOME/reshade/bin"
     mkdir -p "$shim"
+    # Batocera does not ship Git/libmagic on every image. These private
+    # adapters cover only the calls of our pinned upstream backend.
+    local compatibility_tool
+    for compatibility_tool in git file; do
+        if ! command -v "$compatibility_tool" >/dev/null 2>&1; then
+            printf '#!/bin/bash\nexec python3 %q %q "$@"\n' \
+                "$WT_ROOT/helpers/reshade_compat.py" "$compatibility_tool" > "$shim/$compatibility_tool"
+            chmod +x "$shim/$compatibility_tool"
+        else
+            printf '#!/bin/bash\nexec %q "$@"\n' "$(command -v "$compatibility_tool")" > "$shim/$compatibility_tool"
+            chmod +x "$shim/$compatibility_tool"
+        fi
+    done
     if ! command -v 7z >/dev/null 2>&1; then
         local extractor
         extractor="$(command -v 7zz || command -v 7za || true)"
