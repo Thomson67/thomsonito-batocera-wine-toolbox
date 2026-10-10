@@ -154,20 +154,6 @@
       "source_sha256": "b0e4a71cd8a6110a222934d5512725110c0e3b780f5f293d127a6d1eb9c8ba6d",
       "launch_mode": "classic-wine",
       "umu": false
-    },
-    {
-      "id": "dwproton-11.0-14",
-      "name": "dwproton-11.0-14",
-      "file": "dwproton-11.0-14.tar.xz",
-      "family": "dw-proton",
-      "size_bytes": 472660412,
-      "release_tag": "starter-pack-2026.10",
-      "download_url": "https://github.com/Thomson67/batocera-wine-runners/releases/download/starter-pack-2026.10/dwproton-11.0-14.tar.xz",
-      "sha256": "30f24c62f6398856e500e0ed5ca46b102eefd884ee45ad0fb0ff9d358439b774",
-      "source_url": "https://github.com/dawn-winery/dwproton-mirror/releases/download/dwproton-11.0-14/dwproton-11.0-14-x86_64.tar.xz",
-      "source_sha256": "c563cc99d464fb19a767a0eb90dc723746bfcdd402a4fdaa0737b12af081f99a",
-      "launch_mode": "classic-wine",
-      "umu": false
     }
   ]
 }

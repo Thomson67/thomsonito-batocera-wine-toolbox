@@ -49,7 +49,7 @@ install_umu_runner() {
     local runner="$1"
     ensure_umu_toolbox || return 1
     echo "$(i18n umu_runner_installing "$runner")"
-    if [ "${2:-}" != batch ]; then
+    if [ "${2:-}" != batch ] && [[ "$runner" != dwproton-*-UMU ]]; then
         "$UMU_TOOLBOX_MAIN" --install-runner "$runner"
         return $?
     fi
@@ -57,7 +57,7 @@ install_umu_runner() {
     # whose msg() helper still opens a dialog at the end of each install.
     local batch_script rc
     batch_script="$(mktemp "$UMU_TOOLBOX_ROOT/.starter-batch.XXXXXX")" || return 1
-    if ! python3 - "$UMU_TOOLBOX_MAIN" "$batch_script" <<'PY'
+    if ! python3 - "$UMU_TOOLBOX_MAIN" "$batch_script" "$runner" <<'PY'
 from pathlib import Path
 import re
 import sys
@@ -70,6 +70,28 @@ replacement = """msg() {
 patched, count = re.subn(r'^msg\(\)\s*\{\s*\n', lambda _: replacement, source, count=1, flags=re.M)
 if count != 1:
     raise SystemExit("UMU batch mode unavailable: msg() helper not recognized")
+if sys.argv[3].startswith("dwproton-"):
+    # Older UMU Toolbox releases only expose DW through the interactive menu.
+    # Adapt a temporary copy; retain its installer, checksums and runtime setup.
+    start = patched.find("install_dw() {")
+    end = patched.find("\ninstall_runner_menu()", start)
+    if start < 0 or end < 0:
+        raise SystemExit("DW installer unavailable in installed UMU Toolbox")
+    installer = patched[start:end]
+    installer = installer.replace("install_dw() {", 'install_dw() {\n    local requested="${1:-}"', 1)
+    marker = '    if command -v dialog >/dev/null 2>&1; then\n        name="$(dialog'
+    if marker not in installer:
+        raise SystemExit("DW selector not recognized")
+    installer = installer.replace(marker, '    if [ -n "$requested" ]; then\n        name="${requested%-UMU}"\n    elif command -v dialog >/dev/null 2>&1; then\n        name="$(dialog', 1)
+    confirmation = '    if ! yesno "$(i18n install_named "$name-UMU")"'
+    if confirmation not in installer:
+        raise SystemExit("DW confirmation not recognized")
+    installer = installer.replace(confirmation, '    if [ -z "$requested" ] && ! yesno "$(i18n install_named "$name-UMU")"', 1)
+    patched = patched[:start] + installer + patched[end:]
+    cli = '        proton-EM-*) install_em "$base" 1 ;;'
+    if cli not in patched:
+        raise SystemExit("UMU CLI not recognized")
+    patched = patched.replace(cli, cli + '\n        dwproton-*)\n            install_dw "$base"\n            verify_runner_manifest "$target" || return 1\n            ;;', 1)
 Path(sys.argv[2]).write_text(patched)
 PY
     then

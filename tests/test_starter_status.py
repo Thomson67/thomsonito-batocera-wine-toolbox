@@ -59,5 +59,71 @@ starter_view_runners
             self.assertEqual(before, sorted(str(p.relative_to(base)) for p in base.rglob('*')))
 
 
+class DwStarterBridgeTests(unittest.TestCase):
+    def test_dw_cli_selects_requested_version_and_checks_installed_manifest(self):
+        original = '''#!/bin/bash
+CUSTOM_DIR="$TEST_ROOT/custom"
+msg() {
+    echo INTERACTIVE_MESSAGE
+}
+install_dw() {
+    local name target
+    if command -v dialog >/dev/null 2>&1; then
+        name="$(dialog --stdout)"
+    else
+        read -r name
+    fi
+    target="$CUSTOM_DIR/${name}-UMU"
+    if ! yesno "$(i18n install_named "$name-UMU")" Confirm; then return; fi
+    [ "${MOCK_FAIL:-0}" = 0 ] || return
+    prepare_runtime_for_runner "$target"
+    mkdir -p "$target"
+    printf verified > "$target/manifest"
+    msg Done Installed
+}
+install_runner_menu() { echo INTERACTIVE_MENU; }
+install_runner_cli() {
+    local base="${1%-UMU}" target="$CUSTOM_DIR/${1%-UMU}-UMU"
+    case "$base" in
+        proton-EM-*) install_em "$base" 1 ;;
+        *) return 65 ;;
+    esac
+}
+i18n() { printf '%s' "$1"; }
+yesno() { echo INTERACTIVE_CONFIRM; return 1; }
+prepare_runtime_for_runner() { echo "runtime:$1"; }
+verify_runner_manifest() { [ -s "$1/manifest" ]; }
+install_runner_cli "$2"
+exit $?
+'''
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            main = root / 'umu-toolbox.sh'
+            main.write_text(original)
+            main.chmod(0o755)
+            script = '''
+source toolbox/modules/umu.sh
+UMU_TOOLBOX_ROOT="$TEST_ROOT"
+UMU_TOOLBOX_MAIN="$TEST_ROOT/umu-toolbox.sh"
+ensure_umu_toolbox() { return 0; }
+i18n() { printf '%s' "$1"; }
+install_umu_runner "$TEST_RUNNER"
+'''
+            env = dict(os.environ, TEST_ROOT=tmp, TEST_RUNNER='dwproton-11.0-14-UMU')
+            result = subprocess.run(['bash', '-c', script], cwd=ROOT, env=env,
+                                    capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertNotIn('INTERACTIVE', result.stdout)
+            self.assertIn('runtime:' + str(root / 'custom/dwproton-11.0-14-UMU'), result.stdout)
+            self.assertTrue((root / 'custom/dwproton-11.0-14-UMU/manifest').is_file())
+            env.update(TEST_RUNNER='dwproton-11.0-15-UMU', MOCK_FAIL='1')
+            result = subprocess.run(['bash', '-c', script], cwd=ROOT, env=env,
+                                    capture_output=True, text=True)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertFalse((root / 'custom/dwproton-11.0-15-UMU').exists())
+            self.assertEqual(main.read_text(), original)
+            self.assertFalse(list(root.glob('.starter-batch.*')))
+
+
 if __name__ == '__main__':
     unittest.main()

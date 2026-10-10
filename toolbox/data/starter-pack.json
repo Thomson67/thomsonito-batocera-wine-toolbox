@@ -16,12 +16,12 @@
     "TKG-v41",
     "GE-Proton10-10",
     "proton-EM-10.0-37-HDR",
-    "GE-Proton10-25",
-    "dwproton-11.0-14"
+    "GE-Proton10-25"
   ],
   "umu_runner_ids": [
     "GE-Proton9-27-UMU",
     "GE-Proton10-25-UMU",
-    "GE-Proton11-7-UMU"
+    "GE-Proton11-7-UMU",
+    "dwproton-11.0-14-UMU"
   ]
 }
