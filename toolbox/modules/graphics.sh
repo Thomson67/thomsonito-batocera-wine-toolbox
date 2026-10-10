@@ -214,11 +214,13 @@ graphics_menu() {
             "$(i18n graphics_intro)" \
             "1" "$(i18n mangohud_title)" \
             "2" "$(i18n dxvk_manager)" \
+            "3" "$(i18n resh_title)" \
             "0" "$(i18n back)")" || return
 
         case "$choice" in
             1) mangohud_menu ;;
             2) dxvk_manager_menu ;;
+            3) resh_menu ;;
             0|"") return ;;
         esac
     done

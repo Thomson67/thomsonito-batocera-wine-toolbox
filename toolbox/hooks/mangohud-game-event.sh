@@ -233,7 +233,7 @@ def clean_payload(payload):
     )
     # Remove the legacy Ultimate-managed pressure-vessel form during migration.
     payload=re.sub(r'(^|\s)PRESSURE_VESSEL_FILESYSTEMS_RO=[^\s]+', ' ', payload)
-    payload=re.sub(r'(^|\s)UMU_BATOCERA_EXTRA_RO=[^\s]+', ' ', payload)
+    payload=re.sub(r'(^|\s)UMU_BATOCERA_EXTRA_RO=[^\s]*' + re.escape(managed_umu_extra_ro) + r'[^\s]*(?=\s|$)', ' ', payload)
     return re.sub(r'\s+', ' ', payload).strip()
 
 for line in lines:
@@ -247,8 +247,8 @@ for line in lines:
             # let the dynamic linker select the matching 32/64-bit library.
             if not re.search(r'(^|\s)LD_LIBRARY_PATH=', payload):
                 payload += " LD_LIBRARY_PATH=\'" + managed_libpath_prefix + "\':\"${LD_LIBRARY_PATH:-}\""
-            if not re.search(r'(^|\s)UMU_BATOCERA_EXTRA_RO=', payload):
-                payload += " UMU_BATOCERA_EXTRA_RO=\'" + managed_umu_extra_ro + "\':\"${UMU_BATOCERA_EXTRA_RO:-}\""
+            # Keep independent ReShade/custom mounts regardless of hook order.
+            payload += " UMU_BATOCERA_EXTRA_RO=\'" + managed_umu_extra_ro + "\':\"${UMU_BATOCERA_EXTRA_RO:-}\""
             if not re.search(r'(^|\s)LD_PRELOAD=', payload):
                 payload += " LD_PRELOAD='" + managed_preload + "'"
         if payload:

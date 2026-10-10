@@ -14,6 +14,7 @@ OLD_PORT="$PORTS/Thomsonito Batocera Wine Toolbox.sh"
 SCRIPTS="/userdata/system/scripts"
 MANGOHUD_HOOK="$SCRIPTS/ultimate-wine-toolbox-mangohud.sh"
 DXVK_HOOK="$SCRIPTS/ultimate-wine-toolbox-dxvk.sh"
+RESHADE_HOOK="$SCRIPTS/ultimate-wine-toolbox-reshade.sh"
 OLD_MANGOHUD_HOOK="$SCRIPTS/thomsonito-wine-toolbox-mangohud.sh"
 OLD_DXVK_HOOK="$SCRIPTS/thomsonito-wine-toolbox-dxvk.sh"
 
@@ -117,6 +118,11 @@ fi
 if [ -s "$DEST/toolbox/hooks/dxvk-game-event.sh" ]; then
     cp -f "$DEST/toolbox/hooks/dxvk-game-event.sh" "$DXVK_HOOK"
     chmod +x "$DXVK_HOOK"
+fi
+
+if [ -s "$DEST/toolbox/hooks/reshade-game-event.sh" ]; then
+    cp -f "$DEST/toolbox/hooks/reshade-game-event.sh" "$RESHADE_HOOK"
+    chmod +x "$RESHADE_HOOK"
 fi
 
 if [ -n "$OLD_DXVK_BUNDLE" ] && [ -d "$DEST/dxvk/bundles/$OLD_DXVK_BUNDLE" ]; then

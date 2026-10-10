@@ -147,3 +147,19 @@ Dans le gestionnaire DXVK / VKD3D, **Installer un modèle Batocera** propose les
 Après installation, choisissez le modèle globalement ou par jeu. NVAPI reste contrôlé par les options du jeu. Le modèle ne remplace pas le runner, les pilotes ou la configuration de Batocera : notamment, un VKD3D récent peut provoquer des crashes DirectX 12 avec Vanilla-Proton-9.0-4. Les modèles 40 à 42 permettent de tester des composants plus anciens.
 
 Dans la création WSquashFS, la sélection des sauvegardes propose aussi les fichiers individuels du dossier du jeu (`SAVEFILES`). Créez une sauvegarde pendant le test, puis choisissez les fichiers créés/modifiés ou utilisez la liste manuelle. Les fichiers sont décochés par défaut : des réglages et logs peuvent aussi apparaître. Choisissez un seul dossier par sélection ; les fichiers choisis sont copiés dans les sauvegardes Batocera et retirés du préfixe avant compression ; Batocera recrée leurs liens au lancement, sans déplacer le dossier du jeu.
+
+## ReShade par jeu (bêta)
+
+Dans **Réglages graphiques → ReShade (bêta)**, choisir le jeu puis **Installer / modifier version et shaders**. Sélectionner le véritable `.exe` (par exemple `Binaries/Win64/...exe` pour certains jeux Unreal), l’API du jeu **avant** traduction par DXVK/VKD3D, la version de ReShade et les packs de shaders. L’architecture 32/64 bits est détectée dans l’exécutable. Le téléchargement se fait à la demande ; le Starter Pack ne change pas.
+
+Lancer ensuite le jeu depuis EmulationStation et appuyer sur **Home** pour ouvrir ReShade. Aucun effet n’est imposé au premier démarrage : activer les effets souhaités dans l’interface ReShade. On peut importer un preset `.ini` depuis la toolbox ; ses shaders doivent être présents dans les packs choisis. ReShade reste le runtime Windows officiel exécuté dans Wine/Proton, pas une couche native Linux comme vkBasalt.
+
+- Formats proposés : `.wine`, `.pc`, `.wsquashfs` ; DirectX 9/10/11/12 et OpenGL. Vulkan natif n’est pas couvert par cette intégration.
+- Pour un `.pc`, lancer le jeu une fois avec le runner choisi afin d’initialiser sa bottle avant activation.
+- Pour un `.wsquashfs`, les fichiers sont préparés dans la couche modifiable de la bottle. L’archive reste intacte et l’installation est réappliquée lorsque la bottle est recréée.
+- Les presets et réglages sont conservés sous `/userdata/system/ultimate-wine-toolbox/reshade/profiles`, par jeu. Le menu affiche leur dossier. Ils sont récupérés à la fermeture du jeu ; un changement de runner ne les efface pas.
+- **Désactiver** restaure les fichiers remplacés. **Désinstaller pour ce jeu** retire sa configuration et conserve son preset. Fermer le jeu avant toute modification. Une installation ReShade antérieure doit être retirée avec son gestionnaire d’origine avant de commencer.
+- Les fichiers des runners partagés ne sont pas modifiés. Si une DLL gérée a été changée par un autre outil, la restauration s’arrête et conserve la sauvegarde plutôt que d’écraser cette modification.
+- Journaux : `/userdata/system/logs/ultimate-wine-toolbox/reshade-install-*.log` et `reshade-game-event.log`. Les bibliothèques partagées et shaders requis sont rendus accessibles à UMU sans retirer les réglages MangoHud.
+
+Le moteur utilise **[ReShadeLinux 1.3.5](https://github.com/asafelobotomy/reshadelinux/tree/v1.3.5)**, par asafelobotomy, continuant le travail de kevinlekiller ; il est téléchargé sans modification depuis une révision précise, avec vérification SHA-256, et conserve sa licence GPL-2.0-or-later. **[ReShade](https://reshade.me/)** est développé par crosire et ses contributeurs. Les auteurs des packs sont affichés dans la sélection. La compatibilité graphique réelle dépend du jeu et du runner ; les premiers essais Batocera/Wayland et UMU restent nécessaires.
